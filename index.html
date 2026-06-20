@@ -18,20 +18,18 @@
     --muted: #6B8BAE;
     --border: #D4E4F4;
     --success: #1A7F4B;
-    --warning: #B45309;
     --danger: #C0392B;
     --overload: #E74C3C;
     --sidebar-w: 220px;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
-
   body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; }
 
   .sidebar { width: var(--sidebar-w); background: var(--navy); min-height: 100vh; position: fixed; top: 0; left: 0; display: flex; flex-direction: column; z-index: 100; }
   .sidebar-logo { padding: 24px 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.08); }
   .logo-mark { display: flex; align-items: center; gap: 10px; }
-  .logo-icon { width: 36px; height: 36px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; color: white; font-size: 16px; letter-spacing: -1px; }
+  .logo-icon { width: 36px; height: 36px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; color: white; font-size: 16px; }
   .logo-text { color: white; font-size: 13px; font-weight: 600; line-height: 1.3; }
   .logo-sub  { color: var(--horizon); font-size: 10px; letter-spacing: 0.5px; }
   .sidebar-nav { padding: 16px 0; flex: 1; }
@@ -75,27 +73,28 @@
   .reel-size { font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 600; color: var(--navy); width: 52px; }
   .reel-bar-wrap { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
   .reel-bar { height: 100%; border-radius: 4px; }
-  .reel-bar.ok       { background: var(--accent); }
-  .reel-bar.low      { background: #F59E0B; }
+  .reel-bar.ok { background: var(--accent); }
+  .reel-bar.low { background: #F59E0B; }
   .reel-bar.critical { background: var(--danger); }
   .reel-count { font-size: 13px; font-weight: 600; width: 60px; text-align: right; }
-  .reel-count.ok       { color: var(--blue); }
-  .reel-count.low      { color: #B45309; }
+  .reel-count.ok { color: var(--blue); }
+  .reel-count.low { color: #B45309; }
   .reel-count.critical { color: var(--danger); }
   .reel-badge { font-size: 10px; padding: 2px 7px; border-radius: 20px; font-weight: 600; width: 72px; text-align: center; }
-  .reel-badge.ok       { background: #DCFCE7; color: var(--success); }
-  .reel-badge.low      { background: #FEF3C7; color: #92400E; }
+  .reel-badge.ok { background: #DCFCE7; color: var(--success); }
+  .reel-badge.low { background: #FEF3C7; color: #92400E; }
   .reel-badge.critical { background: #FEE2E2; color: var(--danger); }
 
   .order-row { display: flex; align-items: center; padding: 12px 20px; border-bottom: 1px solid var(--border); gap: 12px; }
   .order-row:last-child { border-bottom: none; }
-  .order-id   { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--muted); width: 72px; }
+  .order-id   { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--muted); width: 80px; flex-shrink:0; }
   .order-info { flex: 1; }
   .order-customer { font-size: 13px; font-weight: 600; color: var(--navy); }
   .order-product  { font-size: 11px; color: var(--muted); margin-top: 1px; }
-  .order-due { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 6px; }
+  .order-due { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 6px; flex-shrink:0; }
   .order-due.today    { background: #FEE2E2; color: var(--danger); }
   .order-due.tomorrow { background: #FEF3C7; color: #92400E; }
+  .order-due.soon     { background: #DBEAFE; color: var(--blue); }
 
   .calendar-wrap { background: white; border-radius: 12px; border: 1px solid var(--border); overflow: hidden; }
   .cal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-bottom: 1px solid var(--border); }
@@ -128,31 +127,38 @@
   .form-grid  { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 14px; }
   .form-group { display: flex; flex-direction: column; gap: 5px; }
   .form-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
-  .form-input { border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; font-size: 13px; font-family: 'Inter', sans-serif; color: var(--text); outline: none; transition: border 0.15s; }
-  .form-input:focus { border-color: var(--accent); }
+  .form-input, .form-select { border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; font-size: 13px; font-family: 'Inter', sans-serif; color: var(--text); outline: none; transition: border 0.15s; background: white; }
+  .form-input:focus, .form-select:focus { border-color: var(--accent); }
   .btn-primary { background: var(--blue); color: white; border: none; border-radius: 8px; padding: 10px 24px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif; }
   .btn-primary:hover { background: var(--navy); }
+  .btn-secondary { background: white; color: var(--blue); border: 1px solid var(--border); border-radius: 8px; padding: 10px 20px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif; margin-left: 10px; }
 
   .orders-table { background: white; border-radius: 12px; border: 1px solid var(--border); overflow: hidden; }
-  .table-header { display: grid; grid-template-columns: 90px 1fr 120px 110px 80px 100px 80px; padding: 10px 20px; background: var(--bg); border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
-  .table-row { display: grid; grid-template-columns: 90px 1fr 120px 110px 80px 100px 80px; padding: 13px 20px; border-bottom: 1px solid var(--border); align-items: center; font-size: 13px; }
+  .table-header { display: grid; grid-template-columns: 90px 1fr 110px 110px 80px 100px 80px; padding: 10px 20px; background: var(--bg); border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .table-row { display: grid; grid-template-columns: 90px 1fr 110px 110px 80px 100px 80px; padding: 13px 20px; border-bottom: 1px solid var(--border); align-items: center; font-size: 13px; }
   .table-row:hover { background: #F8FBFF; }
   .table-row:last-child { border-bottom: none; }
+
   .status-badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; width: fit-content; }
   .status-new        { background: #DBEAFE; color: #1D4ED8; }
   .status-production { background: #FEF3C7; color: #92400E; }
   .status-ready      { background: #DCFCE7; color: #15803D; }
+  .status-dispatched { background: #EDE9FE; color: #6D28D9; }
   .status-delivered  { background: #F3F4F6; color: #6B7280; }
+
+  .priority-urgent { font-size: 10px; background: #FEE2E2; color: var(--danger); padding: 2px 6px; border-radius: 4px; font-weight: 600; margin-left: 4px; }
 
   .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
   .section-title  { font-size: 15px; font-weight: 700; color: var(--navy); }
   .alert-banner { background: #FEF3C7; border: 1px solid #FCD34D; border-radius: 10px; padding: 12px 18px; margin-bottom: 18px; display: flex; align-items: center; gap: 10px; font-size: 13px; color: #92400E; font-weight: 500; }
 
-  .sync-bar { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 16px; }
-  .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
+  .sync-bar { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); flex-shrink:0; }
   .sync-dot.loading { background: #F59E0B; animation: pulse 1s infinite; }
-  .sync-dot.error { background: var(--danger); }
+  .sync-dot.error   { background: var(--danger); }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .empty-state { padding: 32px; text-align: center; color: var(--muted); font-size: 13px; }
 
   .page { display: none; }
   .page.active { display: block; }
@@ -196,7 +202,7 @@
     <div class="nav-item" onclick="showPage('reels')"><span class="nav-icon">🧻</span> Reel Stock</div>
     <div class="nav-item" onclick="showPage('clients')"><span class="nav-icon">🤝</span> Clients</div>
   </nav>
-  <div class="sidebar-footer">v1.2 · Jhansi</div>
+  <div class="sidebar-footer">v1.3 · Jhansi</div>
 </div>
 
 <!-- BOTTOM NAV -->
@@ -244,11 +250,10 @@
           <div class="stat-sub" id="stat-stock-sub">Loading...</div>
         </div>
       </div>
-
       <div class="grid-2">
         <div class="card">
           <div class="card-header"><div class="card-title">🔴 Urgent — Next 2 Days</div></div>
-          <div class="card-body" id="urgent-orders-list"><div style="padding:20px;color:var(--muted);font-size:13px">Loading orders...</div></div>
+          <div class="card-body" id="urgent-orders-list"><div class="empty-state">Loading orders...</div></div>
         </div>
         <div class="card">
           <div class="card-header">
@@ -259,7 +264,7 @@
             <div class="sync-dot loading" id="reel-sync-dot"></div>
             <span id="reel-sync-label">Fetching live data...</span>
           </div>
-          <div class="card-body" id="critical-reel-list"><div style="padding:20px;color:var(--muted);font-size:13px">Loading reel stock...</div></div>
+          <div class="card-body" id="critical-reel-list"><div class="empty-state">Loading...</div></div>
         </div>
       </div>
     </div>
@@ -268,6 +273,10 @@
     <div class="page" id="page-calendar">
       <div class="section-header">
         <div class="section-title">Order Calendar</div>
+        <div class="sync-bar" style="margin:0">
+          <div class="sync-dot loading" id="cal-sync-dot"></div>
+          <span id="cal-sync-label">Loading orders...</span>
+        </div>
       </div>
       <div class="calendar-wrap">
         <div class="cal-header">
@@ -293,22 +302,45 @@
       <div class="add-order-form">
         <div class="form-title">➕ Add New Order</div>
         <div class="form-grid">
+          <div class="form-group"><label class="form-label">Order ID</label><input class="form-input" type="text" placeholder="e.g. MIORD008" id="f-id"></div>
           <div class="form-group"><label class="form-label">Customer</label><input class="form-input" type="text" placeholder="e.g. NDS International" id="f-customer"></div>
           <div class="form-group"><label class="form-label">Product / Design</label><input class="form-input" type="text" placeholder="e.g. Kingfisher" id="f-product"></div>
-          <div class="form-group"><label class="form-label">Box Size</label><input class="form-input" type="text" placeholder="e.g. 20×14×27" id="f-size"></div>
+          <div class="form-group"><label class="form-label">Box Specs</label><input class="form-input" type="text" placeholder="e.g. 20×14×27" id="f-size"></div>
           <div class="form-group"><label class="form-label">Quantity (pcs)</label><input class="form-input" type="number" placeholder="1000" id="f-qty"></div>
           <div class="form-group"><label class="form-label">Rate (₹)</label><input class="form-input" type="number" placeholder="31.50" id="f-rate"></div>
           <div class="form-group"><label class="form-label">Promised Delivery</label><input class="form-input" type="date" id="f-date"></div>
+          <div class="form-group"><label class="form-label">Status</label>
+            <select class="form-select" id="f-status">
+              <option value="New">New</option>
+              <option value="In Production">In Production</option>
+              <option value="Ready">Ready</option>
+              <option value="Dispatched">Dispatched</option>
+              <option value="Delivered">Delivered</option>
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">Priority</label>
+            <select class="form-select" id="f-priority">
+              <option value="Normal">Normal</option>
+              <option value="Urgent">Urgent</option>
+            </select>
+          </div>
         </div>
-        <button class="btn-primary" onclick="addOrder()">Save Order</button>
+        <button class="btn-primary" onclick="saveOrderToSheet()">💾 Save to Sheet</button>
+        <button class="btn-secondary" onclick="fetchOrders()">🔄 Refresh Orders</button>
       </div>
-      <div class="section-header"><div class="section-title">All Orders</div></div>
+      <div class="section-header">
+        <div class="section-title">All Orders</div>
+        <div class="sync-bar" style="margin:0">
+          <div class="sync-dot loading" id="order-sync-dot"></div>
+          <span id="order-sync-label">Loading from Google Sheets...</span>
+        </div>
+      </div>
       <div class="orders-table">
         <div class="table-header">
           <div>Order ID</div><div>Customer & Product</div><div>Delivery Date</div>
-          <div>Status</div><div>Qty</div><div>Amount</div><div>Action</div>
+          <div>Status</div><div>Qty</div><div>Amount</div><div>Priority</div>
         </div>
-        <div id="orders-list"></div>
+        <div id="orders-list"><div class="empty-state">Loading orders...</div></div>
       </div>
     </div>
 
@@ -326,7 +358,7 @@
           <div class="card-title">All Sizes</div>
           <span style="font-size:12px;color:var(--muted)">+5,000 kg katra buffer included</span>
         </div>
-        <div class="card-body" id="full-reel-list"><div style="padding:20px;color:var(--muted)">Loading...</div></div>
+        <div class="card-body" id="full-reel-list"><div class="empty-state">Loading...</div></div>
       </div>
     </div>
 
@@ -341,223 +373,187 @@
 
 <script>
 // ── CONFIG ──
-const SHEET_ID  = '1cgyZbdG--0Qzb2LtJOIfOwnUCAxRwNh66452cYr3M7M';
-const API_KEY   = 'AIzaSyBz9doIxDqLCmUd5mKjemM9ui3tVJBD34k';
-const SHEET_TAB = 'Stock';
+const REEL_SHEET_ID   = '1cgyZbdG--0Qzb2LtJOIfOwnUCAxRwNh66452cYr3M7M';
+const ORDERS_SHEET_ID = '1wPi78kRtpmHMffp5VMIiR7oBmPhkrW8T2Sd5TpBWjic';
+const API_KEY         = 'AIzaSyBz9doIxDqLCmUd5mKjemM9ui3tVJBD34k';
+const REEL_TAB        = 'Stock';
+const ORDERS_TAB      = 'Sheet1';
 const KATRA_BUFFER_KG = 5000;
-const CRITICAL_SIZES  = ['35.5', '44', '42', '35'];
-const MIN_REELS = 4;
+const CRITICAL_SIZES  = ['35.5','44','42','35'];
+const MIN_REELS       = 4;
 
-const today    = new Date();
-const todayStr = today.toISOString().split('T')[0];
+const today       = new Date();
+const todayStr    = today.toISOString().split('T')[0];
 const tomorrowStr = new Date(today.getTime() + 86400000).toISOString().split('T')[0];
 
 document.getElementById('topbar-date').textContent = today.toLocaleDateString('en-IN', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
 
-// ── ORDERS (local for now) ──
-let orders = [
-  { id:'MIORD001', customer:'NDS International', product:'Kingfisher', size:'20×14×27', qty:1000, rate:31.5, date:todayStr, status:'production', done:false },
-  { id:'MIORD002', customer:'NDS International', product:'Kanha Design', size:'20×14×27', qty:1000, rate:32.75, date:tomorrowStr, status:'production', done:false },
-  { id:'MIORD003', customer:'Gaida Enterprises', product:'5-ply Printed', size:'28×18×22', qty:600, rate:45.0, date:'2026-06-24', status:'new', done:false },
-  { id:'MIORD004', customer:'Gaida Enterprises', product:'5-ply Plain', size:'30×20×18', qty:500, rate:38.0, date:todayStr, status:'production', done:false },
-  { id:'MIORD005', customer:'RP Products', product:'3-ply Plain', size:'24×18×12', qty:800, rate:22.0, date:tomorrowStr, status:'new', done:false },
-  { id:'MIORD006', customer:'Shree Packaging Co.', product:'Corrugated Sheet', size:'—', qty:500, rate:15.0, date:tomorrowStr, status:'new', done:false },
-  { id:'MIORD007', customer:'Vardhman Traders', product:'7-ply Heavy Duty', size:'36×24×24', qty:300, rate:72.0, date:'2026-06-27', status:'new', done:false },
-];
-let orderCounter = 8;
+// ── STATE ──
+let orders   = [];
+let reelData = [];
+let orderCounter = 1;
 
 const clients = [
-  { name:'NDS International',   contact:'Rajesh Kumar',   phone:'9876543210', city:'Jhansi',   orders:2 },
-  { name:'Gaida Enterprises',   contact:'Suresh Gaida',   phone:'9812345678', city:'Gwalior',  orders:2 },
-  { name:'RP Products',         contact:'Ramesh Prasad',  phone:'9898989898', city:'Jhansi',   orders:1 },
-  { name:'Shree Packaging Co.', contact:'Vivek Sharma',   phone:'9867123456', city:'Malanpur', orders:1 },
-  { name:'Vardhman Traders',    contact:'Ankit Vardhman', phone:'9845671230', city:'Agra',     orders:1 },
+  { name:'NDS International',   contact:'Rajesh Kumar',   phone:'9876543210', city:'Jhansi' },
+  { name:'Gaida Enterprises',   contact:'Suresh Gaida',   phone:'9812345678', city:'Gwalior' },
+  { name:'RP Products',         contact:'Ramesh Prasad',  phone:'9898989898', city:'Jhansi' },
+  { name:'Shree Packaging Co.', contact:'Vivek Sharma',   phone:'9867123456', city:'Malanpur' },
+  { name:'Vardhman Traders',    contact:'Ankit Vardhman', phone:'9845671230', city:'Agra' },
 ];
 
-// ── FETCH REEL DATA FROM GOOGLE SHEETS ──
-let reelData = [];
-
-async function fetchReelStock() {
-  const range = encodeURIComponent(`${SHEET_TAB}!A1:F200`);
-  const url   = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}`;
-
-  setSyncStatus('loading', 'Fetching live data...');
+// ── FETCH ORDERS FROM GOOGLE SHEETS ──
+async function fetchOrders() {
+  setOrderSyncStatus('loading', 'Fetching orders...');
+  const range = encodeURIComponent(`${ORDERS_TAB}!A1:J500`);
+  const url   = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${range}?key=${API_KEY}`;
 
   try {
     const res  = await fetch(url);
     const json = await res.json();
-
     if (json.error) throw new Error(json.error.message);
 
     const rows = json.values || [];
-
-    // Find header row
-    let headerRow = -1;
-    let colSize=-1, colGSM=-1, colBF=-1, colWeight=-1;
-    for (let i = 0; i < rows.length; i++) {
-      const r = rows[i].map(c => c.toString().trim().toUpperCase());
-      const si = r.findIndex(c => c === 'SIZE');
-      if (si >= 0) {
-        headerRow = i;
-        colSize   = si;
-        colGSM    = r.findIndex(c => c === 'GSM');
-        colBF     = r.findIndex(c => c === 'BF');
-        colWeight = r.findIndex(c => c.includes('WEIGHT') || c === 'WT');
-        break;
-      }
+    if (rows.length < 2) {
+      orders = [];
+      setOrderSyncStatus('ok', 'No orders yet — add your first order above');
+      renderOrders(); updateDashboardOrders(); renderCalendar();
+      return;
     }
 
-    if (headerRow < 0) throw new Error('Header row not found in sheet');
+    // Header row
+    const header = rows[0].map(h => h.toString().trim().toLowerCase());
+    const col = {
+      id:       header.findIndex(h => h.includes('order id') || h === 'order id'),
+      customer: header.findIndex(h => h.includes('customer')),
+      product:  header.findIndex(h => h.includes('product')),
+      spec:     header.findIndex(h => h.includes('box spec') || h.includes('specs')),
+      qty:      header.findIndex(h => h.includes('quantity') || h === 'qty'),
+      rate:     header.findIndex(h => h === 'rate' || h.includes('rate')),
+      date:     header.findIndex(h => h.includes('delivery')),
+      status:   header.findIndex(h => h === 'status'),
+      priority: header.findIndex(h => h.includes('priority')),
+      remarks:  header.findIndex(h => h.includes('remarks')),
+    };
 
-    // Parse reel rows
-    const parsed = [];
-    for (let i = headerRow + 1; i < rows.length; i++) {
+    orders = [];
+    for (let i = 1; i < rows.length; i++) {
       const r = rows[i];
-      const size   = parseFloat(r[colSize]);
-      const weight = parseFloat(colWeight >= 0 ? r[colWeight] : 0);
-      if (!size || isNaN(size)) continue;
-      parsed.push({
-        size:   size,
-        gsm:    colGSM >= 0    ? r[colGSM]    : '—',
-        bf:     colBF >= 0     ? r[colBF]     : '—',
-        weight: isNaN(weight)  ? 0            : weight,
+      if (!r || !r[col.customer]) continue;
+      const rawDate = col.date >= 0 ? (r[col.date] || '') : '';
+      orders.push({
+        id:       col.id >= 0       ? (r[col.id] || `MIORD${String(i).padStart(3,'0')}`) : `MIORD${String(i).padStart(3,'0')}`,
+        customer: col.customer >= 0 ? (r[col.customer] || '') : '',
+        product:  col.product >= 0  ? (r[col.product]  || '') : '',
+        size:     col.spec >= 0     ? (r[col.spec]     || '') : '',
+        qty:      col.qty >= 0      ? parseInt(r[col.qty]) || 0 : 0,
+        rate:     col.rate >= 0     ? parseFloat(r[col.rate]) || 0 : 0,
+        date:     parseSheetDate(rawDate),
+        status:   col.status >= 0   ? (r[col.status]   || 'New') : 'New',
+        priority: col.priority >= 0 ? (r[col.priority] || 'Normal') : 'Normal',
+        remarks:  col.remarks >= 0  ? (r[col.remarks]  || '') : '',
+        done:     false,
+        rowIndex: i + 1,
       });
     }
 
-    // Group by size
-    const grouped = {};
-    parsed.forEach(r => {
-      const k = r.size.toString();
-      if (!grouped[k]) grouped[k] = { size: r.size, count: 0, totalWeight: 0, gsm: r.gsm, bf: r.bf };
-      grouped[k].count++;
-      grouped[k].totalWeight += r.weight;
-    });
+    orderCounter = orders.length + 1;
+    const now = new Date().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'});
+    setOrderSyncStatus('ok', `Live · ${orders.length} orders · Last synced ${now}`);
+    renderOrders(); updateDashboardOrders(); renderCalendar();
 
-    reelData = Object.values(grouped).sort((a,b) => b.size - a.size);
-
-    // Add katra buffer to total
-    const totalWeight = reelData.reduce((s,r) => s + r.totalWeight, 0) + KATRA_BUFFER_KG;
-
-    setSyncStatus('ok', `Live · Last synced ${new Date().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'})} · Total: ${totalWeight.toLocaleString('en-IN')} kg (incl. buffer)`);
-
-    renderCriticalReels();
-    renderFullReels();
-    updateDashboardStock();
-
-  } catch (err) {
-    setSyncStatus('error', `Error: ${err.message}`);
+  } catch(err) {
+    setOrderSyncStatus('error', `Error: ${err.message}`);
     console.error(err);
   }
 }
 
-function setSyncStatus(type, msg) {
-  ['reel-sync-dot','reel-sync-dot2'].forEach(id => {
+function parseSheetDate(raw) {
+  if (!raw) return '';
+  // Try DD/MM/YYYY
+  const dmy = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (dmy) {
+    const y = dmy[3].length === 2 ? '20' + dmy[3] : dmy[3];
+    return `${y}-${dmy[2].padStart(2,'0')}-${dmy[1].padStart(2,'0')}`;
+  }
+  // Try YYYY-MM-DD
+  const ymd = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (ymd) return raw;
+  return '';
+}
+
+// ── SAVE ORDER TO SHEET (append row) ──
+async function saveOrderToSheet() {
+  const id       = document.getElementById('f-id').value.trim() || `MIORD${String(orderCounter).padStart(3,'0')}`;
+  const customer = document.getElementById('f-customer').value.trim();
+  const product  = document.getElementById('f-product').value.trim();
+  const size     = document.getElementById('f-size').value.trim();
+  const qty      = document.getElementById('f-qty').value;
+  const rate     = document.getElementById('f-rate').value;
+  const date     = document.getElementById('f-date').value;
+  const status   = document.getElementById('f-status').value;
+  const priority = document.getElementById('f-priority').value;
+
+  if (!customer || !date) { alert('Customer aur Delivery Date required hai.'); return; }
+
+  // Format date as DD/MM/YYYY for sheet
+  const d = new Date(date);
+  const formatted = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+
+  const row = [id, customer, product, size, qty, rate, formatted, status, priority, ''];
+
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${ORDERS_TAB}!A1:J1:append?valueInputOption=USER_ENTERED&key=${API_KEY}`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values: [row] })
+    });
+    const json = await res.json();
+    if (json.error) throw new Error(json.error.message);
+
+    // Clear form
+    ['f-id','f-customer','f-product','f-size','f-qty','f-rate','f-date'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('f-status').value   = 'New';
+    document.getElementById('f-priority').value = 'Normal';
+
+    await fetchOrders();
+  } catch(err) {
+    alert(`Save failed: ${err.message}\n\nNote: Writing to sheet requires OAuth. For now, add orders directly in Google Sheets and click Refresh.`);
+    console.error(err);
+  }
+}
+
+function setOrderSyncStatus(type, msg) {
+  ['order-sync-dot','cal-sync-dot'].forEach(id => {
     const el = document.getElementById(id);
-    if (!el) return;
-    el.className = `sync-dot ${type === 'ok' ? '' : type}`;
+    if (el) el.className = `sync-dot ${type==='ok'?'':type}`;
   });
-  ['reel-sync-label','reel-sync-label2'].forEach(id => {
+  ['order-sync-label','cal-sync-label'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.textContent = msg;
   });
 }
 
-function getReelStatus(size, count) {
-  const isCritical = CRITICAL_SIZES.includes(size.toString()) || CRITICAL_SIZES.includes(Math.floor(size).toString());
-  if (isCritical && count < MIN_REELS) return 'critical';
-  if (isCritical && count === MIN_REELS) return 'low';
-  return 'ok';
-}
-
-function renderCriticalReels() {
-  const list = document.getElementById('critical-reel-list');
-  if (!list) return;
-  list.innerHTML = '';
-  const criticalReels = reelData.filter(r => CRITICAL_SIZES.includes(r.size.toString()) || CRITICAL_SIZES.includes(Math.floor(r.size).toString()));
-  if (criticalReels.length === 0) { list.innerHTML = '<div style="padding:20px;color:var(--muted);font-size:13px">No critical size data found.</div>'; return; }
-  const max = Math.max(...criticalReels.map(r => r.count), 1);
-  criticalReels.forEach(r => {
-    const status = getReelStatus(r.size, r.count);
-    const pct    = Math.round((r.count / max) * 100);
-    const item   = document.createElement('div');
-    item.className = 'reel-item';
-    item.innerHTML = `
-      <div class="reel-size">${r.size}"</div>
-      <div class="reel-bar-wrap"><div class="reel-bar ${status}" style="width:${pct}%"></div></div>
-      <div class="reel-count ${status}">${r.count} reels</div>
-      <div class="reel-badge ${status}">${status==='ok'?'OK':status==='low'?'LOW':'⚠ CRIT'}</div>
-    `;
-    list.appendChild(item);
-  });
-}
-
-function renderFullReels() {
-  const list = document.getElementById('full-reel-list');
-  if (!list || reelData.length === 0) return;
-  list.innerHTML = '';
-  const max = Math.max(...reelData.map(r => r.count), 1);
-  reelData.forEach(r => {
-    const status = getReelStatus(r.size, r.count);
-    const pct    = Math.round((r.count / max) * 100);
-    const item   = document.createElement('div');
-    item.className = 'reel-item';
-    item.innerHTML = `
-      <div class="reel-size">${r.size}"</div>
-      <div class="reel-bar-wrap"><div class="reel-bar ${status}" style="width:${pct}%"></div></div>
-      <div style="flex:1;padding:0 12px">
-        <div style="font-size:13px;font-weight:600">${r.count} reels · ${r.totalWeight.toLocaleString('en-IN')} kg</div>
-        <div style="font-size:11px;color:var(--muted)">GSM ${r.gsm} · BF ${r.bf}</div>
-      </div>
-      <div class="reel-badge ${status}">${status==='ok'?'OK':status==='low'?'LOW':'⚠ CRITICAL'}</div>
-    `;
-    list.appendChild(item);
-  });
-}
-
-function updateDashboardStock() {
-  const criticals = reelData.filter(r => getReelStatus(r.size, r.count) === 'critical');
-  const card = document.getElementById('stock-status-card');
-  const val  = document.getElementById('stat-stock');
-  const sub  = document.getElementById('stat-stock-sub');
-  if (criticals.length > 0) {
-    card.className = 'stat-card alert';
-    val.style.color = 'var(--danger)';
-    val.textContent = '⚠';
-    sub.textContent = `${criticals.length} size(s) critical`;
-  } else {
-    card.className = 'stat-card good';
-    val.style.color = 'var(--success)';
-    val.textContent = 'OK';
-    sub.textContent = 'All critical sizes stocked';
-  }
-}
-
-// ── DASHBOARD STATS ──
+// ── DASHBOARD ──
 function updateDashboardOrders() {
-  const activeOrders   = orders.filter(o => o.status !== 'delivered');
-  const todayOrders    = activeOrders.filter(o => o.date === todayStr);
-  const tomorrowOrders = activeOrders.filter(o => o.date === tomorrowStr);
+  const active   = orders.filter(o => o.status !== 'Delivered' && o.status !== 'Cancelled');
+  const todayO   = active.filter(o => o.date === todayStr);
+  const tomorrowO= active.filter(o => o.date === tomorrowStr);
 
-  document.getElementById('stat-today').textContent    = todayOrders.length;
-  document.getElementById('stat-tomorrow').textContent = tomorrowOrders.length;
-  document.getElementById('stat-active').textContent   = activeOrders.length;
+  document.getElementById('stat-today').textContent    = todayO.length;
+  document.getElementById('stat-tomorrow').textContent = tomorrowO.length;
+  document.getElementById('stat-active').textContent   = active.length;
 
-  // Urgent banner
   const banner = document.getElementById('urgent-banner');
-  if (todayOrders.length > 0) {
+  if (todayO.length > 0) {
     banner.style.display = 'flex';
-    banner.innerHTML = `⚠️ <strong>${todayOrders.length} order${todayOrders.length>1?'s':''} due today</strong> — ${todayOrders.map(o=>o.customer).join(', ')} need dispatch today.`;
-  } else {
-    banner.style.display = 'none';
-  }
+    banner.innerHTML = `⚠️ <strong>${todayO.length} order${todayO.length>1?'s':''} due today</strong> — ${todayO.map(o=>o.customer).join(', ')} need dispatch today.`;
+  } else { banner.style.display = 'none'; }
 
-  // Urgent list
-  const list = document.getElementById('urgent-orders-list');
-  const urgent = [...todayOrders, ...tomorrowOrders].slice(0, 6);
-  if (urgent.length === 0) {
-    list.innerHTML = '<div style="padding:20px;color:var(--muted);font-size:13px">✅ No urgent orders in next 2 days.</div>';
-    return;
-  }
+  const list   = document.getElementById('urgent-orders-list');
+  const urgent = [...todayO, ...tomorrowO].slice(0,6);
+  if (urgent.length === 0) { list.innerHTML = '<div class="empty-state">✅ No urgent orders in next 2 days.</div>'; return; }
   list.innerHTML = '';
   urgent.forEach(o => {
     const isToday = o.date === todayStr;
@@ -565,7 +561,10 @@ function updateDashboardOrders() {
     row.className = 'order-row';
     row.innerHTML = `
       <div class="order-id">${o.id}</div>
-      <div class="order-info"><div class="order-customer">${o.customer}</div><div class="order-product">${o.product} · ${o.size} · ${o.qty?o.qty.toLocaleString('en-IN')+' pcs':'—'}</div></div>
+      <div class="order-info">
+        <div class="order-customer">${o.customer}${o.priority==='Urgent'?'<span class="priority-urgent">URGENT</span>':''}</div>
+        <div class="order-product">${o.product||'—'} ${o.size?'· '+o.size:''} ${o.qty?'· '+o.qty.toLocaleString('en-IN')+' pcs':''}</div>
+      </div>
       <div class="order-due ${isToday?'today':'tomorrow'}">${isToday?'TODAY':'TOMORROW'}</div>
     `;
     list.appendChild(row);
@@ -599,17 +598,15 @@ function renderCalendar() {
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
 
   for (let i = 0; i < firstDay; i++) {
-    const cell = document.createElement('div');
-    cell.className = 'cal-cell empty';
-    body.appendChild(cell);
+    const cell = document.createElement('div'); cell.className = 'cal-cell empty'; body.appendChild(cell);
   }
 
   for (let d = 1; d <= daysInMonth; d++) {
     const ds = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const isToday   = ds === todayStr;
-    const dayOrders = orders.filter(o => o.date === ds);
+    const dayOrders = orders.filter(o => o.date === ds && o.status !== 'Delivered' && o.status !== 'Cancelled');
     const cell = document.createElement('div');
-    cell.className = 'cal-cell' + (isToday ? ' today' : '');
+    cell.className = 'cal-cell' + (isToday?' today':'');
 
     const dateLabel = document.createElement('div');
     dateLabel.className = 'cal-date'; dateLabel.textContent = d;
@@ -624,8 +621,8 @@ function renderCalendar() {
     dayOrders.forEach(order => {
       const chip = document.createElement('div');
       chip.className = `cal-order-chip ${getCustomerColor(order.customer)}${order.done?' done':''}`;
-      chip.innerHTML = `<span class="chip-check">${order.done?'✓':''}</span><span class="chip-label">${order.customer.split(' ')[0]} · ${order.product}</span>`;
-      chip.onclick = e => { e.stopPropagation(); order.done = !order.done; renderCalendar(); updateDashboardOrders(); };
+      chip.innerHTML = `<span class="chip-check">${order.done?'✓':''}</span><span class="chip-label">${order.customer.split(' ')[0]} · ${order.product||order.size||'Order'}</span>`;
+      chip.onclick = e => { e.stopPropagation(); order.done = !order.done; renderCalendar(); };
       cell.appendChild(chip);
     });
 
@@ -633,93 +630,172 @@ function renderCalendar() {
   }
 }
 
-// ── ORDERS ──
-function addOrder() {
-  const customer = document.getElementById('f-customer').value.trim();
-  const product  = document.getElementById('f-product').value.trim();
-  const size     = document.getElementById('f-size').value.trim();
-  const qty      = parseInt(document.getElementById('f-qty').value);
-  const rate     = parseFloat(document.getElementById('f-rate').value);
-  const date     = document.getElementById('f-date').value;
-  if (!customer || !date) { alert('Customer aur delivery date required hai.'); return; }
-  orders.push({ id:`MIORD${String(orderCounter++).padStart(3,'0')}`, customer, product, size, qty, rate, date, status:'new', done:false });
-  ['f-customer','f-product','f-size','f-qty','f-rate','f-date'].forEach(id => document.getElementById(id).value = '');
-  renderOrders(); updateDashboardOrders(); renderCalendar();
-}
-
-const statusLabel = { new:'New', production:'In Production', ready:'Ready', delivered:'Delivered' };
-const statusClass = { new:'status-new', production:'status-production', ready:'status-ready', delivered:'status-delivered' };
-
-function nextStatus(s) {
-  const flow = ['new','production','ready','delivered'];
-  const i = flow.indexOf(s); return i < flow.length-1 ? flow[i+1] : s;
-}
+// ── ORDERS TABLE ──
+const statusClass = { 'New':'status-new','In Production':'status-production','Ready':'status-ready','Dispatched':'status-dispatched','Delivered':'status-delivered','Cancelled':'status-delivered' };
 
 function renderOrders() {
   const list = document.getElementById('orders-list');
+  if (orders.length === 0) { list.innerHTML = '<div class="empty-state">No orders found. Add one above or enter in Google Sheets.</div>'; return; }
   list.innerHTML = '';
-  [...orders].sort((a,b) => a.date.localeCompare(b.date)).forEach(o => {
+  [...orders].sort((a,b) => (a.date||'').localeCompare(b.date||'')).forEach(o => {
     const amount = o.qty && o.rate ? `₹${(o.qty*o.rate).toLocaleString('en-IN')}` : '—';
+    const dateDisp = o.date ? new Date(o.date).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) : '—';
     const row = document.createElement('div');
     row.className = 'table-row';
     row.innerHTML = `
       <div style="font-family:monospace;font-size:12px;color:var(--muted)">${o.id}</div>
       <div><div style="font-weight:600;font-size:13px">${o.customer}</div><div style="font-size:11px;color:var(--muted)">${o.product||'—'} ${o.size?'· '+o.size:''}</div></div>
-      <div style="font-size:13px;font-weight:500">${new Date(o.date).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</div>
-      <div><span class="status-badge ${statusClass[o.status]}">${statusLabel[o.status]}</span></div>
+      <div style="font-size:13px;font-weight:500">${dateDisp}</div>
+      <div><span class="status-badge ${statusClass[o.status]||'status-new'}">${o.status}</span></div>
       <div style="font-size:13px">${o.qty?o.qty.toLocaleString('en-IN'):'—'}</div>
       <div style="font-size:13px;font-weight:600">${amount}</div>
-      <div>${o.status!=='delivered'?`<button onclick="advanceOrder('${o.id}')" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:white;cursor:pointer;color:var(--blue);font-weight:600">→ Next</button>`:'<span style="color:var(--muted);font-size:11px">✓ Done</span>'}</div>
+      <div>${o.priority==='Urgent'?'<span class="priority-urgent">URGENT</span>':'<span style="font-size:12px;color:var(--muted)">Normal</span>'}</div>
     `;
     list.appendChild(row);
   });
 }
 
-function advanceOrder(id) {
-  const o = orders.find(x => x.id === id);
-  if (o) { o.status = nextStatus(o.status); renderOrders(); updateDashboardOrders(); }
+// ── REEL STOCK ──
+async function fetchReelStock() {
+  setReelSyncStatus('loading','Fetching live reel data...');
+  const range = encodeURIComponent(`${REEL_TAB}!A1:F200`);
+  const url   = `https://sheets.googleapis.com/v4/spreadsheets/${REEL_SHEET_ID}/values/${range}?key=${API_KEY}`;
+
+  try {
+    const res  = await fetch(url);
+    const json = await res.json();
+    if (json.error) throw new Error(json.error.message);
+
+    const rows = json.values || [];
+    let headerRow=-1, colSize=-1, colGSM=-1, colBF=-1, colWeight=-1;
+    for (let i=0; i<rows.length; i++) {
+      const r = rows[i].map(c => c.toString().trim().toUpperCase());
+      const si = r.findIndex(c => c==='SIZE');
+      if (si>=0) {
+        headerRow=i; colSize=si;
+        colGSM=r.findIndex(c=>c==='GSM');
+        colBF=r.findIndex(c=>c==='BF');
+        colWeight=r.findIndex(c=>c.includes('WEIGHT')||c==='WT');
+        break;
+      }
+    }
+
+    if (headerRow<0) throw new Error('Header not found in reel sheet');
+
+    const parsed=[];
+    for (let i=headerRow+1; i<rows.length; i++) {
+      const r=rows[i];
+      const size=parseFloat(r[colSize]);
+      const weight=parseFloat(colWeight>=0?r[colWeight]:0);
+      if (!size||isNaN(size)) continue;
+      parsed.push({ size, gsm:colGSM>=0?r[colGSM]:'—', bf:colBF>=0?r[colBF]:'—', weight:isNaN(weight)?0:weight });
+    }
+
+    const grouped={};
+    parsed.forEach(r => {
+      const k=r.size.toString();
+      if (!grouped[k]) grouped[k]={size:r.size,count:0,totalWeight:0,gsm:r.gsm,bf:r.bf};
+      grouped[k].count++;
+      grouped[k].totalWeight+=r.weight;
+    });
+
+    reelData=Object.values(grouped).sort((a,b)=>b.size-a.size);
+    const totalKg=reelData.reduce((s,r)=>s+r.totalWeight,0)+KATRA_BUFFER_KG;
+    const now=new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+    setReelSyncStatus('ok',`Live · ${now} · Total ${totalKg.toLocaleString('en-IN')} kg (incl. buffer)`);
+    renderCriticalReels(); renderFullReels(); updateDashboardStock();
+
+  } catch(err) {
+    setReelSyncStatus('error',`Error: ${err.message}`);
+  }
+}
+
+function setReelSyncStatus(type,msg) {
+  ['reel-sync-dot','reel-sync-dot2'].forEach(id=>{const el=document.getElementById(id);if(el)el.className=`sync-dot ${type==='ok'?'':type}`;});
+  ['reel-sync-label','reel-sync-label2'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=msg;});
+}
+
+function getReelStatus(size,count) {
+  const isCrit=CRITICAL_SIZES.includes(size.toString())||CRITICAL_SIZES.includes(Math.floor(size).toString());
+  if (isCrit&&count<MIN_REELS) return 'critical';
+  if (isCrit&&count===MIN_REELS) return 'low';
+  return 'ok';
+}
+
+function renderCriticalReels() {
+  const list=document.getElementById('critical-reel-list');
+  if (!list) return;
+  const critReels=reelData.filter(r=>CRITICAL_SIZES.includes(r.size.toString())||CRITICAL_SIZES.includes(Math.floor(r.size).toString()));
+  if (critReels.length===0){list.innerHTML='<div class="empty-state">No critical size data.</div>';return;}
+  const max=Math.max(...critReels.map(r=>r.count),1);
+  list.innerHTML='';
+  critReels.forEach(r=>{
+    const status=getReelStatus(r.size,r.count);
+    const pct=Math.round((r.count/max)*100);
+    const item=document.createElement('div');
+    item.className='reel-item';
+    item.innerHTML=`<div class="reel-size">${r.size}"</div><div class="reel-bar-wrap"><div class="reel-bar ${status}" style="width:${pct}%"></div></div><div class="reel-count ${status}">${r.count} reels</div><div class="reel-badge ${status}">${status==='ok'?'OK':status==='low'?'LOW':'⚠ CRIT'}</div>`;
+    list.appendChild(item);
+  });
+}
+
+function renderFullReels() {
+  const list=document.getElementById('full-reel-list');
+  if (!list||reelData.length===0) return;
+  const max=Math.max(...reelData.map(r=>r.count),1);
+  list.innerHTML='';
+  reelData.forEach(r=>{
+    const status=getReelStatus(r.size,r.count);
+    const pct=Math.round((r.count/max)*100);
+    const item=document.createElement('div');
+    item.className='reel-item';
+    item.innerHTML=`<div class="reel-size">${r.size}"</div><div class="reel-bar-wrap"><div class="reel-bar ${status}" style="width:${pct}%"></div></div><div style="flex:1;padding:0 12px"><div style="font-size:13px;font-weight:600">${r.count} reels · ${r.totalWeight.toLocaleString('en-IN')} kg</div><div style="font-size:11px;color:var(--muted)">GSM ${r.gsm} · BF ${r.bf}</div></div><div class="reel-badge ${status}">${status==='ok'?'OK':status==='low'?'LOW':'⚠ CRITICAL'}</div>`;
+    list.appendChild(item);
+  });
+}
+
+function updateDashboardStock() {
+  const crits=reelData.filter(r=>getReelStatus(r.size,r.count)==='critical');
+  const card=document.getElementById('stock-status-card');
+  const val=document.getElementById('stat-stock');
+  const sub=document.getElementById('stat-stock-sub');
+  if (crits.length>0){card.className='stat-card alert';val.style.color='var(--danger)';val.textContent='⚠';sub.textContent=`${crits.length} size(s) critical`;}
+  else{card.className='stat-card good';val.style.color='var(--success)';val.textContent='OK';sub.textContent='All critical sizes stocked';}
 }
 
 // ── CLIENTS ──
 function renderClients() {
-  const list = document.getElementById('clients-list');
-  list.innerHTML = '';
-  clients.forEach(c => {
-    const row = document.createElement('div');
-    row.className = 'order-row';
-    row.innerHTML = `
-      <div style="width:36px;height:36px;background:var(--horizon);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--navy);font-size:14px;flex-shrink:0">${c.name[0]}</div>
-      <div class="order-info"><div class="order-customer">${c.name}</div><div class="order-product">${c.contact} · ${c.city}</div></div>
-      <div style="font-size:12px;color:var(--muted)">${c.phone}</div>
-      <div style="font-size:12px;font-weight:600;color:var(--blue);margin-left:20px">${c.orders} order${c.orders!==1?'s':''}</div>
-    `;
+  const list=document.getElementById('clients-list');
+  list.innerHTML='';
+  clients.forEach(c=>{
+    const orderCount=orders.filter(o=>o.customer.toLowerCase().includes(c.name.toLowerCase().split(' ')[0].toLowerCase())).length;
+    const row=document.createElement('div');
+    row.className='order-row';
+    row.innerHTML=`<div style="width:36px;height:36px;background:var(--horizon);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--navy);font-size:14px;flex-shrink:0">${c.name[0]}</div><div class="order-info"><div class="order-customer">${c.name}</div><div class="order-product">${c.contact} · ${c.city}</div></div><div style="font-size:12px;color:var(--muted)">${c.phone}</div><div style="font-size:12px;font-weight:600;color:var(--blue);margin-left:20px">${orderCount} order${orderCount!==1?'s':''}</div>`;
     list.appendChild(row);
   });
 }
 
 // ── NAV ──
-const pageTitles = { dashboard:'Dashboard', calendar:'Order Calendar', orders:'Orders', reels:'Reel Stock', clients:'Clients' };
-
-function showPage(id) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-item,.bnav-item').forEach(n => n.classList.remove('active'));
+const pageTitles={dashboard:'Dashboard',calendar:'Order Calendar',orders:'Orders',reels:'Reel Stock',clients:'Clients'};
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item,.bnav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
-  document.querySelectorAll('.nav-item,.bnav-item').forEach(n => { if (n.getAttribute('onclick')&&n.getAttribute('onclick').includes("'"+id+"'")) n.classList.add('active'); });
-  document.getElementById('page-title').textContent = pageTitles[id];
-  if (id==='calendar') renderCalendar();
-  if (id==='orders')   renderOrders();
-  if (id==='clients')  renderClients();
+  document.querySelectorAll('.nav-item,.bnav-item').forEach(n=>{if(n.getAttribute('onclick')&&n.getAttribute('onclick').includes("'"+id+"'"))n.classList.add('active');});
+  document.getElementById('page-title').textContent=pageTitles[id];
+  if(id==='calendar')renderCalendar();
+  if(id==='orders')renderOrders();
+  if(id==='clients')renderClients();
 }
 
 // ── INIT ──
-updateDashboardOrders();
 renderCalendar();
-renderOrders();
 renderClients();
+fetchOrders();
 fetchReelStock();
-
-// Auto-refresh reel stock every 10 minutes
-setInterval(fetchReelStock, 10 * 60 * 1000);
+setInterval(fetchReelStock, 10*60*1000);
+setInterval(fetchOrders,    5*60*1000);
 </script>
 </body>
 </html>
