@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maniram Industries</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  :root {
+    --navy: #042C53;
+    --blue: #185FA5;
+    --accent: #378ADD;
+    --horizon: #B5D4F4;
+    --bg: #F0F5FB;
+    --white: #ffffff;
+    --text: #0A1929;
+    --muted: #6B8BAE;
+    --border: #D4E4F4;
+    --success: #1A7F4B;
+    --warning: #B45309;
+    --danger: #C0392B;
+    --overload: #E74C3C;
+    --card: #ffffff;
+    --sidebar-w: 220px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: var(--sidebar-w);
+    background: var(--navy);
+    min-height: 100vh;
+    position: fixed;
+    top: 0; left: 0;
+    display: flex;
+    flex-direction: column;
+    z-index: 100;
+  }
+
+  .sidebar-logo {
+    padding: 24px 20px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .logo-mark {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-icon {
+    width: 36px; height: 36px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700;
+    color: white;
+    font-size: 16px;
+    letter-spacing: -1px;
+  }
+
+  .logo-text {
+    color: white;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  .logo-sub {
+    color: var(--horizon);
+    font-size: 10px;
+    font-weight: 400;
+    letter-spacing: 0.5px;
+  }
+
+  .sidebar-nav {
+    padding: 16px 0;
+    flex: 1;
+  }
+
+  .nav-section {
+    padding: 8px 16px 4px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    color: rgba(255,255,255,0.65);
+    cursor: pointer;
+    font-size: 13.5px;
+    font-weight: 500;
+    transition: all 0.15s;
+    border-left: 3px solid transparent;
+  }
+
+  .nav-item:hover { background: rgba(255,255,255,0.06); color: white; }
+  .nav-item.active {
+    background: rgba(55,138,221,0.18);
+    color: var(--accent);
+    border-left: 3px solid var(--accent);
+  }
+
+  .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+
+  .sidebar-footer {
+    padding: 16px 20px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.4);
+    font-size: 11px;
+  }
+
+  /* MAIN */
+  .main {
+    margin-left: var(--sidebar-w);
+    flex: 1;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .topbar {
+    background: white;
+    border-bottom: 1px solid var(--border);
+    padding: 0 28px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky; top: 0;
+    z-index: 50;
+  }
+
+  .topbar-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--navy);
+  }
+
+  .topbar-date {
+    font-size: 13px;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .content {
+    padding: 24px 28px;
+    flex: 1;
+  }
+
+  /* TABS */
+  .tab-bar {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 24px;
+    background: var(--border);
+    padding: 4px;
+    border-radius: 10px;
+    width: fit-content;
+  }
+
+  .tab {
+    padding: 8px 20px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    color: var(--muted);
+    transition: all 0.15s;
+    border: none;
+    background: transparent;
+  }
+
+  .tab.active {
+    background: white;
+    color: var(--navy);
+    font-weight: 600;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+  }
+
+  /* DASHBOARD CARDS */
+  .grid-4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .stat-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid var(--border);
+  }
+
+  .stat-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--navy);
+    font-family: 'JetBrains Mono', monospace;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+
+  .stat-sub {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .stat-card.alert { border-left: 4px solid var(--danger); }
+  .stat-card.warn { border-left: 4px solid #F59E0B; }
+  .stat-card.good { border-left: 4px solid var(--success); }
+  .stat-card.info { border-left: 4px solid var(--accent); }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .card {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .card-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--navy);
+  }
+
+  .card-body { padding: 4px 0; }
+
+  /* REEL STOCK */
+  .reel-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    gap: 12px;
+  }
+
+  .reel-item:last-child { border-bottom: none; }
+
+  .reel-size {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--navy);
+    width: 48px;
+  }
+
+  .reel-bar-wrap {
+    flex: 1;
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .reel-bar {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s;
+  }
+
+  .reel-bar.ok { background: var(--accent); }
+  .reel-bar.low { background: #F59E0B; }
+  .reel-bar.critical { background: var(--danger); }
+
+  .reel-count {
+    font-size: 13px;
+    font-weight: 600;
+    width: 60px;
+    text-align: right;
+  }
+
+  .reel-count.ok { color: var(--blue); }
+  .reel-count.low { color: #B45309; }
+  .reel-count.critical { color: var(--danger); }
+
+  .reel-badge {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 20px;
+    font-weight: 600;
+    width: 64px;
+    text-align: center;
+  }
+
+  .reel-badge.ok { background: #DCFCE7; color: var(--success); }
+  .reel-badge.low { background: #FEF3C7; color: #92400E; }
+  .reel-badge.critical { background: #FEE2E2; color: var(--danger); }
+
+  /* URGENT ORDERS */
+  .order-row {
+    display: flex;
+    align-items: center;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    gap: 12px;
+  }
+
+  .order-row:last-child { border-bottom: none; }
+
+  .order-id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    width: 72px;
+  }
+
+  .order-info { flex: 1; }
+
+  .order-customer {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+  }
+
+  .order-product {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 1px;
+  }
+
+  .order-due {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 6px;
+  }
+
+  .order-due.today { background: #FEE2E2; color: var(--danger); }
+  .order-due.tomorrow { background: #FEF3C7; color: #92400E; }
+  .order-due.soon { background: #DBEAFE; color: var(--blue); }
+
+  /* CALENDAR */
+  .calendar-wrap {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .cal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .cal-nav {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .cal-nav button {
+    border: 1px solid var(--border);
+    background: white;
+    border-radius: 8px;
+    width: 32px; height: 32px;
+    cursor: pointer;
+    font-size: 16px;
+    color: var(--navy);
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+
+  .cal-nav button:hover { background: var(--bg); }
+
+  .cal-month {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--navy);
+  }
+
+  .cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+  }
+
+  .cal-day-header {
+    padding: 10px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+
+  .cal-cell {
+    min-height: 110px;
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 8px;
+    vertical-align: top;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+
+  .cal-cell:hover { background: #F8FBFF; }
+  .cal-cell:nth-child(7n) { border-right: none; }
+
+  .cal-cell.empty { background: #FAFAFA; cursor: default; }
+  .cal-cell.today { background: #EFF6FF; }
+  .cal-cell.today .cal-date { 
+    background: var(--blue); 
+    color: white; 
+    border-radius: 50%;
+    width: 24px; height: 24px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .cal-date {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--navy);
+    margin-bottom: 4px;
+    width: 24px; height: 24px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .cal-cell.empty .cal-date { color: var(--border); }
+
+  .cal-order-chip {
+    font-size: 10.5px;
+    padding: 3px 7px;
+    border-radius: 5px;
+    margin-bottom: 3px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    line-height: 1.3;
+  }
+
+  .cal-order-chip.done {
+    text-decoration: line-through;
+    opacity: 0.5;
+  }
+
+  .cal-order-chip .chip-check {
+    width: 13px; height: 13px;
+    border-radius: 3px;
+    border: 1.5px solid currentColor;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px;
+  }
+
+  .chip-label { flex: 1; font-weight: 500; }
+
+  /* chip colors by type */
+  .chip-blue { background: #DBEAFE; color: #1D4ED8; }
+  .chip-green { background: #DCFCE7; color: #15803D; }
+  .chip-orange { background: #FEF3C7; color: #92400E; }
+  .chip-purple { background: #EDE9FE; color: #6D28D9; }
+  .chip-red { background: #FEE2E2; color: #B91C1C; }
+
+  .overload-notice {
+    font-size: 10px;
+    color: var(--overload);
+    font-weight: 700;
+    padding: 2px 5px;
+    border-radius: 4px;
+    background: #FEE2E2;
+    margin-bottom: 3px;
+  }
+
+  /* ADD ORDER PANEL */
+  .add-order-form {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  .form-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--navy);
+    margin-bottom: 18px;
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+
+  .form-group { display: flex; flex-direction: column; gap: 5px; }
+
+  .form-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .form-input {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    color: var(--text);
+    outline: none;
+    transition: border 0.15s;
+  }
+
+  .form-input:focus { border-color: var(--accent); }
+
+  .btn-primary {
+    background: var(--blue);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 24px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    transition: background 0.15s;
+  }
+
+  .btn-primary:hover { background: var(--navy); }
+
+  /* ORDERS LIST */
+  .orders-table {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .table-header {
+    display: grid;
+    grid-template-columns: 90px 1fr 120px 100px 90px 100px 90px;
+    padding: 10px 20px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .table-row {
+    display: grid;
+    grid-template-columns: 90px 1fr 120px 100px 90px 100px 90px;
+    padding: 13px 20px;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+    font-size: 13px;
+    transition: background 0.1s;
+  }
+
+  .table-row:hover { background: #F8FBFF; }
+  .table-row:last-child { border-bottom: none; }
+
+  .status-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    width: fit-content;
+  }
+
+  .status-new { background: #DBEAFE; color: #1D4ED8; }
+  .status-production { background: #FEF3C7; color: #92400E; }
+  .status-ready { background: #DCFCE7; color: #15803D; }
+  .status-delivered { background: #F3F4F6; color: #6B7280; }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+
+  .section-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--navy);
+  }
+
+  .badge-count {
+    background: var(--danger);
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+    margin-left: 8px;
+  }
+
+  /* ALERT BANNER */
+  .alert-banner {
+    background: #FEF3C7;
+    border: 1px solid #FCD34D;
+    border-radius: 10px;
+    padding: 12px 18px;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #92400E;
+    font-weight: 500;
+  }
+
+  /* VIEW TOGGLE */
+  .view-toggle {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .view-btn {
+    padding: 7px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    background: white;
+    color: var(--muted);
+    font-family: 'Inter', sans-serif;
+    transition: all 0.15s;
+  }
+
+  .view-btn.active { background: var(--navy); color: white; }
+  .view-btn:not(:last-child) { border-right: 1px solid var(--border); }
+
+  /* PAGE SECTIONS */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* MOBILE */
+  @media (max-width: 768px) {
+    .sidebar { width: 60px; }
+    .logo-text, .logo-sub, .nav-section, .sidebar-footer { display: none; }
+    .nav-item { padding: 12px; justify-content: center; }
+    .nav-icon { width: auto; }
+    .main { margin-left: 60px; }
+    .grid-4 { grid-template-columns: repeat(2, 1fr); }
+    .grid-2 { grid-template-columns: 1fr; }
+    .form-grid { grid-template-columns: 1fr; }
+    .content { padding: 16px; }
+    .topbar { padding: 0 16px; }
+    .table-header, .table-row { grid-template-columns: 80px 1fr 90px 80px; }
+    .table-header > *:nth-child(5),
+    .table-header > *:nth-child(6),
+    .table-header > *:nth-child(7),
+    .table-row > *:nth-child(5),
+    .table-row > *:nth-child(6),
+    .table-row > *:nth-child(7) { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark">
+      <div class="logo-icon">MI</div>
+      <div>
+        <div class="logo-text">Maniram Industries</div>
+        <div class="logo-sub">Factory OS</div>
+      </div>
+    </div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section">Main</div>
+    <div class="nav-item active" onclick="showPage('dashboard')">
+      <span class="nav-icon">⚡</span> Dashboard
+    </div>
+    <div class="nav-item" onclick="showPage('calendar')">
+      <span class="nav-icon">📅</span> Calendar
+    </div>
+    <div class="nav-item" onclick="showPage('orders')">
+      <span class="nav-icon">📦</span> Orders
+    </div>
+    <div class="nav-section">Factory</div>
+    <div class="nav-item" onclick="showPage('reels')">
+      <span class="nav-icon">🧻</span> Reel Stock
+    </div>
+    <div class="nav-item" onclick="showPage('clients')">
+      <span class="nav-icon">🤝</span> Clients
+    </div>
+  </nav>
+  <div class="sidebar-footer">v1.0 · Jhansi</div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="page-title">Dashboard</div>
+    <div class="topbar-date" id="topbar-date"></div>
+  </div>
+
+  <div class="content">
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="alert-banner" id="urgent-banner">
+        ⚠️ <strong>2 orders due today</strong> — NDS International & Gaida Enterprises need dispatch today.
+      </div>
+
+      <div class="grid-4">
+        <div class="stat-card alert">
+          <div class="stat-label">Due Today</div>
+          <div class="stat-value" style="color:var(--danger)">2</div>
+          <div class="stat-sub">Orders to dispatch</div>
+        </div>
+        <div class="stat-card warn">
+          <div class="stat-label">Due Tomorrow</div>
+          <div class="stat-value" style="color:#B45309">3</div>
+          <div class="stat-sub">Plan production now</div>
+        </div>
+        <div class="stat-card info">
+          <div class="stat-label">Active Orders</div>
+          <div class="stat-value">7</div>
+          <div class="stat-sub">In pipeline</div>
+        </div>
+        <div class="stat-card good">
+          <div class="stat-label">Stock Status</div>
+          <div class="stat-value" style="color:var(--success)">OK</div>
+          <div class="stat-sub">Critical sizes stocked</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <!-- URGENT ORDERS -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🔴 Urgent — Next 2 Days</div>
+          </div>
+          <div class="card-body">
+            <div class="order-row">
+              <div class="order-id">MIORD001</div>
+              <div class="order-info">
+                <div class="order-customer">NDS International</div>
+                <div class="order-product">Kingfisher · 20×14×27 · 1000 pcs</div>
+              </div>
+              <div class="order-due today">TODAY</div>
+            </div>
+            <div class="order-row">
+              <div class="order-id">MIORD004</div>
+              <div class="order-info">
+                <div class="order-customer">Gaida Enterprises</div>
+                <div class="order-product">5-ply · 30×20×18 · 500 pcs</div>
+              </div>
+              <div class="order-due today">TODAY</div>
+            </div>
+            <div class="order-row">
+              <div class="order-id">MIORD002</div>
+              <div class="order-info">
+                <div class="order-customer">NDS International</div>
+                <div class="order-product">Kanha Design · 1000 pcs</div>
+              </div>
+              <div class="order-due tomorrow">TOMORROW</div>
+            </div>
+            <div class="order-row">
+              <div class="order-id">MIORD005</div>
+              <div class="order-info">
+                <div class="order-customer">RP Products</div>
+                <div class="order-product">3-ply Plain · 24×18×12 · 800 pcs</div>
+              </div>
+              <div class="order-due tomorrow">TOMORROW</div>
+            </div>
+            <div class="order-row">
+              <div class="order-id">MIORD006</div>
+              <div class="order-info">
+                <div class="order-customer">Shree Packaging Co.</div>
+                <div class="order-product">Corrugated Sheet · 500 pcs</div>
+              </div>
+              <div class="order-due tomorrow">TOMORROW</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- REEL STOCK QUICK VIEW -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🧻 Reel Stock — Critical Sizes</div>
+            <span style="font-size:11px;color:var(--muted)">Min. 4 reels each</span>
+          </div>
+          <div class="card-body">
+            <div class="reel-item">
+              <div class="reel-size">35.5"</div>
+              <div class="reel-bar-wrap"><div class="reel-bar ok" style="width:75%"></div></div>
+              <div class="reel-count ok">9 reels</div>
+              <div class="reel-badge ok">OK</div>
+            </div>
+            <div class="reel-item">
+              <div class="reel-size">44"</div>
+              <div class="reel-bar-wrap"><div class="reel-bar low" style="width:33%"></div></div>
+              <div class="reel-count low">4 reels</div>
+              <div class="reel-badge low">LOW</div>
+            </div>
+            <div class="reel-item">
+              <div class="reel-size">42"</div>
+              <div class="reel-bar-wrap"><div class="reel-bar critical" style="width:16%"></div></div>
+              <div class="reel-count critical">2 reels</div>
+              <div class="reel-badge critical">⚠ CRITICAL</div>
+            </div>
+            <div class="reel-item">
+              <div class="reel-size">36"</div>
+              <div class="reel-bar-wrap"><div class="reel-bar ok" style="width:58%"></div></div>
+              <div class="reel-count ok">7 reels</div>
+              <div class="reel-badge ok">OK</div>
+            </div>
+            <div class="reel-item">
+              <div class="reel-size">30"</div>
+              <div class="reel-bar-wrap"><div class="reel-bar ok" style="width:90%"></div></div>
+              <div class="reel-count ok">11 reels</div>
+              <div class="reel-badge ok">OK</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CALENDAR -->
+    <div class="page" id="page-calendar">
+      <div class="section-header">
+        <div class="section-title">Order Calendar</div>
+        <div class="view-toggle">
+          <button class="view-btn active">Month</button>
+          <button class="view-btn">Week</button>
+        </div>
+      </div>
+
+      <div class="calendar-wrap">
+        <div class="cal-header">
+          <div class="cal-nav">
+            <button onclick="changeMonth(-1)">‹</button>
+            <div class="cal-month" id="cal-month-label">June 2026</div>
+            <button onclick="changeMonth(1)">›</button>
+          </div>
+          <div style="font-size:12px;color:var(--muted)">
+            <span style="display:inline-block;width:10px;height:10px;background:#FEE2E2;border-radius:2px;margin-right:4px;"></span>3+ orders
+            <span style="display:inline-block;width:10px;height:10px;background:#DBEAFE;border-radius:2px;margin-right:4px;margin-left:10px;"></span>Normal
+          </div>
+        </div>
+
+        <div class="cal-grid" id="cal-days-header">
+          <div class="cal-day-header">Sun</div>
+          <div class="cal-day-header">Mon</div>
+          <div class="cal-day-header">Tue</div>
+          <div class="cal-day-header">Wed</div>
+          <div class="cal-day-header">Thu</div>
+          <div class="cal-day-header">Fri</div>
+          <div class="cal-day-header">Sat</div>
+        </div>
+
+        <div class="cal-grid" id="cal-body"></div>
+      </div>
+    </div>
+
+    <!-- ORDERS -->
+    <div class="page" id="page-orders">
+      <div class="add-order-form">
+        <div class="form-title">➕ Add New Order</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Customer</label>
+            <input class="form-input" type="text" placeholder="e.g. NDS International" id="f-customer">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Product / Design</label>
+            <input class="form-input" type="text" placeholder="e.g. Kingfisher, 5-ply plain" id="f-product">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Box Size</label>
+            <input class="form-input" type="text" placeholder="e.g. 20×14×27" id="f-size">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Quantity (pcs)</label>
+            <input class="form-input" type="number" placeholder="1000" id="f-qty">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Rate (₹)</label>
+            <input class="form-input" type="number" placeholder="31.50" id="f-rate">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Promised Delivery</label>
+            <input class="form-input" type="date" id="f-date">
+          </div>
+        </div>
+        <button class="btn-primary" onclick="addOrder()">Save Order</button>
+      </div>
+
+      <div class="section-header">
+        <div class="section-title">All Orders</div>
+      </div>
+
+      <div class="orders-table">
+        <div class="table-header">
+          <div>Order ID</div>
+          <div>Customer & Product</div>
+          <div>Delivery Date</div>
+          <div>Status</div>
+          <div>Qty</div>
+          <div>Amount</div>
+          <div>Action</div>
+        </div>
+        <div id="orders-list"></div>
+      </div>
+    </div>
+
+    <!-- REELS -->
+    <div class="page" id="page-reels">
+      <div class="section-header">
+        <div class="section-title">Reel Stock — Full Inventory</div>
+        <span style="font-size:12px;color:var(--muted)">Live from Google Sheets · Last sync 8:00 AM</span>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">All Sizes</div>
+          <span style="font-size:12px;color:var(--muted)">+5,000 kg katra buffer included</span>
+        </div>
+        <div class="card-body" id="full-reel-list"></div>
+      </div>
+    </div>
+
+    <!-- CLIENTS -->
+    <div class="page" id="page-clients">
+      <div class="section-header">
+        <div class="section-title">Clients</div>
+      </div>
+      <div class="card">
+        <div class="card-body">
+          <div id="clients-list"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ─── DATA ───────────────────────────────────────────────────────────
+const today = new Date();
+const todayStr = today.toISOString().split('T')[0];
+
+let orders = [
+  { id:'MIORD001', customer:'NDS International', product:'Kingfisher', size:'20×14×27', qty:1000, rate:31.5, date:'2026-06-20', status:'production', done:false },
+  { id:'MIORD002', customer:'NDS International', product:'Kanha Design', size:'20×14×27', qty:1000, rate:32.75, date:'2026-06-21', status:'production', done:false },
+  { id:'MIORD003', customer:'Gaida Enterprises', product:'5-ply Printed', size:'28×18×22', qty:600, rate:45.0, date:'2026-06-24', status:'new', done:false },
+  { id:'MIORD004', customer:'Gaida Enterprises', product:'5-ply Plain', size:'30×20×18', qty:500, rate:38.0, date:'2026-06-20', status:'production', done:false },
+  { id:'MIORD005', customer:'RP Products', product:'3-ply Plain', size:'24×18×12', qty:800, rate:22.0, date:'2026-06-21', status:'new', done:false },
+  { id:'MIORD006', customer:'Shree Packaging Co.', product:'Corrugated Sheet', size:'—', qty:500, rate:15.0, date:'2026-06-21', status:'new', done:false },
+  { id:'MIORD007', customer:'Vardhman Traders', product:'7-ply Heavy Duty', size:'36×24×24', qty:300, rate:72.0, date:'2026-06-27', status:'new', done:false },
+];
+
+const reels = [
+  { size:'35.5"', count:9, weight:3240, status:'ok' },
+  { size:'44"',   count:4, weight:1620, status:'low' },
+  { size:'42"',   count:2, weight:820,  status:'critical' },
+  { size:'36"',   count:7, weight:2680, status:'ok' },
+  { size:'30"',   count:11, weight:3900, status:'ok' },
+  { size:'28"',   count:5, weight:1450, status:'ok' },
+  { size:'24"',   count:3, weight:890,  status:'low' },
+];
+
+const clients = [
+  { name:'NDS International', contact:'Rajesh Kumar', phone:'9876543210', city:'Jhansi', orders:2 },
+  { name:'Gaida Enterprises', contact:'Suresh Gaida', phone:'9812345678', city:'Gwalior', orders:2 },
+  { name:'RP Products', contact:'Ramesh Prasad', phone:'9898989898', city:'Jhansi', orders:1 },
+  { name:'Shree Packaging Co.', contact:'Vivek Sharma', phone:'9867123456', city:'Malanpur', orders:1 },
+  { name:'Vardhman Traders', contact:'Ankit Vardhman', phone:'9845671230', city:'Agra', orders:1 },
+];
+
+// ─── NAV ────────────────────────────────────────────────────────────
+const pageTitles = {
+  dashboard: 'Dashboard',
+  calendar: 'Order Calendar',
+  orders: 'Orders',
+  reels: 'Reel Stock',
+  clients: 'Clients'
+};
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.getAttribute('onclick') && n.getAttribute('onclick').includes(id)) {
+      n.classList.add('active');
+    }
+  });
+  document.getElementById('page-title').textContent = pageTitles[id];
+  if (id === 'calendar') renderCalendar();
+  if (id === 'orders') renderOrders();
+  if (id === 'reels') renderReels();
+  if (id === 'clients') renderClients();
+}
+
+// ─── DATE ────────────────────────────────────────────────────────────
+function formatDate(d) {
+  const opts = { day:'numeric', month:'short', year:'numeric' };
+  return new Date(d).toLocaleDateString('en-IN', opts);
+}
+
+document.getElementById('topbar-date').textContent = today.toLocaleDateString('en-IN', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+
+// ─── CALENDAR ────────────────────────────────────────────────────────
+let calYear = today.getFullYear();
+let calMonth = today.getMonth();
+const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const chipColors = ['chip-blue','chip-green','chip-orange','chip-purple','chip-red'];
+const customerColorMap = {};
+let colorIdx = 0;
+
+function getCustomerColor(customer) {
+  if (!customerColorMap[customer]) {
+    customerColorMap[customer] = chipColors[colorIdx % chipColors.length];
+    colorIdx++;
+  }
+  return customerColorMap[customer];
+}
+
+function changeMonth(dir) {
+  calMonth += dir;
+  if (calMonth > 11) { calMonth = 0; calYear++; }
+  if (calMonth < 0)  { calMonth = 11; calYear--; }
+  renderCalendar();
+}
+
+function renderCalendar() {
+  document.getElementById('cal-month-label').textContent = monthNames[calMonth] + ' ' + calYear;
+  const body = document.getElementById('cal-body');
+  body.innerHTML = '';
+
+  const firstDay = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+
+  // empty cells
+  for (let i = 0; i < firstDay; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell empty';
+    body.appendChild(cell);
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday = dateStr === todayStr;
+    const dayOrders = orders.filter(o => o.date === dateStr);
+
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell' + (isToday ? ' today' : '');
+
+    const dateLabel = document.createElement('div');
+    dateLabel.className = 'cal-date';
+    dateLabel.textContent = d;
+    cell.appendChild(dateLabel);
+
+    if (dayOrders.length > 3) {
+      const notice = document.createElement('div');
+      notice.className = 'overload-notice';
+      notice.textContent = `⚠ ${dayOrders.length} orders`;
+      cell.appendChild(notice);
+    }
+
+    dayOrders.forEach((order, idx) => {
+      const chip = document.createElement('div');
+      const color = getCustomerColor(order.customer);
+      chip.className = `cal-order-chip ${color}${order.done ? ' done' : ''}`;
+      chip.innerHTML = `
+        <span class="chip-check">${order.done ? '✓' : ''}</span>
+        <span class="chip-label">${order.customer.split(' ')[0]} · ${order.product}</span>
+      `;
+      chip.onclick = (e) => {
+        e.stopPropagation();
+        order.done = !order.done;
+        renderCalendar();
+      };
+      cell.appendChild(chip);
+    });
+
+    body.appendChild(cell);
+  }
+}
+
+// ─── ORDERS ─────────────────────────────────────────────────────────
+let orderCounter = 8;
+
+function addOrder() {
+  const customer = document.getElementById('f-customer').value.trim();
+  const product = document.getElementById('f-product').value.trim();
+  const size = document.getElementById('f-size').value.trim();
+  const qty = parseInt(document.getElementById('f-qty').value);
+  const rate = parseFloat(document.getElementById('f-rate').value);
+  const date = document.getElementById('f-date').value;
+
+  if (!customer || !date) { alert('Customer and delivery date are required.'); return; }
+
+  orders.push({
+    id: `MIORD${String(orderCounter++).padStart(3,'0')}`,
+    customer, product, size, qty, rate, date,
+    status: 'new', done: false
+  });
+
+  // clear
+  ['f-customer','f-product','f-size','f-qty','f-rate','f-date'].forEach(id => document.getElementById(id).value = '');
+  renderOrders();
+}
+
+const statusLabel = { new:'New', production:'In Production', ready:'Ready', delivered:'Delivered' };
+const statusClass = { new:'status-new', production:'status-production', ready:'status-ready', delivered:'status-delivered' };
+
+function nextStatus(current) {
+  const flow = ['new','production','ready','delivered'];
+  const idx = flow.indexOf(current);
+  return idx < flow.length - 1 ? flow[idx+1] : current;
+}
+
+function renderOrders() {
+  const list = document.getElementById('orders-list');
+  list.innerHTML = '';
+  const sorted = [...orders].sort((a,b) => a.date.localeCompare(b.date));
+  sorted.forEach(o => {
+    const amount = o.qty && o.rate ? `₹${(o.qty * o.rate).toLocaleString('en-IN')}` : '—';
+    const row = document.createElement('div');
+    row.className = 'table-row';
+    row.innerHTML = `
+      <div style="font-family:monospace;font-size:12px;color:var(--muted)">${o.id}</div>
+      <div>
+        <div style="font-weight:600;font-size:13px">${o.customer}</div>
+        <div style="font-size:11px;color:var(--muted)">${o.product || '—'} ${o.size ? '· '+o.size : ''}</div>
+      </div>
+      <div style="font-size:13px;font-weight:500">${formatDate(o.date)}</div>
+      <div><span class="status-badge ${statusClass[o.status]}">${statusLabel[o.status]}</span></div>
+      <div style="font-size:13px">${o.qty ? o.qty.toLocaleString('en-IN') : '—'}</div>
+      <div style="font-size:13px;font-weight:600">${amount}</div>
+      <div>
+        ${o.status !== 'delivered' ? `<button onclick="advanceOrder('${o.id}')" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:white;cursor:pointer;color:var(--blue);font-weight:600">→ Next</button>` : '<span style="color:var(--muted);font-size:11px">✓ Done</span>'}
+      </div>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function advanceOrder(id) {
+  const o = orders.find(x => x.id === id);
+  if (o) { o.status = nextStatus(o.status); renderOrders(); }
+}
+
+// ─── REELS ───────────────────────────────────────────────────────────
+function renderReels() {
+  const list = document.getElementById('full-reel-list');
+  list.innerHTML = '';
+  const maxCount = Math.max(...reels.map(r => r.count));
+  reels.forEach(r => {
+    const pct = Math.round((r.count / maxCount) * 100);
+    const item = document.createElement('div');
+    item.className = 'reel-item';
+    item.innerHTML = `
+      <div class="reel-size">${r.size}</div>
+      <div class="reel-bar-wrap"><div class="reel-bar ${r.status}" style="width:${pct}%"></div></div>
+      <div style="flex:1;padding:0 12px">
+        <div style="font-size:13px;font-weight:600">${r.count} reels</div>
+        <div style="font-size:11px;color:var(--muted)">${r.weight.toLocaleString('en-IN')} kg</div>
+      </div>
+      <div class="reel-badge ${r.status}">${r.status === 'ok' ? 'OK' : r.status === 'low' ? 'LOW' : '⚠ CRITICAL'}</div>
+    `;
+    list.appendChild(item);
+  });
+}
+
+// ─── CLIENTS ─────────────────────────────────────────────────────────
+function renderClients() {
+  const list = document.getElementById('clients-list');
+  list.innerHTML = '';
+  clients.forEach(c => {
+    const row = document.createElement('div');
+    row.className = 'order-row';
+    row.innerHTML = `
+      <div style="width:36px;height:36px;background:var(--horizon);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--navy);font-size:14px;flex-shrink:0">${c.name[0]}</div>
+      <div class="order-info">
+        <div class="order-customer">${c.name}</div>
+        <div class="order-product">${c.contact} · ${c.city}</div>
+      </div>
+      <div style="font-size:12px;color:var(--muted)">${c.phone}</div>
+      <div style="font-size:12px;font-weight:600;color:var(--blue);margin-left:20px">${c.orders} active order${c.orders!==1?'s':''}</div>
+    `;
+    list.appendChild(row);
+  });
+}
+
+// ─── INIT ────────────────────────────────────────────────────────────
+renderCalendar();
+renderOrders();
+</script>
+</body>
+</html>
