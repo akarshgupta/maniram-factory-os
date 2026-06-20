@@ -375,6 +375,7 @@
 // ── CONFIG ──
 const REEL_SHEET_ID   = '1cgyZbdG--0Qzb2LtJOIfOwnUCAxRwNh66452cYr3M7M';
 const ORDERS_SHEET_ID = '1wPi78kRtpmHMffp5VMIiR7oBmPhkrW8T2Sd5TpBWjic';
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzDUXMfqaw4wvGYhq7_ui33eAnSLc25VVwD4V9Xl2UKaYJwU16RDmHoFY1D_Hjmw6BN/exec';
 const API_KEY         = 'AIzaSyBz9doIxDqLCmUd5mKjemM9ui3tVJBD34k';
 const REEL_TAB        = 'Stock';
 const ORDERS_TAB      = 'Sheet1';
@@ -499,28 +500,37 @@ async function saveOrderToSheet() {
   const d = new Date(date);
   const formatted = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
 
-  const row = [id, customer, product, size, qty, rate, formatted, status, priority, ''];
-
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${ORDERS_TAB}!A1:J1:append?valueInputOption=USER_ENTERED&key=${API_KEY}`;
+  const payload = { id, customer, product, size, qty, rate, date: formatted, status, priority, remarks: '' };
 
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ values: [row] })
-    });
-    const json = await res.json();
-    if (json.error) throw new Error(json.error.message);
+    const btn = document.querySelector('button.btn-primary');
+    btn.textContent = '⏳ Saving...';
+    btn.disabled = true;
 
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    // no-cors means we can't read response — assume success
     // Clear form
-    ['f-id','f-customer','f-product','f-size','f-qty','f-rate','f-date'].forEach(id => document.getElementById(id).value = '');
+    ['f-id','f-customer','f-product','f-size','f-qty','f-rate','f-date'].forEach(fid => document.getElementById(fid).value = '');
     document.getElementById('f-status').value   = 'New';
     document.getElementById('f-priority').value = 'Normal';
 
-    await fetchOrders();
+    btn.textContent = '✅ Saved!';
+    setTimeout(() => { btn.textContent = '💾 Save to Sheet'; btn.disabled = false; }, 2000);
+
+    // Wait 1 second then refresh
+    setTimeout(() => fetchOrders(), 1500);
+
   } catch(err) {
-    alert(`Save failed: ${err.message}\n\nNote: Writing to sheet requires OAuth. For now, add orders directly in Google Sheets and click Refresh.`);
-    console.error(err);
+    alert(`Save failed: ${err.message}`);
+    const btn = document.querySelector('button.btn-primary');
+    btn.textContent = '💾 Save to Sheet';
+    btn.disabled = false;
   }
 }
 
