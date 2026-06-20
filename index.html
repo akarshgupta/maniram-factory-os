@@ -26,148 +26,53 @@
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
-  body {
-    font-family: 'Inter', sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    display: flex;
-  }
+  body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; }
 
-  /* ── DESKTOP SIDEBAR ── */
-  .sidebar {
-    width: var(--sidebar-w);
-    background: var(--navy);
-    min-height: 100vh;
-    position: fixed;
-    top: 0; left: 0;
-    display: flex;
-    flex-direction: column;
-    z-index: 100;
-  }
-
-  .sidebar-logo {
-    padding: 24px 20px 20px;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-  }
-
+  .sidebar { width: var(--sidebar-w); background: var(--navy); min-height: 100vh; position: fixed; top: 0; left: 0; display: flex; flex-direction: column; z-index: 100; }
+  .sidebar-logo { padding: 24px 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.08); }
   .logo-mark { display: flex; align-items: center; gap: 10px; }
-
-  .logo-icon {
-    width: 36px; height: 36px;
-    background: var(--accent);
-    border-radius: 8px;
-    display: flex; align-items: center; justify-content: center;
-    font-weight: 700; color: white; font-size: 16px; letter-spacing: -1px;
-  }
-
+  .logo-icon { width: 36px; height: 36px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; color: white; font-size: 16px; letter-spacing: -1px; }
   .logo-text { color: white; font-size: 13px; font-weight: 600; line-height: 1.3; }
   .logo-sub  { color: var(--horizon); font-size: 10px; letter-spacing: 0.5px; }
-
   .sidebar-nav { padding: 16px 0; flex: 1; }
-
-  .nav-section {
-    padding: 8px 16px 4px;
-    font-size: 10px; font-weight: 600;
-    color: var(--muted); letter-spacing: 1px; text-transform: uppercase;
-  }
-
-  .nav-item {
-    display: flex; align-items: center; gap: 10px;
-    padding: 10px 20px;
-    color: rgba(255,255,255,0.65);
-    cursor: pointer; font-size: 13.5px; font-weight: 500;
-    transition: all 0.15s;
-    border-left: 3px solid transparent;
-  }
-
+  .nav-section { padding: 8px 16px 4px; font-size: 10px; font-weight: 600; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 20px; color: rgba(255,255,255,0.65); cursor: pointer; font-size: 13.5px; font-weight: 500; transition: all 0.15s; border-left: 3px solid transparent; }
   .nav-item:hover { background: rgba(255,255,255,0.06); color: white; }
   .nav-item.active { background: rgba(55,138,221,0.18); color: var(--accent); border-left: 3px solid var(--accent); }
   .nav-icon { font-size: 16px; width: 20px; text-align: center; }
   .sidebar-footer { padding: 16px 20px; border-top: 1px solid rgba(255,255,255,0.08); color: rgba(255,255,255,0.4); font-size: 11px; }
 
-  /* ── MAIN ── */
-  .main { margin-left: var(--sidebar-w); flex: 1; min-height: 100vh; display: flex; flex-direction: column; }
-
-  .topbar {
-    background: white; border-bottom: 1px solid var(--border);
-    padding: 0 28px; height: 60px;
-    display: flex; align-items: center; justify-content: space-between;
-    position: sticky; top: 0; z-index: 50;
-  }
-
-  .topbar-title { font-size: 17px; font-weight: 600; color: var(--navy); }
-  .topbar-date  { font-size: 13px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
-
-  .content { padding: 24px 28px; flex: 1; padding-bottom: 40px; }
-
-  /* ── BOTTOM NAV (mobile only) ── */
-  .bottom-nav {
-    display: none;
-    position: fixed; bottom: 0; left: 0; right: 0;
-    background: var(--navy);
-    z-index: 200;
-    height: 62px;
-    border-top: 1px solid rgba(255,255,255,0.1);
-  }
-
-  .bottom-nav-inner {
-    display: flex; height: 100%;
-  }
-
-  .bnav-item {
-    flex: 1; display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    gap: 3px; cursor: pointer;
-    color: rgba(255,255,255,0.5);
-    font-size: 10px; font-weight: 500;
-    transition: color 0.15s;
-    border: none; background: transparent;
-  }
-
+  .bottom-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; background: var(--navy); z-index: 200; height: 62px; border-top: 1px solid rgba(255,255,255,0.1); }
+  .bottom-nav-inner { display: flex; height: 100%; }
+  .bnav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; cursor: pointer; color: rgba(255,255,255,0.5); font-size: 10px; font-weight: 500; transition: color 0.15s; border: none; background: transparent; }
   .bnav-item.active { color: var(--accent); }
   .bnav-icon { font-size: 20px; line-height: 1; }
 
-  /* ── CARDS ── */
-  .grid-4 {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px; margin-bottom: 24px;
-  }
+  .main { margin-left: var(--sidebar-w); flex: 1; min-height: 100vh; display: flex; flex-direction: column; }
+  .topbar { background: white; border-bottom: 1px solid var(--border); padding: 0 28px; height: 60px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
+  .topbar-title { font-size: 17px; font-weight: 600; color: var(--navy); }
+  .topbar-date  { font-size: 13px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+  .content { padding: 24px 28px; flex: 1; }
 
-  .stat-card {
-    background: white; border-radius: 12px;
-    padding: 20px; border: 1px solid var(--border);
-  }
-
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .stat-card { background: white; border-radius: 12px; padding: 20px; border: 1px solid var(--border); }
   .stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin-bottom: 8px; }
   .stat-value { font-size: 28px; font-weight: 700; color: var(--navy); font-family: 'JetBrains Mono', monospace; line-height: 1; margin-bottom: 6px; }
   .stat-sub   { font-size: 12px; color: var(--muted); }
-
   .stat-card.alert { border-left: 4px solid var(--danger); }
   .stat-card.warn  { border-left: 4px solid #F59E0B; }
   .stat-card.good  { border-left: 4px solid var(--success); }
   .stat-card.info  { border-left: 4px solid var(--accent); }
 
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
-
   .card { background: white; border-radius: 12px; border: 1px solid var(--border); overflow: hidden; }
-
-  .card-header {
-    padding: 16px 20px; border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; justify-content: space-between;
-  }
-
+  .card-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
   .card-title { font-size: 14px; font-weight: 600; color: var(--navy); }
   .card-body  { padding: 4px 0; }
 
-  /* ── REEL ITEMS ── */
-  .reel-item {
-    display: flex; align-items: center;
-    padding: 12px 20px; border-bottom: 1px solid var(--border); gap: 12px;
-  }
+  .reel-item { display: flex; align-items: center; padding: 12px 20px; border-bottom: 1px solid var(--border); gap: 12px; }
   .reel-item:last-child { border-bottom: none; }
-  .reel-size { font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 600; color: var(--navy); width: 48px; }
+  .reel-size { font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 600; color: var(--navy); width: 52px; }
   .reel-bar-wrap { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
   .reel-bar { height: 100%; border-radius: 4px; }
   .reel-bar.ok       { background: var(--accent); }
@@ -177,12 +82,11 @@
   .reel-count.ok       { color: var(--blue); }
   .reel-count.low      { color: #B45309; }
   .reel-count.critical { color: var(--danger); }
-  .reel-badge { font-size: 10px; padding: 2px 7px; border-radius: 20px; font-weight: 600; width: 64px; text-align: center; }
+  .reel-badge { font-size: 10px; padding: 2px 7px; border-radius: 20px; font-weight: 600; width: 72px; text-align: center; }
   .reel-badge.ok       { background: #DCFCE7; color: var(--success); }
   .reel-badge.low      { background: #FEF3C7; color: #92400E; }
   .reel-badge.critical { background: #FEE2E2; color: var(--danger); }
 
-  /* ── ORDER ROW ── */
   .order-row { display: flex; align-items: center; padding: 12px 20px; border-bottom: 1px solid var(--border); gap: 12px; }
   .order-row:last-child { border-bottom: none; }
   .order-id   { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--muted); width: 72px; }
@@ -192,73 +96,33 @@
   .order-due { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 6px; }
   .order-due.today    { background: #FEE2E2; color: var(--danger); }
   .order-due.tomorrow { background: #FEF3C7; color: #92400E; }
-  .order-due.soon     { background: #DBEAFE; color: var(--blue); }
 
-  /* ── CALENDAR ── */
   .calendar-wrap { background: white; border-radius: 12px; border: 1px solid var(--border); overflow: hidden; }
-
-  .cal-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 16px 24px; border-bottom: 1px solid var(--border);
-  }
-
+  .cal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-bottom: 1px solid var(--border); }
   .cal-nav { display: flex; align-items: center; gap: 16px; }
-
-  .cal-nav button {
-    border: 1px solid var(--border); background: white; border-radius: 8px;
-    width: 32px; height: 32px; cursor: pointer; font-size: 16px; color: var(--navy);
-    display: flex; align-items: center; justify-content: center; transition: all 0.15s;
-  }
-
-  .cal-nav button:hover { background: var(--bg); }
+  .cal-nav button { border: 1px solid var(--border); background: white; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; font-size: 16px; color: var(--navy); display: flex; align-items: center; justify-content: center; }
   .cal-month { font-size: 16px; font-weight: 700; color: var(--navy); }
-
   .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
-
-  .cal-day-header {
-    padding: 10px; text-align: center; font-size: 11px; font-weight: 700;
-    color: var(--muted); letter-spacing: 0.5px; text-transform: uppercase;
-    border-bottom: 1px solid var(--border); background: var(--bg);
-  }
-
-  .cal-cell {
-    min-height: 100px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
-    padding: 6px; position: relative; cursor: pointer; transition: background 0.1s;
-  }
-
+  .cal-day-header { padding: 10px; text-align: center; font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: 0.5px; text-transform: uppercase; border-bottom: 1px solid var(--border); background: var(--bg); }
+  .cal-cell { min-height: 100px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 6px; cursor: pointer; transition: background 0.1s; }
   .cal-cell:hover { background: #F8FBFF; }
   .cal-cell:nth-child(7n) { border-right: none; }
   .cal-cell.empty { background: #FAFAFA; cursor: default; }
   .cal-cell.today { background: #EFF6FF; }
   .cal-cell.today .cal-date { background: var(--blue); color: white; border-radius: 50%; }
-
-  .cal-date {
-    font-size: 12px; font-weight: 600; color: var(--navy);
-    margin-bottom: 4px; width: 24px; height: 24px;
-    display: flex; align-items: center; justify-content: center;
-  }
-
+  .cal-date { font-size: 12px; font-weight: 600; color: var(--navy); margin-bottom: 4px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
   .cal-cell.empty .cal-date { color: var(--border); }
-
-  .cal-order-chip {
-    font-size: 10px; padding: 3px 6px; border-radius: 5px; margin-bottom: 2px;
-    display: flex; align-items: center; gap: 4px; cursor: pointer;
-    transition: opacity 0.15s; line-height: 1.3; word-break: break-word;
-  }
-
+  .cal-order-chip { font-size: 10px; padding: 3px 6px; border-radius: 5px; margin-bottom: 2px; display: flex; align-items: center; gap: 4px; cursor: pointer; line-height: 1.3; }
   .cal-order-chip.done { text-decoration: line-through; opacity: 0.45; }
   .chip-check { width: 13px; height: 13px; border-radius: 3px; border: 1.5px solid currentColor; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 9px; }
   .chip-label { flex: 1; font-weight: 500; }
-
   .chip-blue   { background: #DBEAFE; color: #1D4ED8; }
   .chip-green  { background: #DCFCE7; color: #15803D; }
   .chip-orange { background: #FEF3C7; color: #92400E; }
   .chip-purple { background: #EDE9FE; color: #6D28D9; }
   .chip-red    { background: #FEE2E2; color: #B91C1C; }
-
   .overload-notice { font-size: 10px; color: var(--overload); font-weight: 700; padding: 2px 4px; border-radius: 4px; background: #FEE2E2; margin-bottom: 2px; }
 
-  /* ── ADD ORDER FORM ── */
   .add-order-form { background: white; border-radius: 12px; border: 1px solid var(--border); padding: 24px; margin-bottom: 24px; }
   .form-title { font-size: 15px; font-weight: 600; color: var(--navy); margin-bottom: 18px; }
   .form-grid  { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 14px; }
@@ -266,17 +130,14 @@
   .form-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
   .form-input { border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; font-size: 13px; font-family: 'Inter', sans-serif; color: var(--text); outline: none; transition: border 0.15s; }
   .form-input:focus { border-color: var(--accent); }
-
-  .btn-primary { background: var(--blue); color: white; border: none; border-radius: 8px; padding: 10px 24px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif; transition: background 0.15s; }
+  .btn-primary { background: var(--blue); color: white; border: none; border-radius: 8px; padding: 10px 24px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif; }
   .btn-primary:hover { background: var(--navy); }
 
-  /* ── ORDERS TABLE ── */
   .orders-table { background: white; border-radius: 12px; border: 1px solid var(--border); overflow: hidden; }
-  .table-header { display: grid; grid-template-columns: 90px 1fr 120px 100px 90px 100px 90px; padding: 10px 20px; background: var(--bg); border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
-  .table-row { display: grid; grid-template-columns: 90px 1fr 120px 100px 90px 100px 90px; padding: 13px 20px; border-bottom: 1px solid var(--border); align-items: center; font-size: 13px; transition: background 0.1s; }
+  .table-header { display: grid; grid-template-columns: 90px 1fr 120px 110px 80px 100px 80px; padding: 10px 20px; background: var(--bg); border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .table-row { display: grid; grid-template-columns: 90px 1fr 120px 110px 80px 100px 80px; padding: 13px 20px; border-bottom: 1px solid var(--border); align-items: center; font-size: 13px; }
   .table-row:hover { background: #F8FBFF; }
   .table-row:last-child { border-bottom: none; }
-
   .status-badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; width: fit-content; }
   .status-new        { background: #DBEAFE; color: #1D4ED8; }
   .status-production { background: #FEF3C7; color: #92400E; }
@@ -285,22 +146,21 @@
 
   .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
   .section-title  { font-size: 15px; font-weight: 700; color: var(--navy); }
-
   .alert-banner { background: #FEF3C7; border: 1px solid #FCD34D; border-radius: 10px; padding: 12px 18px; margin-bottom: 18px; display: flex; align-items: center; gap: 10px; font-size: 13px; color: #92400E; font-weight: 500; }
 
-  .view-toggle { display: flex; gap: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-  .view-btn { padding: 7px 14px; font-size: 12px; font-weight: 500; cursor: pointer; border: none; background: white; color: var(--muted); font-family: 'Inter', sans-serif; transition: all 0.15s; }
-  .view-btn.active { background: var(--navy); color: white; }
-  .view-btn:not(:last-child) { border-right: 1px solid var(--border); }
+  .sync-bar { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
+  .sync-dot.loading { background: #F59E0B; animation: pulse 1s infinite; }
+  .sync-dot.error { background: var(--danger); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
   .page { display: none; }
   .page.active { display: block; }
 
-  /* ── MOBILE ── */
   @media (max-width: 768px) {
     .sidebar { display: none; }
     .bottom-nav { display: flex; }
-    .main { margin-left: 0; padding-bottom: 62px; }
+    .main { margin-left: 0; }
     .content { padding: 14px 14px 80px; }
     .topbar { padding: 0 16px; }
     .grid-4 { grid-template-columns: repeat(2, 1fr); gap: 10px; }
@@ -314,22 +174,17 @@
     .table-header { display: none; }
     .table-row { grid-template-columns: 1fr; padding: 12px 16px; gap: 4px; }
     .table-row > *:nth-child(n+3) { display: none; }
-    .order-row { flex-wrap: wrap; }
-    .card-header { flex-wrap: wrap; gap: 6px; }
   }
 </style>
 </head>
 <body>
 
-<!-- SIDEBAR (desktop) -->
+<!-- SIDEBAR -->
 <div class="sidebar">
   <div class="sidebar-logo">
     <div class="logo-mark">
       <div class="logo-icon">MI</div>
-      <div>
-        <div class="logo-text">Maniram Industries</div>
-        <div class="logo-sub">Factory OS</div>
-      </div>
+      <div><div class="logo-text">Maniram Industries</div><div class="logo-sub">Factory OS</div></div>
     </div>
   </div>
   <nav class="sidebar-nav">
@@ -341,10 +196,10 @@
     <div class="nav-item" onclick="showPage('reels')"><span class="nav-icon">🧻</span> Reel Stock</div>
     <div class="nav-item" onclick="showPage('clients')"><span class="nav-icon">🤝</span> Clients</div>
   </nav>
-  <div class="sidebar-footer">v1.1 · Jhansi</div>
+  <div class="sidebar-footer">v1.2 · Jhansi</div>
 </div>
 
-<!-- BOTTOM NAV (mobile) -->
+<!-- BOTTOM NAV -->
 <div class="bottom-nav">
   <div class="bottom-nav-inner">
     <button class="bnav-item active" onclick="showPage('dashboard')"><span class="bnav-icon">⚡</span>Home</button>
@@ -366,74 +221,45 @@
 
     <!-- DASHBOARD -->
     <div class="page active" id="page-dashboard">
-      <div class="alert-banner">⚠️ <strong>2 orders due today</strong> — NDS International & Gaida Enterprises need dispatch today.</div>
+      <div class="alert-banner" id="urgent-banner" style="display:none"></div>
       <div class="grid-4">
         <div class="stat-card alert">
           <div class="stat-label">Due Today</div>
-          <div class="stat-value" style="color:var(--danger)">2</div>
+          <div class="stat-value" id="stat-today" style="color:var(--danger)">—</div>
           <div class="stat-sub">Orders to dispatch</div>
         </div>
         <div class="stat-card warn">
           <div class="stat-label">Due Tomorrow</div>
-          <div class="stat-value" style="color:#B45309">3</div>
+          <div class="stat-value" id="stat-tomorrow" style="color:#B45309">—</div>
           <div class="stat-sub">Plan production now</div>
         </div>
         <div class="stat-card info">
           <div class="stat-label">Active Orders</div>
-          <div class="stat-value">7</div>
+          <div class="stat-value" id="stat-active">—</div>
           <div class="stat-sub">In pipeline</div>
         </div>
-        <div class="stat-card good">
+        <div class="stat-card" id="stock-status-card">
           <div class="stat-label">Stock Status</div>
-          <div class="stat-value" style="color:var(--success)">OK</div>
-          <div class="stat-sub">Critical sizes stocked</div>
+          <div class="stat-value" id="stat-stock">—</div>
+          <div class="stat-sub" id="stat-stock-sub">Loading...</div>
         </div>
       </div>
 
       <div class="grid-2">
         <div class="card">
           <div class="card-header"><div class="card-title">🔴 Urgent — Next 2 Days</div></div>
-          <div class="card-body">
-            <div class="order-row">
-              <div class="order-id">MIORD001</div>
-              <div class="order-info"><div class="order-customer">NDS International</div><div class="order-product">Kingfisher · 20×14×27 · 1000 pcs</div></div>
-              <div class="order-due today">TODAY</div>
-            </div>
-            <div class="order-row">
-              <div class="order-id">MIORD004</div>
-              <div class="order-info"><div class="order-customer">Gaida Enterprises</div><div class="order-product">5-ply · 30×20×18 · 500 pcs</div></div>
-              <div class="order-due today">TODAY</div>
-            </div>
-            <div class="order-row">
-              <div class="order-id">MIORD002</div>
-              <div class="order-info"><div class="order-customer">NDS International</div><div class="order-product">Kanha Design · 1000 pcs</div></div>
-              <div class="order-due tomorrow">TOMORROW</div>
-            </div>
-            <div class="order-row">
-              <div class="order-id">MIORD005</div>
-              <div class="order-info"><div class="order-customer">RP Products</div><div class="order-product">3-ply Plain · 24×18×12 · 800 pcs</div></div>
-              <div class="order-due tomorrow">TOMORROW</div>
-            </div>
-            <div class="order-row">
-              <div class="order-id">MIORD006</div>
-              <div class="order-info"><div class="order-customer">Shree Packaging Co.</div><div class="order-product">Corrugated Sheet · 500 pcs</div></div>
-              <div class="order-due tomorrow">TOMORROW</div>
-            </div>
-          </div>
+          <div class="card-body" id="urgent-orders-list"><div style="padding:20px;color:var(--muted);font-size:13px">Loading orders...</div></div>
         </div>
-
         <div class="card">
           <div class="card-header">
             <div class="card-title">🧻 Reel Stock — Critical Sizes</div>
             <span style="font-size:11px;color:var(--muted)">Min. 4 each</span>
           </div>
-          <div class="card-body">
-            <div class="reel-item"><div class="reel-size">35.5"</div><div class="reel-bar-wrap"><div class="reel-bar ok" style="width:75%"></div></div><div class="reel-count ok">9 reels</div><div class="reel-badge ok">OK</div></div>
-            <div class="reel-item"><div class="reel-size">44"</div><div class="reel-bar-wrap"><div class="reel-bar low" style="width:33%"></div></div><div class="reel-count low">4 reels</div><div class="reel-badge low">LOW</div></div>
-            <div class="reel-item"><div class="reel-size">42"</div><div class="reel-bar-wrap"><div class="reel-bar critical" style="width:16%"></div></div><div class="reel-count critical">2 reels</div><div class="reel-badge critical">⚠ CRITICAL</div></div>
-            <div class="reel-item"><div class="reel-size">36"</div><div class="reel-bar-wrap"><div class="reel-bar ok" style="width:58%"></div></div><div class="reel-count ok">7 reels</div><div class="reel-badge ok">OK</div></div>
-            <div class="reel-item"><div class="reel-size">30"</div><div class="reel-bar-wrap"><div class="reel-bar ok" style="width:90%"></div></div><div class="reel-count ok">11 reels</div><div class="reel-badge ok">OK</div></div>
+          <div class="sync-bar" style="padding:8px 20px 0">
+            <div class="sync-dot loading" id="reel-sync-dot"></div>
+            <span id="reel-sync-label">Fetching live data...</span>
           </div>
+          <div class="card-body" id="critical-reel-list"><div style="padding:20px;color:var(--muted);font-size:13px">Loading reel stock...</div></div>
         </div>
       </div>
     </div>
@@ -442,20 +268,16 @@
     <div class="page" id="page-calendar">
       <div class="section-header">
         <div class="section-title">Order Calendar</div>
-        <div class="view-toggle">
-          <button class="view-btn active">Month</button>
-          <button class="view-btn">Week</button>
-        </div>
       </div>
       <div class="calendar-wrap">
         <div class="cal-header">
           <div class="cal-nav">
             <button onclick="changeMonth(-1)">‹</button>
-            <div class="cal-month" id="cal-month-label">June 2026</div>
+            <div class="cal-month" id="cal-month-label"></div>
             <button onclick="changeMonth(1)">›</button>
           </div>
           <div style="font-size:11px;color:var(--muted)">
-            <span style="display:inline-block;width:10px;height:10px;background:#FEE2E2;border-radius:2px;margin-right:4px;"></span>3+ orders
+            <span style="display:inline-block;width:10px;height:10px;background:#FEE2E2;border-radius:2px;margin-right:4px;"></span>3+ orders = overload
           </div>
         </div>
         <div class="cal-grid">
@@ -493,12 +315,18 @@
     <!-- REELS -->
     <div class="page" id="page-reels">
       <div class="section-header">
-        <div class="section-title">Reel Stock — Full Inventory</div>
-        <span style="font-size:12px;color:var(--muted)">+5,000 kg katra buffer included</span>
+        <div class="section-title">Reel Stock — Live Inventory</div>
+      </div>
+      <div class="sync-bar">
+        <div class="sync-dot loading" id="reel-sync-dot2"></div>
+        <span id="reel-sync-label2">Fetching from Google Sheets...</span>
       </div>
       <div class="card">
-        <div class="card-header"><div class="card-title">All Sizes</div></div>
-        <div class="card-body" id="full-reel-list"></div>
+        <div class="card-header">
+          <div class="card-title">All Sizes</div>
+          <span style="font-size:12px;color:var(--muted)">+5,000 kg katra buffer included</span>
+        </div>
+        <div class="card-body" id="full-reel-list"><div style="padding:20px;color:var(--muted)">Loading...</div></div>
       </div>
     </div>
 
@@ -512,30 +340,31 @@
 </div>
 
 <script>
-const today = new Date();
+// ── CONFIG ──
+const SHEET_ID  = '1cgyZbdG--0Qzb2LtJOIfOwnUCAxRwNh66452cYr3M7M';
+const API_KEY   = 'AIzaSyBz9doIxDqLCmUd5mKjemM9ui3tVJBD34k';
+const SHEET_TAB = 'Stock';
+const KATRA_BUFFER_KG = 5000;
+const CRITICAL_SIZES  = ['35.5', '44', '42', '35'];
+const MIN_REELS = 4;
+
+const today    = new Date();
 const todayStr = today.toISOString().split('T')[0];
+const tomorrowStr = new Date(today.getTime() + 86400000).toISOString().split('T')[0];
 
 document.getElementById('topbar-date').textContent = today.toLocaleDateString('en-IN', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
 
+// ── ORDERS (local for now) ──
 let orders = [
-  { id:'MIORD001', customer:'NDS International', product:'Kingfisher', size:'20×14×27', qty:1000, rate:31.5, date:'2026-06-20', status:'production', done:false },
-  { id:'MIORD002', customer:'NDS International', product:'Kanha Design', size:'20×14×27', qty:1000, rate:32.75, date:'2026-06-21', status:'production', done:false },
+  { id:'MIORD001', customer:'NDS International', product:'Kingfisher', size:'20×14×27', qty:1000, rate:31.5, date:todayStr, status:'production', done:false },
+  { id:'MIORD002', customer:'NDS International', product:'Kanha Design', size:'20×14×27', qty:1000, rate:32.75, date:tomorrowStr, status:'production', done:false },
   { id:'MIORD003', customer:'Gaida Enterprises', product:'5-ply Printed', size:'28×18×22', qty:600, rate:45.0, date:'2026-06-24', status:'new', done:false },
-  { id:'MIORD004', customer:'Gaida Enterprises', product:'5-ply Plain', size:'30×20×18', qty:500, rate:38.0, date:'2026-06-20', status:'production', done:false },
-  { id:'MIORD005', customer:'RP Products', product:'3-ply Plain', size:'24×18×12', qty:800, rate:22.0, date:'2026-06-21', status:'new', done:false },
-  { id:'MIORD006', customer:'Shree Packaging Co.', product:'Corrugated Sheet', size:'—', qty:500, rate:15.0, date:'2026-06-21', status:'new', done:false },
+  { id:'MIORD004', customer:'Gaida Enterprises', product:'5-ply Plain', size:'30×20×18', qty:500, rate:38.0, date:todayStr, status:'production', done:false },
+  { id:'MIORD005', customer:'RP Products', product:'3-ply Plain', size:'24×18×12', qty:800, rate:22.0, date:tomorrowStr, status:'new', done:false },
+  { id:'MIORD006', customer:'Shree Packaging Co.', product:'Corrugated Sheet', size:'—', qty:500, rate:15.0, date:tomorrowStr, status:'new', done:false },
   { id:'MIORD007', customer:'Vardhman Traders', product:'7-ply Heavy Duty', size:'36×24×24', qty:300, rate:72.0, date:'2026-06-27', status:'new', done:false },
 ];
-
-const reels = [
-  { size:'35.5"', count:9,  weight:3240, status:'ok' },
-  { size:'44"',   count:4,  weight:1620, status:'low' },
-  { size:'42"',   count:2,  weight:820,  status:'critical' },
-  { size:'36"',   count:7,  weight:2680, status:'ok' },
-  { size:'30"',   count:11, weight:3900, status:'ok' },
-  { size:'28"',   count:5,  weight:1450, status:'ok' },
-  { size:'24"',   count:3,  weight:890,  status:'low' },
-];
+let orderCounter = 8;
 
 const clients = [
   { name:'NDS International',   contact:'Rajesh Kumar',   phone:'9876543210', city:'Jhansi',   orders:2 },
@@ -545,20 +374,202 @@ const clients = [
   { name:'Vardhman Traders',    contact:'Ankit Vardhman', phone:'9845671230', city:'Agra',     orders:1 },
 ];
 
-const pageTitles = { dashboard:'Dashboard', calendar:'Order Calendar', orders:'Orders', reels:'Reel Stock', clients:'Clients' };
+// ── FETCH REEL DATA FROM GOOGLE SHEETS ──
+let reelData = [];
 
-function showPage(id) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.querySelectorAll('.bnav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('page-' + id).classList.add('active');
-  document.querySelectorAll('.nav-item').forEach(n => { if (n.getAttribute('onclick') && n.getAttribute('onclick').includes("'" + id + "'")) n.classList.add('active'); });
-  document.querySelectorAll('.bnav-item').forEach(n => { if (n.getAttribute('onclick') && n.getAttribute('onclick').includes("'" + id + "'")) n.classList.add('active'); });
-  document.getElementById('page-title').textContent = pageTitles[id];
-  if (id === 'calendar') renderCalendar();
-  if (id === 'orders')   renderOrders();
-  if (id === 'reels')    renderReels();
-  if (id === 'clients')  renderClients();
+async function fetchReelStock() {
+  const range = encodeURIComponent(`${SHEET_TAB}!A1:F200`);
+  const url   = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}`;
+
+  setSyncStatus('loading', 'Fetching live data...');
+
+  try {
+    const res  = await fetch(url);
+    const json = await res.json();
+
+    if (json.error) throw new Error(json.error.message);
+
+    const rows = json.values || [];
+
+    // Find header row
+    let headerRow = -1;
+    let colSize=-1, colGSM=-1, colBF=-1, colWeight=-1;
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i].map(c => c.toString().trim().toUpperCase());
+      const si = r.findIndex(c => c === 'SIZE');
+      if (si >= 0) {
+        headerRow = i;
+        colSize   = si;
+        colGSM    = r.findIndex(c => c === 'GSM');
+        colBF     = r.findIndex(c => c === 'BF');
+        colWeight = r.findIndex(c => c.includes('WEIGHT') || c === 'WT');
+        break;
+      }
+    }
+
+    if (headerRow < 0) throw new Error('Header row not found in sheet');
+
+    // Parse reel rows
+    const parsed = [];
+    for (let i = headerRow + 1; i < rows.length; i++) {
+      const r = rows[i];
+      const size   = parseFloat(r[colSize]);
+      const weight = parseFloat(colWeight >= 0 ? r[colWeight] : 0);
+      if (!size || isNaN(size)) continue;
+      parsed.push({
+        size:   size,
+        gsm:    colGSM >= 0    ? r[colGSM]    : '—',
+        bf:     colBF >= 0     ? r[colBF]     : '—',
+        weight: isNaN(weight)  ? 0            : weight,
+      });
+    }
+
+    // Group by size
+    const grouped = {};
+    parsed.forEach(r => {
+      const k = r.size.toString();
+      if (!grouped[k]) grouped[k] = { size: r.size, count: 0, totalWeight: 0, gsm: r.gsm, bf: r.bf };
+      grouped[k].count++;
+      grouped[k].totalWeight += r.weight;
+    });
+
+    reelData = Object.values(grouped).sort((a,b) => b.size - a.size);
+
+    // Add katra buffer to total
+    const totalWeight = reelData.reduce((s,r) => s + r.totalWeight, 0) + KATRA_BUFFER_KG;
+
+    setSyncStatus('ok', `Live · Last synced ${new Date().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'})} · Total: ${totalWeight.toLocaleString('en-IN')} kg (incl. buffer)`);
+
+    renderCriticalReels();
+    renderFullReels();
+    updateDashboardStock();
+
+  } catch (err) {
+    setSyncStatus('error', `Error: ${err.message}`);
+    console.error(err);
+  }
+}
+
+function setSyncStatus(type, msg) {
+  ['reel-sync-dot','reel-sync-dot2'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.className = `sync-dot ${type === 'ok' ? '' : type}`;
+  });
+  ['reel-sync-label','reel-sync-label2'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = msg;
+  });
+}
+
+function getReelStatus(size, count) {
+  const isCritical = CRITICAL_SIZES.includes(size.toString()) || CRITICAL_SIZES.includes(Math.floor(size).toString());
+  if (isCritical && count < MIN_REELS) return 'critical';
+  if (isCritical && count === MIN_REELS) return 'low';
+  return 'ok';
+}
+
+function renderCriticalReels() {
+  const list = document.getElementById('critical-reel-list');
+  if (!list) return;
+  list.innerHTML = '';
+  const criticalReels = reelData.filter(r => CRITICAL_SIZES.includes(r.size.toString()) || CRITICAL_SIZES.includes(Math.floor(r.size).toString()));
+  if (criticalReels.length === 0) { list.innerHTML = '<div style="padding:20px;color:var(--muted);font-size:13px">No critical size data found.</div>'; return; }
+  const max = Math.max(...criticalReels.map(r => r.count), 1);
+  criticalReels.forEach(r => {
+    const status = getReelStatus(r.size, r.count);
+    const pct    = Math.round((r.count / max) * 100);
+    const item   = document.createElement('div');
+    item.className = 'reel-item';
+    item.innerHTML = `
+      <div class="reel-size">${r.size}"</div>
+      <div class="reel-bar-wrap"><div class="reel-bar ${status}" style="width:${pct}%"></div></div>
+      <div class="reel-count ${status}">${r.count} reels</div>
+      <div class="reel-badge ${status}">${status==='ok'?'OK':status==='low'?'LOW':'⚠ CRIT'}</div>
+    `;
+    list.appendChild(item);
+  });
+}
+
+function renderFullReels() {
+  const list = document.getElementById('full-reel-list');
+  if (!list || reelData.length === 0) return;
+  list.innerHTML = '';
+  const max = Math.max(...reelData.map(r => r.count), 1);
+  reelData.forEach(r => {
+    const status = getReelStatus(r.size, r.count);
+    const pct    = Math.round((r.count / max) * 100);
+    const item   = document.createElement('div');
+    item.className = 'reel-item';
+    item.innerHTML = `
+      <div class="reel-size">${r.size}"</div>
+      <div class="reel-bar-wrap"><div class="reel-bar ${status}" style="width:${pct}%"></div></div>
+      <div style="flex:1;padding:0 12px">
+        <div style="font-size:13px;font-weight:600">${r.count} reels · ${r.totalWeight.toLocaleString('en-IN')} kg</div>
+        <div style="font-size:11px;color:var(--muted)">GSM ${r.gsm} · BF ${r.bf}</div>
+      </div>
+      <div class="reel-badge ${status}">${status==='ok'?'OK':status==='low'?'LOW':'⚠ CRITICAL'}</div>
+    `;
+    list.appendChild(item);
+  });
+}
+
+function updateDashboardStock() {
+  const criticals = reelData.filter(r => getReelStatus(r.size, r.count) === 'critical');
+  const card = document.getElementById('stock-status-card');
+  const val  = document.getElementById('stat-stock');
+  const sub  = document.getElementById('stat-stock-sub');
+  if (criticals.length > 0) {
+    card.className = 'stat-card alert';
+    val.style.color = 'var(--danger)';
+    val.textContent = '⚠';
+    sub.textContent = `${criticals.length} size(s) critical`;
+  } else {
+    card.className = 'stat-card good';
+    val.style.color = 'var(--success)';
+    val.textContent = 'OK';
+    sub.textContent = 'All critical sizes stocked';
+  }
+}
+
+// ── DASHBOARD STATS ──
+function updateDashboardOrders() {
+  const activeOrders   = orders.filter(o => o.status !== 'delivered');
+  const todayOrders    = activeOrders.filter(o => o.date === todayStr);
+  const tomorrowOrders = activeOrders.filter(o => o.date === tomorrowStr);
+
+  document.getElementById('stat-today').textContent    = todayOrders.length;
+  document.getElementById('stat-tomorrow').textContent = tomorrowOrders.length;
+  document.getElementById('stat-active').textContent   = activeOrders.length;
+
+  // Urgent banner
+  const banner = document.getElementById('urgent-banner');
+  if (todayOrders.length > 0) {
+    banner.style.display = 'flex';
+    banner.innerHTML = `⚠️ <strong>${todayOrders.length} order${todayOrders.length>1?'s':''} due today</strong> — ${todayOrders.map(o=>o.customer).join(', ')} need dispatch today.`;
+  } else {
+    banner.style.display = 'none';
+  }
+
+  // Urgent list
+  const list = document.getElementById('urgent-orders-list');
+  const urgent = [...todayOrders, ...tomorrowOrders].slice(0, 6);
+  if (urgent.length === 0) {
+    list.innerHTML = '<div style="padding:20px;color:var(--muted);font-size:13px">✅ No urgent orders in next 2 days.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  urgent.forEach(o => {
+    const isToday = o.date === todayStr;
+    const row = document.createElement('div');
+    row.className = 'order-row';
+    row.innerHTML = `
+      <div class="order-id">${o.id}</div>
+      <div class="order-info"><div class="order-customer">${o.customer}</div><div class="order-product">${o.product} · ${o.size} · ${o.qty?o.qty.toLocaleString('en-IN')+' pcs':'—'}</div></div>
+      <div class="order-due ${isToday?'today':'tomorrow'}">${isToday?'TODAY':'TOMORROW'}</div>
+    `;
+    list.appendChild(row);
+  });
 }
 
 // ── CALENDAR ──
@@ -569,7 +580,7 @@ const customerColorMap = {};
 let colorIdx = 0;
 
 function getCustomerColor(c) {
-  if (!customerColorMap[c]) { customerColorMap[c] = chipColors[colorIdx++ % chipColors.length]; }
+  if (!customerColorMap[c]) customerColorMap[c] = chipColors[colorIdx++ % chipColors.length];
   return customerColorMap[c];
 }
 
@@ -584,19 +595,18 @@ function renderCalendar() {
   document.getElementById('cal-month-label').textContent = monthNames[calMonth] + ' ' + calYear;
   const body = document.getElementById('cal-body');
   body.innerHTML = '';
-  const firstDay = new Date(calYear, calMonth, 1).getDay();
+  const firstDay    = new Date(calYear, calMonth, 1).getDay();
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
 
   for (let i = 0; i < firstDay; i++) {
     const cell = document.createElement('div');
     cell.className = 'cal-cell empty';
-    const d = document.createElement('div'); d.className = 'cal-date'; d.textContent = '';
-    cell.appendChild(d); body.appendChild(cell);
+    body.appendChild(cell);
   }
 
   for (let d = 1; d <= daysInMonth; d++) {
     const ds = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const isToday = ds === todayStr;
+    const isToday   = ds === todayStr;
     const dayOrders = orders.filter(o => o.date === ds);
     const cell = document.createElement('div');
     cell.className = 'cal-cell' + (isToday ? ' today' : '');
@@ -613,9 +623,9 @@ function renderCalendar() {
 
     dayOrders.forEach(order => {
       const chip = document.createElement('div');
-      chip.className = `cal-order-chip ${getCustomerColor(order.customer)}${order.done ? ' done' : ''}`;
-      chip.innerHTML = `<span class="chip-check">${order.done ? '✓' : ''}</span><span class="chip-label">${order.customer.split(' ')[0]} · ${order.product}</span>`;
-      chip.onclick = e => { e.stopPropagation(); order.done = !order.done; renderCalendar(); };
+      chip.className = `cal-order-chip ${getCustomerColor(order.customer)}${order.done?' done':''}`;
+      chip.innerHTML = `<span class="chip-check">${order.done?'✓':''}</span><span class="chip-label">${order.customer.split(' ')[0]} · ${order.product}</span>`;
+      chip.onclick = e => { e.stopPropagation(); order.done = !order.done; renderCalendar(); updateDashboardOrders(); };
       cell.appendChild(chip);
     });
 
@@ -624,8 +634,6 @@ function renderCalendar() {
 }
 
 // ── ORDERS ──
-let orderCounter = 8;
-
 function addOrder() {
   const customer = document.getElementById('f-customer').value.trim();
   const product  = document.getElementById('f-product').value.trim();
@@ -633,10 +641,10 @@ function addOrder() {
   const qty      = parseInt(document.getElementById('f-qty').value);
   const rate     = parseFloat(document.getElementById('f-rate').value);
   const date     = document.getElementById('f-date').value;
-  if (!customer || !date) { alert('Customer and delivery date are required.'); return; }
+  if (!customer || !date) { alert('Customer aur delivery date required hai.'); return; }
   orders.push({ id:`MIORD${String(orderCounter++).padStart(3,'0')}`, customer, product, size, qty, rate, date, status:'new', done:false });
   ['f-customer','f-product','f-size','f-qty','f-rate','f-date'].forEach(id => document.getElementById(id).value = '');
-  renderOrders();
+  renderOrders(); updateDashboardOrders(); renderCalendar();
 }
 
 const statusLabel = { new:'New', production:'In Production', ready:'Ready', delivered:'Delivered' };
@@ -644,15 +652,14 @@ const statusClass = { new:'status-new', production:'status-production', ready:'s
 
 function nextStatus(s) {
   const flow = ['new','production','ready','delivered'];
-  const i = flow.indexOf(s);
-  return i < flow.length - 1 ? flow[i+1] : s;
+  const i = flow.indexOf(s); return i < flow.length-1 ? flow[i+1] : s;
 }
 
 function renderOrders() {
   const list = document.getElementById('orders-list');
   list.innerHTML = '';
   [...orders].sort((a,b) => a.date.localeCompare(b.date)).forEach(o => {
-    const amount = o.qty && o.rate ? `₹${(o.qty * o.rate).toLocaleString('en-IN')}` : '—';
+    const amount = o.qty && o.rate ? `₹${(o.qty*o.rate).toLocaleString('en-IN')}` : '—';
     const row = document.createElement('div');
     row.className = 'table-row';
     row.innerHTML = `
@@ -670,26 +677,7 @@ function renderOrders() {
 
 function advanceOrder(id) {
   const o = orders.find(x => x.id === id);
-  if (o) { o.status = nextStatus(o.status); renderOrders(); }
-}
-
-// ── REELS ──
-function renderReels() {
-  const list = document.getElementById('full-reel-list');
-  list.innerHTML = '';
-  const max = Math.max(...reels.map(r => r.count));
-  reels.forEach(r => {
-    const pct = Math.round((r.count / max) * 100);
-    const item = document.createElement('div');
-    item.className = 'reel-item';
-    item.innerHTML = `
-      <div class="reel-size">${r.size}</div>
-      <div class="reel-bar-wrap"><div class="reel-bar ${r.status}" style="width:${pct}%"></div></div>
-      <div style="flex:1;padding:0 12px"><div style="font-size:13px;font-weight:600">${r.count} reels</div><div style="font-size:11px;color:var(--muted)">${r.weight.toLocaleString('en-IN')} kg</div></div>
-      <div class="reel-badge ${r.status}">${r.status==='ok'?'OK':r.status==='low'?'LOW':'⚠ CRITICAL'}</div>
-    `;
-    list.appendChild(item);
-  });
+  if (o) { o.status = nextStatus(o.status); renderOrders(); updateDashboardOrders(); }
 }
 
 // ── CLIENTS ──
@@ -703,14 +691,35 @@ function renderClients() {
       <div style="width:36px;height:36px;background:var(--horizon);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--navy);font-size:14px;flex-shrink:0">${c.name[0]}</div>
       <div class="order-info"><div class="order-customer">${c.name}</div><div class="order-product">${c.contact} · ${c.city}</div></div>
       <div style="font-size:12px;color:var(--muted)">${c.phone}</div>
-      <div style="font-size:12px;font-weight:600;color:var(--blue);margin-left:20px">${c.orders} active order${c.orders!==1?'s':''}</div>
+      <div style="font-size:12px;font-weight:600;color:var(--blue);margin-left:20px">${c.orders} order${c.orders!==1?'s':''}</div>
     `;
     list.appendChild(row);
   });
 }
 
+// ── NAV ──
+const pageTitles = { dashboard:'Dashboard', calendar:'Order Calendar', orders:'Orders', reels:'Reel Stock', clients:'Clients' };
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item,.bnav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  document.querySelectorAll('.nav-item,.bnav-item').forEach(n => { if (n.getAttribute('onclick')&&n.getAttribute('onclick').includes("'"+id+"'")) n.classList.add('active'); });
+  document.getElementById('page-title').textContent = pageTitles[id];
+  if (id==='calendar') renderCalendar();
+  if (id==='orders')   renderOrders();
+  if (id==='clients')  renderClients();
+}
+
+// ── INIT ──
+updateDashboardOrders();
 renderCalendar();
 renderOrders();
+renderClients();
+fetchReelStock();
+
+// Auto-refresh reel stock every 10 minutes
+setInterval(fetchReelStock, 10 * 60 * 1000);
 </script>
 </body>
 </html>
