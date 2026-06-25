@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════
-// ORDERS.JS — Fetch, Save, Render, Delivery Suggestion
+// ORDERS.JS — Fetch, Save, Render, Delivery Suggestion, Stock Check
 // ══════════════════════════════════════════════════════════════
 
 let orders         = [];
@@ -51,7 +51,7 @@ function refreshOrderId() {
 // ── Fetch Orders ──
 async function fetchOrders() {
   setOrderSyncStatus('loading', 'Fetching orders...');
-  const range = encodeURIComponent(`${ORDERS_TAB}!A1:L500`);
+  const range = encodeURIComponent(`${ORDERS_TAB}!A1:N500`); // Extended to N for new columns
   const url   = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${range}?key=${API_KEY}`;
   try {
     const res  = await fetch(url);
@@ -80,6 +80,8 @@ async function fetchOrders() {
       date:     header.findIndex(h => h.includes('delivery')),
       status:   header.findIndex(h => h === 'status'),
       priority: header.findIndex(h => h.includes('priority')),
+      reelSize: header.findIndex(h => h.includes('reel size') || h === 'reel_size' || h === 'reelsize'),
+      resvKg:   header.findIndex(h => h.includes('reserved kg') || h === 'reserved_kg'),
     };
 
     orders = [];
@@ -100,6 +102,8 @@ async function fetchOrders() {
         date:     parseSheetDate(rawDate),
         status:   col.status   >= 0 ? (r[col.status]   || 'New') : 'New',
         priority: col.priority >= 0 ? (r[col.priority] || 'Normal') : 'Normal',
+        reelSize: col.reelSize >= 0 ? (r[col.reelSize] || '') : '',
+        reservedKg: col.resvKg >= 0 ? parseFloat(r[col.resvKg]) || 0 : 0,
         done: false, rowIndex: i + 1,
       });
     }
@@ -118,6 +122,147 @@ async function fetchOrders() {
   }
 }
 
+// ══════════════════════════════════════════════════════════════
+// STOCK CHECK — Real-time check when order is being filled
+// ══════════════════════════════════════════════════════════════
+
+// Calculate kg needed for current order
+function calcOrderKg(weight, qty) {
+  const w = parseFloat(weight) || 0;
+  const q = parseInt(qty)      || 0;
+  if (!w || !q) return 0;
+  return Math.round((w * q) / 1000);
+}
+
+// Get total reserved kg for a reel size from all ACTIVE orders (not Delivered/Dispatched/Cancelled)
+function getReservedKgForSize(reelSizeStr) {
+  if (!reelSizeStr) return 0;
+  return orders
+    .filter(o =>
+      o.reelSize &&
+      o.reelSize.toString() === reelSizeStr.toString() &&
+      o.status !== 'Delivered' &&
+      o.status !== 'Dispatched' &&
+      o.status !== 'Cancelled'
+    )
+    .reduce((sum, o) => {
+      const w = parseFloat(o.weight) || 0;
+      const q = parseInt(o.qty)      || 0;
+      return sum + Math.round((w * q) / 1000);
+    }, 0);
+}
+
+// Get total stock kg for a reel size from reelData
+function getTotalKgForSize(reelSizeStr) {
+  if (!reelSizeStr || !reelData.length) return 0;
+  const found = reelData.find(r =>
+    r.size.toString() === reelSizeStr.toString() ||
+    Math.floor(r.size).toString() === reelSizeStr.toString()
+  );
+  return found ? (found.totalWeight + KATRA_BUFFER_KG) : 0;
+}
+
+// Find substitute reel sizes (+1", +2") if available
+function findSubstitutes(reelSizeStr, neededKg) {
+  const base  = parseFloat(reelSizeStr);
+  if (isNaN(base)) return [];
+  const subs  = [];
+  [1, 2].forEach(delta => {
+    const try1 = base + delta;
+    const try2 = base + delta + 0.5;
+    [try1, try2].forEach(trySize => {
+      const found = reelData.find(r =>
+        r.size === trySize ||
+        Math.abs(r.size - trySize) < 0.1
+      );
+      if (found) {
+        const reservedKg  = getReservedKgForSize(found.size.toString());
+        const availableKg = (found.totalWeight + KATRA_BUFFER_KG) - reservedKg;
+        if (availableKg >= neededKg) {
+          subs.push({ size: found.size, availableKg: Math.round(availableKg) });
+        }
+      }
+    });
+  });
+  // Deduplicate
+  return subs.filter((s, i, arr) => arr.findIndex(x => x.size === s.size) === i);
+}
+
+// Main stock check — called when qty or reel size changes
+function checkStockForCurrentOrder() {
+  const reelSizeEl = document.getElementById('f-reel-size');
+  const weightEl   = document.getElementById('f-weight');
+  const qtyEl      = document.getElementById('f-qty');
+  if (!reelSizeEl || !weightEl || !qtyEl) return;
+
+  const reelSize = reelSizeEl.value.trim();
+  const weight   = weightEl.value.trim();
+  const qty      = qtyEl.value.trim();
+
+  if (!reelSize || !weight || !qty) { hideStockCheck(); return; }
+
+  const neededKg    = calcOrderKg(weight, qty);
+  if (!neededKg) { hideStockCheck(); return; }
+
+  const totalKg     = getTotalKgForSize(reelSize);
+  const reservedKg  = getReservedKgForSize(reelSize);
+  const availableKg = totalKg - reservedKg;
+
+  const box = document.getElementById('stock-check-box');
+  if (!box) return;
+  box.style.display = 'block';
+
+  if (totalKg === 0) {
+    // Size not in stock at all
+    const subs = findSubstitutes(reelSize, neededKg);
+    box.style.borderLeft = '4px solid var(--danger)';
+    box.innerHTML = `
+      <div style="font-size:13px;font-weight:700;color:var(--danger);margin-bottom:6px;">❌ ${reelSize}" Reel — Stock Data Nahi Mila</div>
+      <div style="font-size:12px;color:var(--text);margin-bottom:8px;">
+        Is size ka koi reel record nahi hai. Reel Stock sheet check karo.
+      </div>
+      ${subs.length ? `<div style="font-size:12px;font-weight:600;color:#B45309;">🔄 Substitute Available:</div>
+      ${subs.map(s => `<div style="font-size:12px;color:#92400E;margin-top:4px;">→ ${s.size}" · Available: ${s.availableKg.toLocaleString('en-IN')} kg</div>`).join('')}` : ''}
+    `;
+    return;
+  }
+
+  if (availableKg >= neededKg) {
+    // Stock available ✅
+    box.style.borderLeft = '4px solid var(--success)';
+    box.innerHTML = `
+      <div style="font-size:13px;font-weight:700;color:var(--success);margin-bottom:6px;">✅ Stock Available — ${reelSize}"</div>
+      <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:12px;color:var(--text);">
+        <div><span style="color:var(--muted)">Is order ke liye:</span> <strong>${neededKg.toLocaleString('en-IN')} kg</strong></div>
+        <div><span style="color:var(--muted)">Already reserved:</span> <strong>${reservedKg.toLocaleString('en-IN')} kg</strong></div>
+        <div><span style="color:var(--muted)">Available after this order:</span> <strong style="color:var(--success)">${(availableKg - neededKg).toLocaleString('en-IN')} kg</strong></div>
+      </div>
+    `;
+  } else {
+    // Insufficient stock ⚠
+    const shortage = neededKg - availableKg;
+    const subs     = findSubstitutes(reelSize, neededKg);
+    box.style.borderLeft = '4px solid var(--danger)';
+    box.innerHTML = `
+      <div style="font-size:13px;font-weight:700;color:var(--danger);margin-bottom:6px;">⚠️ Stock Kam Hai — ${reelSize}"</div>
+      <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:12px;color:var(--text);margin-bottom:8px;">
+        <div><span style="color:var(--muted)">Chahiye:</span> <strong>${neededKg.toLocaleString('en-IN')} kg</strong></div>
+        <div><span style="color:var(--muted)">Available:</span> <strong style="color:var(--danger)">${Math.max(0,availableKg).toLocaleString('en-IN')} kg</strong></div>
+        <div><span style="color:var(--muted)">Shortage:</span> <strong style="color:var(--danger)">${shortage.toLocaleString('en-IN')} kg</strong></div>
+      </div>
+      ${subs.length ? `
+        <div style="font-size:12px;font-weight:600;color:#B45309;margin-bottom:4px;">🔄 Substitute Reels Available:</div>
+        ${subs.map(s => `<div style="font-size:12px;color:#92400E;">→ ${s.size}" reel — Available: ${s.availableKg.toLocaleString('en-IN')} kg ✅</div>`).join('')}
+      ` : `<div style="font-size:12px;color:var(--danger);font-weight:600;">Koi substitute reel bhi available nahi. Pehle purchase karo.</div>`}
+    `;
+  }
+}
+
+function hideStockCheck() {
+  const box = document.getElementById('stock-check-box');
+  if (box) box.style.display = 'none';
+}
+
 // ── Save Order ──
 async function saveOrderToSheet() {
   const id       = document.getElementById('f-id').value.trim() || generateOrderId();
@@ -133,12 +278,16 @@ async function saveOrderToSheet() {
   const date     = document.getElementById('f-date').value;
   const status   = document.getElementById('f-status').value;
   const priority = document.getElementById('f-priority').value;
+  const reelSize = document.getElementById('f-reel-size').value.trim();
 
   if (!customer || !date) { alert('Customer aur Delivery Date required hai.'); return; }
 
+  // Calculate reserved kg for this order
+  const reservedKg = calcOrderKg(weight, qty);
+
   const d         = new Date(date);
   const formatted = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
-  const payload   = { id, customer, product, size, ply, colour, weight, qty, rate, date: formatted, status, priority, remarks: '' };
+  const payload   = { id, customer, product, size, ply, colour, weight, qty, rate, date: formatted, status, priority, reelSize, reservedKg, remarks: '' };
 
   try {
     const btn = document.querySelector('button.btn-primary[onclick="saveOrderToSheet()"]');
@@ -156,12 +305,13 @@ async function saveOrderToSheet() {
 }
 
 function clearOrderForm() {
-  ['f-customer', 'f-qty', 'f-rate', 'f-date'].forEach(id => document.getElementById(id).value = '');
+  ['f-customer', 'f-qty', 'f-rate', 'f-date', 'f-reel-size'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('f-product').innerHTML = '<option value="">— Select Customer First —</option>';
   clearProductFields();
   document.getElementById('f-status').value   = 'New';
   document.getElementById('f-priority').value = 'Normal';
   hideSuggestion();
+  hideStockCheck();
 }
 
 // ── Sync Status ──
@@ -186,6 +336,26 @@ function switchOrderTab(tab) {
   if (tab === 'grouped') renderGroupedOrders();
 }
 
+// ── Stock badge for order list ──
+function stockBadgeHtml(order) {
+  if (!order.reelSize || !order.weight || !order.qty) return '';
+  if (order.status === 'Delivered' || order.status === 'Dispatched' || order.status === 'Cancelled') return '';
+
+  const neededKg    = calcOrderKg(order.weight, order.qty);
+  const totalKg     = getTotalKgForSize(order.reelSize);
+  const reservedKg  = getReservedKgForSize(order.reelSize);
+  const availableKg = totalKg - reservedKg;
+
+  if (totalKg === 0) {
+    return `<div style="font-size:10px;color:var(--danger);margin-top:2px;">🧻 ${order.reelSize}" — No stock data</div>`;
+  }
+  if (availableKg >= neededKg) {
+    return `<div style="font-size:10px;color:var(--success);margin-top:2px;">🧻 ${order.reelSize}" · ${neededKg}kg reserved · Avail: ${Math.round(availableKg-neededKg)}kg</div>`;
+  } else {
+    return `<div style="font-size:10px;color:var(--danger);margin-top:2px;">⚠️ ${order.reelSize}" · Need ${neededKg}kg · Only ${Math.max(0,Math.round(availableKg))}kg avail</div>`;
+  }
+}
+
 // ── Render All Orders ──
 function renderOrders() {
   const list = document.getElementById('orders-list');
@@ -200,6 +370,7 @@ function renderOrders() {
       <div>
         <div style="font-weight:600;font-size:13px">${o.customer}${o.priority === 'Urgent' ? '<span class="priority-urgent">URG</span>' : ''}</div>
         <div style="font-size:11px;color:var(--muted)">${o.product || '—'}</div>
+        ${stockBadgeHtml(o)}
       </div>
       <div style="font-size:12px;font-family:monospace">${o.size || '—'}</div>
       <div style="font-size:12px">${colourDot(o.colour)}${o.colour || '—'}</div>
@@ -266,7 +437,10 @@ function renderGroupedOrders() {
       row.style.background = isPending ? '#FFFBF0' : '';
       row.innerHTML   = `
         <div style="font-family:monospace;font-size:11px;color:var(--muted)">${o.id}</div>
-        <div><div style="font-weight:600;font-size:12px">${o.product || '—'}</div></div>
+        <div>
+          <div style="font-weight:600;font-size:12px">${o.product || '—'}</div>
+          ${stockBadgeHtml(o)}
+        </div>
         <div style="font-size:11px;font-family:monospace">${o.size || '—'}</div>
         <div style="font-size:12px">${colourDot(o.colour)}${o.colour || '—'}</div>
         <div style="font-size:11px">${o.weight ? o.weight + 'gm' : '—'}</div>
@@ -287,7 +461,7 @@ function getSuggestedDeliveryDate() {
   const ply      = parseInt(document.getElementById('f-ply').value)    || 3;
   const qty      = parseInt(document.getElementById('f-qty').value)    || 0;
   const size     = (document.getElementById('f-size').value || '').trim();
-  const reelSize = guessReelSize(size);
+  const reelSize = document.getElementById('f-reel-size').value.trim() || guessReelSize(size);
 
   if (!qty) { alert('Pehle Quantity enter karo.'); return; }
   if (!size) { alert('Pehle Box Size enter karo.'); return; }
@@ -303,12 +477,10 @@ function getSuggestedDeliveryDate() {
     const reelCheck = checkReelAvailability(reelSize);
 
     if (reelCheck.available) {
-      // Stock available → production can start today
       const deliveryDate = addBusinessDays(todayStr, prodDays);
       suggestion = { date: deliveryDate, type: 'stock', reelSize, prodDays };
       reason = `✅ ${reelSize}" reel stock mein hai (${reelCheck.count} reels). Production aaj se shuru ho sakti hai.`;
     } else {
-      // Check pending purchases
       const pending = getPendingDeliveries(reelSize);
       if (pending.length > 0) {
         const earliest  = pending[0];
@@ -316,35 +488,26 @@ function getSuggestedDeliveryDate() {
         suggestion = { date: afterReel, type: 'pending', reelSize, prodDays, reelArrival: earliest.expectedDelivery, supplier: earliest.supplier };
         reason = `⏳ ${reelSize}" reel stock mein nahi. ${earliest.supplier} se delivery expected ${formatDate(earliest.expectedDelivery)}. Iske baad production shuru hogi.`;
       } else {
-        // No stock, no pending
         suggestion = { date: null, type: 'unavailable', reelSize };
         reason = `❌ ${reelSize}" reel stock mein nahi aur koi purchase pending nahi. Pehle reel order karo.`;
       }
     }
   } else {
-    // Can't guess reel size
     const deliveryDate = addBusinessDays(todayStr, prodDays);
     suggestion = { date: deliveryDate, type: 'generic', prodDays };
-    reason = `ℹ️ Reel size auto-detect nahi hua. Sirf production time (${prodDays} din) ke basis pe suggest kar raha hoon.`;
+    reason = `ℹ️ Reel size nahi mili. Sirf production time (${prodDays} din) ke basis pe suggest kar raha hoon.`;
   }
 
   showDeliverySuggestion(suggestion, reason, prodDays);
 }
 
-// ── Guess reel size from box size (heuristic) ──
-// Box size format: L×W×H (e.g. 20×14×27)
-// Reel width = L + W + ~2" for flutes — rough estimate
 function guessReelSize(boxSize) {
   if (!boxSize) return null;
   const parts = boxSize.split(/[×xX]/).map(p => parseFloat(p.trim()));
   if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) return null;
-  // Typically reel width = (L + W) inches + ~2" overlap
-  // This is approximate — adjust if needed
   const needed = parts[0] + parts[1] + 2;
-  // Find nearest available reel size from reelData
   const availableSizes = reelData.map(r => r.size).sort((a, b) => a - b);
   if (!availableSizes.length) {
-    // Fall back to known critical sizes
     const defaults = [35.5, 42, 44];
     return defaults.find(s => s >= needed)?.toString() || null;
   }
@@ -352,7 +515,6 @@ function guessReelSize(boxSize) {
   return match ? match.toString() : null;
 }
 
-// ── Show Suggestion UI ──
 function showDeliverySuggestion(suggestion, reason, prodDays) {
   const box = document.getElementById('delivery-suggestion-box');
   if (!box) return;
