@@ -6,32 +6,32 @@ const DEFAULT_CLIENTS = [
   {
     name: 'Gaida Enterprises', contact: 'Suresh Gaida', phone: '9800000001', city: 'Gwalior',
     products: [
-      { name: 'JIO', size: '18×14×30', ply: '3', colour: 'Red', weight: '655' },
+      { name: 'JIO', size: '18×14×30', ply: '3', colour: 'Red', weight: '655', reelSize: '35.5' },
     ]
   },
   {
     name: 'NDS International', contact: 'Rajesh Kumar', phone: '9800000002', city: 'Jhansi',
     products: [
-      { name: 'Kingfisher', size: '20×14×27', ply: '3', colour: 'Red',  weight: '648' },
-      { name: 'Kanha',      size: '18×14×27', ply: '3', colour: 'Blue', weight: '611' },
+      { name: 'Kingfisher', size: '20×14×27', ply: '3', colour: 'Red',  weight: '648', reelSize: '35.5' },
+      { name: 'Kanha',      size: '18×14×27', ply: '3', colour: 'Blue', weight: '611', reelSize: '35.5' },
     ]
   },
   {
     name: 'NDS Paper', contact: 'Rajesh Kumar', phone: '9800000003', city: 'Jhansi',
     products: [
-      { name: 'Gulabjal', size: '20×14×28', ply: '3', colour: 'Red', weight: '701' },
+      { name: 'Gulabjal', size: '20×14×28', ply: '3', colour: 'Red', weight: '701', reelSize: '35.5' },
     ]
   },
   {
     name: 'RP Products', contact: 'Ramesh Prasad', phone: '9800000004', city: 'Jhansi',
     products: [
-      { name: 'Jalrani', size: '26×13×22', ply: '3', colour: 'Blue', weight: '641' },
+      { name: 'Jalrani', size: '26×13×22', ply: '3', colour: 'Blue', weight: '641', reelSize: '42' },
     ]
   },
   {
     name: 'SSD', contact: 'SSD Contact', phone: '9800000005', city: 'Jhansi',
     products: [
-      { name: 'SSD', size: '26×13×22', ply: '3', colour: 'Green', weight: '641' },
+      { name: 'SSD', size: '26×13×22', ply: '3', colour: 'Green', weight: '641', reelSize: '42' },
     ]
   },
 ];
@@ -149,12 +149,13 @@ function onProductChange() {
   if (val === '__add__') {
     const ci = CLIENTS.findIndex(c => c.name === custNm);
     if (ci < 0) { alert('Pehle customer select karo.'); sel.value = ''; return; }
-    const name   = prompt('Product name (e.g. Kingfisher):'); if (!name)   { sel.value = ''; return; }
-    const size   = prompt('Box size (e.g. 20×14×27):');       if (!size)   { sel.value = ''; return; }
-    const ply    = prompt('Ply (3/5/7):', '3');                if (!ply)    { sel.value = ''; return; }
-    const colour = prompt('Print colour:', 'Red');             if (!colour) { sel.value = ''; return; }
-    const weight = prompt('Weight (gm):');                     if (!weight) { sel.value = ''; return; }
-    CLIENTS[ci].products.push({ name: name.trim(), size: size.trim(), ply: ply.trim(), colour: colour.trim(), weight: weight.trim() });
+    const name     = prompt('Product name (e.g. Kingfisher):'); if (!name)     { sel.value = ''; return; }
+    const size     = prompt('Box size (e.g. 20×14×27):');       if (!size)     { sel.value = ''; return; }
+    const ply      = prompt('Ply (3/5/7):', '3');                if (!ply)      { sel.value = ''; return; }
+    const colour   = prompt('Print colour:', 'Red');             if (!colour)   { sel.value = ''; return; }
+    const weight   = prompt('Weight (gm):');                     if (!weight)   { sel.value = ''; return; }
+    const reelSize = prompt('Reel Size (inches, e.g. 35.5):');   if (!reelSize) { sel.value = ''; return; }
+    CLIENTS[ci].products.push({ name: name.trim(), size: size.trim(), ply: ply.trim(), colour: colour.trim(), weight: weight.trim(), reelSize: reelSize.trim() });
     saveClients(CLIENTS);
     populateProductDropdown(custNm);
     sel.value = CLIENTS[ci].products.length - 1;
@@ -168,16 +169,21 @@ function onProductChange() {
   const p = client.products[idx];
   if (!p) { clearProductFields(); return; }
 
-  document.getElementById('f-size').value   = p.size   || '';
-  document.getElementById('f-ply').value    = p.ply    || '';
-  document.getElementById('f-colour').value = p.colour || '';
-  document.getElementById('f-weight').value = p.weight || '';
+  document.getElementById('f-size').value      = p.size     || '';
+  document.getElementById('f-ply').value       = p.ply      || '';
+  document.getElementById('f-colour').value    = p.colour   || '';
+  document.getElementById('f-weight').value    = p.weight   || '';
+  document.getElementById('f-reel-size').value = p.reelSize || '';
+
+  // Auto-trigger stock check after product loads
+  checkStockForCurrentOrder();
 }
 
 function clearProductFields() {
-  ['f-size', 'f-ply', 'f-colour', 'f-weight'].forEach(id => {
+  ['f-size', 'f-ply', 'f-colour', 'f-weight', 'f-reel-size'].forEach(id => {
     document.getElementById(id).value = '';
   });
+  hideStockCheck();
 }
 
 // ── Clients Page Render ──
@@ -190,7 +196,7 @@ function renderClients() {
     const productsHtml = c.products.map((p, pi) => `
       <div class="product-chip" style="display:flex;align-items:center;gap:6px;padding:6px 12px;">
         <span class="colour-dot" style="background:${COLOUR_HEX[p.colour?.toLowerCase()] || '#999'}"></span>
-        <span><strong>${p.name}</strong> · ${p.size} · ${p.ply}ply · ${p.weight}gm</span>
+        <span><strong>${p.name}</strong> · ${p.size} · ${p.ply}ply · ${p.weight}gm · 🧻${p.reelSize || '?'}"</span>
         <button class="btn-sm" style="margin-left:6px" onclick="editProduct(${ci},${pi})">✏️</button>
         <button class="btn-sm" style="color:var(--danger)" onclick="deleteProduct(${ci},${pi})">🗑</button>
       </div>
@@ -243,24 +249,26 @@ function addNewClient() {
 }
 
 function addProduct(ci) {
-  const name   = prompt('Product name:');     if (!name) return;
-  const size   = prompt('Box size:');         if (!size) return;
-  const ply    = prompt('Ply (3/5/7):', '3'); if (!ply) return;
-  const colour = prompt('Colour:', 'Red');    if (!colour) return;
-  const weight = prompt('Weight (gm):');      if (!weight) return;
-  CLIENTS[ci].products.push({ name: name.trim(), size: size.trim(), ply: ply.trim(), colour: colour.trim(), weight: weight.trim() });
+  const name     = prompt('Product name:');                    if (!name) return;
+  const size     = prompt('Box size:');                        if (!size) return;
+  const ply      = prompt('Ply (3/5/7):', '3');                if (!ply) return;
+  const colour   = prompt('Colour:', 'Red');                   if (!colour) return;
+  const weight   = prompt('Weight (gm):');                     if (!weight) return;
+  const reelSize = prompt('Reel Size (inches, e.g. 35.5):');   if (!reelSize) return;
+  CLIENTS[ci].products.push({ name: name.trim(), size: size.trim(), ply: ply.trim(), colour: colour.trim(), weight: weight.trim(), reelSize: reelSize.trim() });
   saveClients(CLIENTS);
   renderClients();
 }
 
 function editProduct(ci, pi) {
-  const p      = CLIENTS[ci].products[pi];
-  const name   = prompt('Product name:', p.name);   if (name === null) return;
-  const size   = prompt('Box size:', p.size);        if (size === null) return;
-  const ply    = prompt('Ply:', p.ply);              if (ply === null) return;
-  const colour = prompt('Colour:', p.colour);        if (colour === null) return;
-  const weight = prompt('Weight (gm):', p.weight);   if (weight === null) return;
-  CLIENTS[ci].products[pi] = { name: name.trim(), size: size.trim(), ply: ply.trim(), colour: colour.trim(), weight: weight.trim() };
+  const p        = CLIENTS[ci].products[pi];
+  const name     = prompt('Product name:', p.name);              if (name === null) return;
+  const size     = prompt('Box size:', p.size);                  if (size === null) return;
+  const ply      = prompt('Ply:', p.ply);                        if (ply === null) return;
+  const colour   = prompt('Colour:', p.colour);                  if (colour === null) return;
+  const weight   = prompt('Weight (gm):', p.weight);             if (weight === null) return;
+  const reelSize = prompt('Reel Size (inches):', p.reelSize || ''); if (reelSize === null) return;
+  CLIENTS[ci].products[pi] = { name: name.trim(), size: size.trim(), ply: ply.trim(), colour: colour.trim(), weight: weight.trim(), reelSize: reelSize.trim() };
   saveClients(CLIENTS);
   renderClients();
 }
