@@ -6,7 +6,7 @@
 const REEL_SHEET_ID     = '1tcE8W_1q-tkXn6DZ9DX6darBnUpwcQtFZqA9sUbtjR8'; // Reel Stock
 const ORDERS_SHEET_ID   = '1JVWfffLht7X_mGOyQb0QK1cB3vx68TTM1yx9pGZbb30'; // Maniram Orders
 const SNAPSHOT_SHEET_ID = '1bSoFhhJ4_RzD8YiFhZFAA8sW_r1ItwC_EAP-6fPdl9k'; // Reel Snapshot Log
-const APPS_SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycbzDUXMfqaw4wvGYhq7_ui33eAnSLc25VVwD4V9Xl2UKaYJwU16RDmHoFY1D_Hjmw6BN/exec';
+const APPS_SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycbwq1EzVqs0p2hHZ1hLatP4vejGep6ih22Md2sgFOypCDRgSlWXsOQIk4mvczIRkLFG0/exec';
 const API_KEY           = 'AIzaSyBz9doIxDqLCmUd5mKjemM9ui3tVJBD34k';
 const REEL_TAB          = 'Stock';
 const ORDERS_TAB        = 'Sheet1';
