@@ -1,9 +1,10 @@
 // ══════════════════════════════════════════════════════════════
-// ORDERS.JS — Fetch, Save, Render, Delivery Suggestion, Stock Check
+// ORDERS.JS — Fetch, Save, Edit, Render, Stock Check
 // ══════════════════════════════════════════════════════════════
 
 let orders         = [];
 let activeOrderTab = 'all';
+let editingOrderId = null; // tracks which order is being edited
 
 // ── Helpers ──
 function colourDot(c) {
@@ -23,13 +24,17 @@ function parseSheetDate(raw) {
   return '';
 }
 
+function formatDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 function addBusinessDays(fromDate, days) {
   const d = new Date(fromDate);
   let added = 0;
   while (added < days) {
     d.setDate(d.getDate() + 1);
-    const dow = d.getDay();
-    if (dow !== 0) added++; // skip Sunday
+    if (d.getDay() !== 0) added++;
   }
   return d.toISOString().split('T')[0];
 }
@@ -51,7 +56,7 @@ function refreshOrderId() {
 // ── Fetch Orders ──
 async function fetchOrders() {
   setOrderSyncStatus('loading', 'Fetching orders...');
-  const range = encodeURIComponent(`${ORDERS_TAB}!A1:N500`); // Extended to N for new columns
+  const range = encodeURIComponent(`${ORDERS_TAB}!A1:N500`);
   const url   = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${range}?key=${API_KEY}`;
   try {
     const res  = await fetch(url);
@@ -90,20 +95,20 @@ async function fetchOrders() {
       if (!r || !r[col.customer]) continue;
       const rawDate = col.date >= 0 ? (r[col.date] || '') : '';
       orders.push({
-        id:       col.id >= 0       ? (r[col.id]       || `MIORD${String(i).padStart(3,'0')}`) : `MIORD${String(i).padStart(3,'0')}`,
-        customer: col.customer >= 0 ? (r[col.customer] || '') : '',
-        product:  col.product  >= 0 ? (r[col.product]  || '') : '',
-        size:     col.spec     >= 0 ? (r[col.spec]     || '') : '',
-        ply:      col.ply      >= 0 ? (r[col.ply]      || '') : '',
-        colour:   col.colour   >= 0 ? (r[col.colour]   || '') : '',
-        weight:   col.weight   >= 0 ? (r[col.weight]   || '') : '',
-        qty:      col.qty      >= 0 ? parseInt(r[col.qty]) || 0 : 0,
-        rate:     col.rate     >= 0 ? parseFloat(r[col.rate]) || 0 : 0,
-        date:     parseSheetDate(rawDate),
-        status:   col.status   >= 0 ? (r[col.status]   || 'New') : 'New',
-        priority: col.priority >= 0 ? (r[col.priority] || 'Normal') : 'Normal',
-        reelSize: col.reelSize >= 0 ? (r[col.reelSize] || '') : '',
-        reservedKg: col.resvKg >= 0 ? parseFloat(r[col.resvKg]) || 0 : 0,
+        id:         col.id >= 0       ? (r[col.id]       || `MIORD${String(i).padStart(3,'0')}`) : `MIORD${String(i).padStart(3,'0')}`,
+        customer:   col.customer >= 0 ? (r[col.customer] || '') : '',
+        product:    col.product  >= 0 ? (r[col.product]  || '') : '',
+        size:       col.spec     >= 0 ? (r[col.spec]     || '') : '',
+        ply:        col.ply      >= 0 ? (r[col.ply]      || '') : '',
+        colour:     col.colour   >= 0 ? (r[col.colour]   || '') : '',
+        weight:     col.weight   >= 0 ? (r[col.weight]   || '') : '',
+        qty:        col.qty      >= 0 ? parseInt(r[col.qty]) || 0 : 0,
+        rate:       col.rate     >= 0 ? parseFloat(r[col.rate]) || 0 : 0,
+        date:       parseSheetDate(rawDate),
+        status:     col.status   >= 0 ? (r[col.status]   || 'New') : 'New',
+        priority:   col.priority >= 0 ? (r[col.priority] || 'Normal') : 'Normal',
+        reelSize:   col.reelSize >= 0 ? (r[col.reelSize] || '') : '',
+        reservedKg: col.resvKg  >= 0 ? parseFloat(r[col.resvKg]) || 0 : 0,
         done: false, rowIndex: i + 1,
       });
     }
@@ -116,6 +121,7 @@ async function fetchOrders() {
     renderCalendar();
     computeReminders();
     if (activeOrderTab === 'grouped') renderGroupedOrders();
+    if (activeOrderTab === 'reelmap') renderReelProductMap();
     refreshOrderId();
   } catch (err) {
     setOrderSyncStatus('error', `Error: ${err.message}`);
@@ -123,10 +129,9 @@ async function fetchOrders() {
 }
 
 // ══════════════════════════════════════════════════════════════
-// STOCK CHECK — Real-time check when order is being filled
+// STOCK CHECK
 // ══════════════════════════════════════════════════════════════
 
-// Calculate kg needed for current order
 function calcOrderKg(weight, qty) {
   const w = parseFloat(weight) || 0;
   const q = parseInt(qty)      || 0;
@@ -134,8 +139,7 @@ function calcOrderKg(weight, qty) {
   return Math.round((w * q) / 1000);
 }
 
-// Get total reserved kg for a reel size from all ACTIVE orders (not Delivered/Dispatched/Cancelled)
-function getReservedKgForSize(reelSizeStr) {
+function getReservedKgForSize(reelSizeStr, excludeOrderId) {
   if (!reelSizeStr) return 0;
   return orders
     .filter(o =>
@@ -143,16 +147,14 @@ function getReservedKgForSize(reelSizeStr) {
       o.reelSize.toString() === reelSizeStr.toString() &&
       o.status !== 'Delivered' &&
       o.status !== 'Dispatched' &&
-      o.status !== 'Cancelled'
+      o.status !== 'Cancelled' &&
+      (!excludeOrderId || o.id !== excludeOrderId)
     )
     .reduce((sum, o) => {
-      const w = parseFloat(o.weight) || 0;
-      const q = parseInt(o.qty)      || 0;
-      return sum + Math.round((w * q) / 1000);
+      return sum + Math.round(((parseFloat(o.weight)||0) * (parseInt(o.qty)||0)) / 1000);
     }, 0);
 }
 
-// Get total stock kg for a reel size from reelData
 function getTotalKgForSize(reelSizeStr) {
   if (!reelSizeStr || !reelData.length) return 0;
   const found = reelData.find(r =>
@@ -162,19 +164,13 @@ function getTotalKgForSize(reelSizeStr) {
   return found ? (found.totalWeight + KATRA_BUFFER_KG) : 0;
 }
 
-// Find substitute reel sizes (+1", +2") if available
 function findSubstitutes(reelSizeStr, neededKg) {
-  const base  = parseFloat(reelSizeStr);
+  const base = parseFloat(reelSizeStr);
   if (isNaN(base)) return [];
-  const subs  = [];
+  const subs = [];
   [1, 2].forEach(delta => {
-    const try1 = base + delta;
-    const try2 = base + delta + 0.5;
-    [try1, try2].forEach(trySize => {
-      const found = reelData.find(r =>
-        r.size === trySize ||
-        Math.abs(r.size - trySize) < 0.1
-      );
+    [base + delta, base + delta + 0.5].forEach(trySize => {
+      const found = reelData.find(r => Math.abs(r.size - trySize) < 0.1);
       if (found) {
         const reservedKg  = getReservedKgForSize(found.size.toString());
         const availableKg = (found.totalWeight + KATRA_BUFFER_KG) - reservedKg;
@@ -184,21 +180,13 @@ function findSubstitutes(reelSizeStr, neededKg) {
       }
     });
   });
-  // Deduplicate
   return subs.filter((s, i, arr) => arr.findIndex(x => x.size === s.size) === i);
 }
 
-// Main stock check — called when qty or reel size changes
 function checkStockForCurrentOrder() {
-  const reelSizeEl = document.getElementById('f-reel-size');
-  const weightEl   = document.getElementById('f-weight');
-  const qtyEl      = document.getElementById('f-qty');
-  if (!reelSizeEl || !weightEl || !qtyEl) return;
-
-  const reelSize = reelSizeEl.value.trim();
-  const weight   = weightEl.value.trim();
-  const qty      = qtyEl.value.trim();
-
+  const reelSize = document.getElementById('f-reel-size')?.value.trim();
+  const weight   = document.getElementById('f-weight')?.value.trim();
+  const qty      = document.getElementById('f-qty')?.value.trim();
   if (!reelSize || !weight || !qty) { hideStockCheck(); return; }
 
   const neededKg    = calcOrderKg(weight, qty);
@@ -207,54 +195,40 @@ function checkStockForCurrentOrder() {
   const totalKg     = getTotalKgForSize(reelSize);
   const reservedKg  = getReservedKgForSize(reelSize);
   const availableKg = totalKg - reservedKg;
-
-  const box = document.getElementById('stock-check-box');
+  const box         = document.getElementById('stock-check-box');
   if (!box) return;
   box.style.display = 'block';
 
   if (totalKg === 0) {
-    // Size not in stock at all
     const subs = findSubstitutes(reelSize, neededKg);
     box.style.borderLeft = '4px solid var(--danger)';
     box.innerHTML = `
-      <div style="font-size:13px;font-weight:700;color:var(--danger);margin-bottom:6px;">❌ ${reelSize}" Reel — Stock Data Nahi Mila</div>
-      <div style="font-size:12px;color:var(--text);margin-bottom:8px;">
-        Is size ka koi reel record nahi hai. Reel Stock sheet check karo.
-      </div>
-      ${subs.length ? `<div style="font-size:12px;font-weight:600;color:#B45309;">🔄 Substitute Available:</div>
-      ${subs.map(s => `<div style="font-size:12px;color:#92400E;margin-top:4px;">→ ${s.size}" · Available: ${s.availableKg.toLocaleString('en-IN')} kg</div>`).join('')}` : ''}
-    `;
+      <div style="font-size:13px;font-weight:700;color:var(--danger);margin-bottom:6px;">❌ ${reelSize}" — Stock data nahi mila</div>
+      ${subs.length ? `<div style="font-size:12px;font-weight:600;color:#B45309;">🔄 Substitute:</div>${subs.map(s=>`<div style="font-size:12px;color:#92400E;">→ ${s.size}" · ${s.availableKg.toLocaleString('en-IN')} kg available</div>`).join('')}` : '<div style="font-size:12px;color:var(--danger)">Koi substitute bhi nahi.</div>'}`;
     return;
   }
 
   if (availableKg >= neededKg) {
-    // Stock available ✅
     box.style.borderLeft = '4px solid var(--success)';
     box.innerHTML = `
       <div style="font-size:13px;font-weight:700;color:var(--success);margin-bottom:6px;">✅ Stock Available — ${reelSize}"</div>
-      <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:12px;color:var(--text);">
-        <div><span style="color:var(--muted)">Is order ke liye:</span> <strong>${neededKg.toLocaleString('en-IN')} kg</strong></div>
-        <div><span style="color:var(--muted)">Already reserved:</span> <strong>${reservedKg.toLocaleString('en-IN')} kg</strong></div>
-        <div><span style="color:var(--muted)">Available after this order:</span> <strong style="color:var(--success)">${(availableKg - neededKg).toLocaleString('en-IN')} kg</strong></div>
-      </div>
-    `;
+      <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:12px;">
+        <div><span style="color:var(--muted)">Chahiye:</span> <strong>${neededKg.toLocaleString('en-IN')} kg</strong></div>
+        <div><span style="color:var(--muted)">Reserved (other orders):</span> <strong>${reservedKg.toLocaleString('en-IN')} kg</strong></div>
+        <div><span style="color:var(--muted)">Baad mein bachega:</span> <strong style="color:var(--success)">${(availableKg - neededKg).toLocaleString('en-IN')} kg</strong></div>
+      </div>`;
   } else {
-    // Insufficient stock ⚠
     const shortage = neededKg - availableKg;
     const subs     = findSubstitutes(reelSize, neededKg);
     box.style.borderLeft = '4px solid var(--danger)';
     box.innerHTML = `
       <div style="font-size:13px;font-weight:700;color:var(--danger);margin-bottom:6px;">⚠️ Stock Kam Hai — ${reelSize}"</div>
-      <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:12px;color:var(--text);margin-bottom:8px;">
+      <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:12px;margin-bottom:8px;">
         <div><span style="color:var(--muted)">Chahiye:</span> <strong>${neededKg.toLocaleString('en-IN')} kg</strong></div>
-        <div><span style="color:var(--muted)">Available:</span> <strong style="color:var(--danger)">${Math.max(0,availableKg).toLocaleString('en-IN')} kg</strong></div>
+        <div><span style="color:var(--muted)">Available:</span> <strong style="color:var(--danger)">${Math.max(0,Math.round(availableKg)).toLocaleString('en-IN')} kg</strong></div>
         <div><span style="color:var(--muted)">Shortage:</span> <strong style="color:var(--danger)">${shortage.toLocaleString('en-IN')} kg</strong></div>
       </div>
-      ${subs.length ? `
-        <div style="font-size:12px;font-weight:600;color:#B45309;margin-bottom:4px;">🔄 Substitute Reels Available:</div>
-        ${subs.map(s => `<div style="font-size:12px;color:#92400E;">→ ${s.size}" reel — Available: ${s.availableKg.toLocaleString('en-IN')} kg ✅</div>`).join('')}
-      ` : `<div style="font-size:12px;color:var(--danger);font-weight:600;">Koi substitute reel bhi available nahi. Pehle purchase karo.</div>`}
-    `;
+      ${subs.length ? `<div style="font-size:12px;font-weight:600;color:#B45309;margin-bottom:4px;">🔄 Substitute Available:</div>${subs.map(s=>`<div style="font-size:12px;color:#92400E;">→ ${s.size}" · ${s.availableKg.toLocaleString('en-IN')} kg ✅</div>`).join('')}` : '<div style="font-size:12px;color:var(--danger);font-weight:600;">Koi substitute bhi nahi. Pehle purchase karo.</div>'}`;
   }
 }
 
@@ -263,7 +237,24 @@ function hideStockCheck() {
   if (box) box.style.display = 'none';
 }
 
-// ── Save Order ──
+// ── Stock badge for order list rows ──
+function stockBadgeHtml(order) {
+  if (!order.reelSize || !order.weight || !order.qty) return '';
+  if (['Delivered','Dispatched','Cancelled'].includes(order.status)) return '';
+  const neededKg    = calcOrderKg(order.weight, order.qty);
+  const totalKg     = getTotalKgForSize(order.reelSize);
+  const reservedKg  = getReservedKgForSize(order.reelSize);
+  const availableKg = totalKg - reservedKg;
+  if (totalKg === 0) return `<div style="font-size:10px;color:var(--danger);margin-top:2px;">🧻 ${order.reelSize}" — no stock data</div>`;
+  if (availableKg >= neededKg)
+    return `<div style="font-size:10px;color:var(--success);margin-top:2px;">🧻 ${order.reelSize}" · ${neededKg}kg · Avail after: ${Math.round(availableKg-neededKg)}kg</div>`;
+  return `<div style="font-size:10px;color:var(--danger);margin-top:2px;">⚠️ ${order.reelSize}" · Need ${neededKg}kg · Only ${Math.max(0,Math.round(availableKg))}kg avail</div>`;
+}
+
+// ══════════════════════════════════════════════════════════════
+// SAVE ORDER (new)
+// ══════════════════════════════════════════════════════════════
+
 async function saveOrderToSheet() {
   const id       = document.getElementById('f-id').value.trim() || generateOrderId();
   const customer = document.getElementById('f-customer').value.trim();
@@ -282,12 +273,10 @@ async function saveOrderToSheet() {
 
   if (!customer || !date) { alert('Customer aur Delivery Date required hai.'); return; }
 
-  // Calculate reserved kg for this order
   const reservedKg = calcOrderKg(weight, qty);
-
-  const d         = new Date(date);
-  const formatted = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
-  const payload   = { id, customer, product, size, ply, colour, weight, qty, rate, date: formatted, status, priority, reelSize, reservedKg, remarks: '' };
+  const d          = new Date(date);
+  const formatted  = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+  const payload    = { id, customer, product, size, ply, colour, weight, qty, rate, date: formatted, status, priority, reelSize, reservedKg, remarks: '' };
 
   try {
     const btn = document.querySelector('button.btn-primary[onclick="saveOrderToSheet()"]');
@@ -305,22 +294,113 @@ async function saveOrderToSheet() {
 }
 
 function clearOrderForm() {
-  ['f-customer', 'f-qty', 'f-rate', 'f-date', 'f-reel-size'].forEach(id => document.getElementById(id).value = '');
+  ['f-customer','f-qty','f-rate','f-date','f-reel-size'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('f-product').innerHTML = '<option value="">— Select Customer First —</option>';
   clearProductFields();
   document.getElementById('f-status').value   = 'New';
   document.getElementById('f-priority').value = 'Normal';
+  // Reset form title
+  document.querySelector('.add-order-form .form-title').textContent = '➕ New Order';
   hideSuggestion();
   hideStockCheck();
 }
 
+// ══════════════════════════════════════════════════════════════
+// EDIT ORDER
+// ══════════════════════════════════════════════════════════════
+
+function openEditModal(orderId) {
+  const o = orders.find(x => x.id === orderId);
+  if (!o) return;
+  editingOrderId = orderId;
+
+  document.getElementById('edit-order-id-display').textContent = orderId + ' · Row ' + o.rowIndex;
+  document.getElementById('ef-customer').value  = o.customer;
+  document.getElementById('ef-product').value   = o.product;
+  document.getElementById('ef-size').value      = o.size;
+  document.getElementById('ef-ply').value       = o.ply;
+  document.getElementById('ef-colour').value    = o.colour;
+  document.getElementById('ef-reel-size').value = o.reelSize || '';
+  document.getElementById('ef-weight').value    = o.weight;
+  document.getElementById('ef-qty').value       = o.qty;
+  document.getElementById('ef-rate').value      = o.rate;
+  document.getElementById('ef-date').value      = o.date;
+  document.getElementById('ef-status').value    = o.status;
+  document.getElementById('ef-priority').value  = o.priority;
+
+  document.getElementById('edit-order-overlay').style.display = 'flex';
+}
+
+function closeEditModal(e) {
+  if (!e || e.target === document.getElementById('edit-order-overlay')) {
+    document.getElementById('edit-order-overlay').style.display = 'none';
+    editingOrderId = null;
+  }
+}
+
+async function saveEditedOrder() {
+  if (!editingOrderId) return;
+  const o = orders.find(x => x.id === editingOrderId);
+  if (!o) return;
+
+  const product  = document.getElementById('ef-product').value.trim();
+  const size     = document.getElementById('ef-size').value.trim();
+  const ply      = document.getElementById('ef-ply').value.trim();
+  const colour   = document.getElementById('ef-colour').value.trim();
+  const reelSize = document.getElementById('ef-reel-size').value.trim();
+  const weight   = document.getElementById('ef-weight').value.trim();
+  const qty      = document.getElementById('ef-qty').value;
+  const rate     = document.getElementById('ef-rate').value;
+  const dateVal  = document.getElementById('ef-date').value;
+  const status   = document.getElementById('ef-status').value;
+  const priority = document.getElementById('ef-priority').value;
+
+  if (!dateVal) { alert('Delivery Date required hai.'); return; }
+
+  const d          = new Date(dateVal);
+  const formatted  = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+  const reservedKg = calcOrderKg(weight, qty);
+
+  const payload = {
+    action: 'update',
+    rowIndex: o.rowIndex,
+    id: editingOrderId,
+    customer: o.customer,
+    product, size, ply, colour, weight, qty, rate,
+    date: formatted, status, priority, reelSize, reservedKg, remarks: ''
+  };
+
+  const btn = document.getElementById('edit-save-btn');
+  btn.textContent = '⏳ Saving...'; btn.disabled = true;
+
+  try {
+    await fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    // Optimistic update in memory
+    const idx = orders.findIndex(x => x.id === editingOrderId);
+    if (idx >= 0) {
+      orders[idx] = { ...orders[idx], product, size, ply, colour, reelSize, weight, qty: parseInt(qty)||0, rate: parseFloat(rate)||0, date: dateVal, status, priority, reservedKg };
+    }
+    document.getElementById('edit-order-overlay').style.display = 'none';
+    editingOrderId = null;
+    renderOrders();
+    if (activeOrderTab === 'grouped') renderGroupedOrders();
+    updateDashboardOrders();
+    renderCalendar();
+    btn.textContent = '💾 Save Changes'; btn.disabled = false;
+    setTimeout(() => fetchOrders(), 2000); // sync from sheet
+  } catch(err) {
+    alert('Save failed: ' + err.message);
+    btn.textContent = '💾 Save Changes'; btn.disabled = false;
+  }
+}
+
 // ── Sync Status ──
 function setOrderSyncStatus(type, msg) {
-  ['order-sync-dot', 'cal-sync-dot'].forEach(id => {
+  ['order-sync-dot','cal-sync-dot'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.className = `sync-dot ${type === 'ok' ? '' : type}`;
   });
-  ['order-sync-label', 'cal-sync-label'].forEach(id => {
+  ['order-sync-label','cal-sync-label'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.textContent = msg;
   });
@@ -333,39 +413,36 @@ function switchOrderTab(tab) {
   event.target.classList.add('active');
   document.getElementById('tab-all').style.display     = tab === 'all'     ? 'block' : 'none';
   document.getElementById('tab-grouped').style.display = tab === 'grouped' ? 'block' : 'none';
+  document.getElementById('tab-reelmap').style.display = tab === 'reelmap' ? 'block' : 'none';
   if (tab === 'grouped') renderGroupedOrders();
+  if (tab === 'reelmap') renderReelProductMap();
 }
 
-// ── Stock badge for order list ──
-function stockBadgeHtml(order) {
-  if (!order.reelSize || !order.weight || !order.qty) return '';
-  if (order.status === 'Delivered' || order.status === 'Dispatched' || order.status === 'Cancelled') return '';
+// ══════════════════════════════════════════════════════════════
+// RENDER — Active Orders (hide Delivered + Dispatched + Cancelled)
+// ══════════════════════════════════════════════════════════════
 
-  const neededKg    = calcOrderKg(order.weight, order.qty);
-  const totalKg     = getTotalKgForSize(order.reelSize);
-  const reservedKg  = getReservedKgForSize(order.reelSize);
-  const availableKg = totalKg - reservedKg;
+const FINISHED_STATUSES = ['Delivered', 'Dispatched', 'Cancelled'];
 
-  if (totalKg === 0) {
-    return `<div style="font-size:10px;color:var(--danger);margin-top:2px;">🧻 ${order.reelSize}" — No stock data</div>`;
-  }
-  if (availableKg >= neededKg) {
-    return `<div style="font-size:10px;color:var(--success);margin-top:2px;">🧻 ${order.reelSize}" · ${neededKg}kg reserved · Avail: ${Math.round(availableKg-neededKg)}kg</div>`;
-  } else {
-    return `<div style="font-size:10px;color:var(--danger);margin-top:2px;">⚠️ ${order.reelSize}" · Need ${neededKg}kg · Only ${Math.max(0,Math.round(availableKg))}kg avail</div>`;
-  }
-}
-
-// ── Render All Orders ──
 function renderOrders() {
   const list = document.getElementById('orders-list');
-  if (!orders.length) { list.innerHTML = '<div class="empty-state">No orders. Add above or enter in Google Sheets.</div>'; return; }
+  const activeOrders = [...orders]
+    .filter(o => !FINISHED_STATUSES.includes(o.status))
+    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+  if (!activeOrders.length) {
+    list.innerHTML = '<div class="empty-state">Koi active order nahi. Sab deliver ho gaye! 🎉</div>';
+    return;
+  }
   list.innerHTML = '';
-  [...orders].sort((a, b) => (a.date || '').localeCompare(b.date || '')).forEach(o => {
+  activeOrders.forEach(o => {
     const dateDisp = o.date ? new Date(o.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—';
     const row      = document.createElement('div');
     row.className  = 'table-row';
-    row.innerHTML  = `
+    row.style.cursor = 'pointer';
+    row.title = 'Click to edit';
+    row.onclick = () => openEditModal(o.id);
+    row.innerHTML = `
       <div style="font-family:monospace;font-size:11px;color:var(--muted)">${o.id}</div>
       <div>
         <div style="font-weight:600;font-size:13px">${o.customer}${o.priority === 'Urgent' ? '<span class="priority-urgent">URG</span>' : ''}</div>
@@ -383,39 +460,34 @@ function renderOrders() {
   });
 }
 
-// ── Render Grouped Orders ──
+// ── Render Grouped (active only) ──
 function renderGroupedOrders() {
   const el = document.getElementById('grouped-orders-list');
-  if (!orders.length) { el.innerHTML = '<div class="empty-state">No orders yet.</div>'; return; }
+  const activeOrders = orders.filter(o => !FINISHED_STATUSES.includes(o.status));
+
+  if (!activeOrders.length) { el.innerHTML = '<div class="empty-state">Koi active order nahi.</div>'; return; }
 
   const groups = {};
-  orders.forEach(o => {
+  activeOrders.forEach(o => {
     if (!groups[o.customer]) groups[o.customer] = [];
     groups[o.customer].push(o);
   });
 
   el.innerHTML = '';
   Object.entries(groups).sort(([a], [b]) => a.localeCompare(b)).forEach(([customer, cOrders]) => {
-    const pending    = cOrders.filter(o => o.status !== 'Delivered' && o.status !== 'Dispatched' && o.status !== 'Cancelled');
-    const pendingQty = pending.reduce((s, o) => s + (o.qty || 0), 0);
-    const pendingAmt = pending.reduce((s, o) => s + ((o.qty || 0) * (o.rate || 0)), 0);
+    const pendingQty = cOrders.reduce((s, o) => s + (o.qty || 0), 0);
+    const pendingAmt = cOrders.reduce((s, o) => s + ((o.qty || 0) * (o.rate || 0)), 0);
 
-    const group        = document.createElement('div');
-    group.className    = 'client-group';
-    const safeKey      = customer.replace(/\s/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
-    group.innerHTML    = `
+    const group     = document.createElement('div');
+    group.className = 'client-group';
+    const safeKey   = customer.replace(/\s/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+    group.innerHTML = `
       <div class="client-group-header">
         <div class="client-group-name">🏢 ${customer}</div>
         <div class="client-group-stats">
-          <div class="client-stat">
-            <div class="client-stat-val">${pendingQty.toLocaleString('en-IN')}</div>
-            <div class="client-stat-lbl">Pending pcs</div>
-          </div>
+          <div class="client-stat"><div class="client-stat-val">${pendingQty.toLocaleString('en-IN')}</div><div class="client-stat-lbl">Pending pcs</div></div>
           ${pendingAmt > 0 ? `<div class="client-stat"><div class="client-stat-val">₹${Math.round(pendingAmt/1000)}K</div><div class="client-stat-lbl">Pending amt</div></div>` : ''}
-          <div class="client-stat">
-            <div class="client-stat-val">${cOrders.length}</div>
-            <div class="client-stat-lbl">Total orders</div>
-          </div>
+          <div class="client-stat"><div class="client-stat-val">${cOrders.length}</div><div class="client-stat-lbl">Orders</div></div>
         </div>
       </div>
       <div class="orders-table" style="border-radius:0 0 12px 12px;border-top:none;">
@@ -424,18 +496,18 @@ function renderGroupedOrders() {
           <div>Colour</div><div>Wt</div><div>Delivery</div><div>Status</div><div>Qty</div>
         </div>
         <div class="grouped-rows-${safeKey}"></div>
-      </div>
-    `;
+      </div>`;
     el.appendChild(group);
 
     const rowsContainer = group.querySelector(`.grouped-rows-${safeKey}`);
     [...cOrders].sort((a, b) => (a.date || '').localeCompare(b.date || '')).forEach(o => {
       const dateDisp = o.date ? new Date(o.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—';
-      const isPending = o.status !== 'Delivered' && o.status !== 'Dispatched' && o.status !== 'Cancelled';
-      const row       = document.createElement('div');
-      row.className   = 'table-row';
-      row.style.background = isPending ? '#FFFBF0' : '';
-      row.innerHTML   = `
+      const row      = document.createElement('div');
+      row.className  = 'table-row';
+      row.style.cssText = 'background:#FFFBF0;cursor:pointer';
+      row.title = 'Click to edit';
+      row.onclick = () => openEditModal(o.id);
+      row.innerHTML = `
         <div style="font-family:monospace;font-size:11px;color:var(--muted)">${o.id}</div>
         <div>
           <div style="font-weight:600;font-size:12px">${o.product || '—'}</div>
@@ -454,6 +526,105 @@ function renderGroupedOrders() {
 }
 
 // ══════════════════════════════════════════════════════════════
+// REEL → PRODUCTS MAP TAB
+// ══════════════════════════════════════════════════════════════
+
+function renderReelProductMap() {
+  const el = document.getElementById('reel-product-map');
+  if (!el) return;
+
+  // Build map: reelSize → [{ client, product, size, ply, weight }]
+  const map = {};
+
+  // From client product master
+  if (typeof CLIENTS !== 'undefined') {
+    CLIENTS.forEach(c => {
+      (c.products || []).forEach(p => {
+        if (!p.reelSize) return;
+        const key = p.reelSize.toString();
+        if (!map[key]) map[key] = [];
+        map[key].push({ client: c.name, product: p.name, boxSize: p.size, ply: p.ply, weight: p.weight, source: 'master' });
+      });
+    });
+  }
+
+  // Also from active orders (catches products not in master)
+  orders
+    .filter(o => o.reelSize && !FINISHED_STATUSES.includes(o.status))
+    .forEach(o => {
+      const key = o.reelSize.toString();
+      if (!map[key]) map[key] = [];
+      const already = map[key].find(x => x.client === o.customer && x.product === o.product);
+      if (!already) {
+        map[key].push({ client: o.customer, product: o.product, boxSize: o.size, ply: o.ply, weight: o.weight, source: 'order' });
+      }
+    });
+
+  if (!Object.keys(map).length) {
+    el.innerHTML = '<div class="empty-state">Koi reel-product mapping nahi. Products mein reel size add karo.</div>';
+    return;
+  }
+
+  el.innerHTML = '';
+
+  // Sort reel sizes numerically
+  Object.keys(map).sort((a, b) => parseFloat(a) - parseFloat(b)).forEach(reelSize => {
+    const products   = map[reelSize];
+    const totalKg    = getTotalKgForSize(reelSize);
+    const reservedKg = getReservedKgForSize(reelSize);
+    const availKg    = totalKg - reservedKg;
+
+    const stockStatus = totalKg === 0 ? 'no-data' : availKg > 0 ? 'ok' : 'low';
+    const stockColor  = stockStatus === 'ok' ? 'var(--success)' : stockStatus === 'low' ? 'var(--danger)' : '#999';
+    const stockLabel  = totalKg === 0
+      ? 'No stock data'
+      : `Total: ${totalKg.toLocaleString('en-IN')} kg · Reserved: ${reservedKg.toLocaleString('en-IN')} kg · Available: ${Math.max(0,Math.round(availKg)).toLocaleString('en-IN')} kg`;
+
+    const section = document.createElement('div');
+    section.className = 'card';
+    section.style.marginBottom = '16px';
+
+    const rows = products.map(p => `
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px 12px;font-size:13px;font-weight:600">${p.client}</td>
+        <td style="padding:8px 12px;font-size:13px">${p.product || '—'}</td>
+        <td style="padding:8px 12px;font-size:12px;font-family:monospace">${p.boxSize || '—'}</td>
+        <td style="padding:8px 12px;font-size:12px">${p.ply ? p.ply + ' Ply' : '—'}</td>
+        <td style="padding:8px 12px;font-size:12px">${p.weight ? p.weight + ' gm' : '—'}</td>
+      </tr>
+    `).join('');
+
+    section.innerHTML = `
+      <div class="card-header" style="flex-direction:column;align-items:flex-start;gap:4px">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <div class="card-title" style="font-size:18px">🧻 ${reelSize}" Reel</div>
+          <span style="font-size:12px;font-weight:700;color:${stockColor};background:${stockColor}18;padding:3px 10px;border-radius:20px">
+            ${stockStatus === 'no-data' ? '— No Stock Data' : stockStatus === 'ok' ? '✅ In Stock' : '⚠️ Low / Reserved'}
+          </span>
+          <span style="font-size:11px;color:var(--muted)">${products.length} product${products.length > 1 ? 's' : ''}</span>
+        </div>
+        <div style="font-size:11px;color:${stockColor};margin-top:2px">${stockLabel}</div>
+      </div>
+      <div class="card-body" style="padding:0;overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="background:var(--bg);border-bottom:2px solid var(--border)">
+              <th style="padding:8px 12px;text-align:left;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase">Client</th>
+              <th style="padding:8px 12px;text-align:left;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase">Product</th>
+              <th style="padding:8px 12px;text-align:left;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase">Box Size</th>
+              <th style="padding:8px 12px;text-align:left;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase">Ply</th>
+              <th style="padding:8px 12px;text-align:left;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase">Weight</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+    el.appendChild(section);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
 // SMART DELIVERY SUGGESTION
 // ══════════════════════════════════════════════════════════════
 
@@ -463,19 +634,14 @@ function getSuggestedDeliveryDate() {
   const size     = (document.getElementById('f-size').value || '').trim();
   const reelSize = document.getElementById('f-reel-size').value.trim() || guessReelSize(size);
 
-  if (!qty) { alert('Pehle Quantity enter karo.'); return; }
-  if (!size) { alert('Pehle Box Size enter karo.'); return; }
+  if (!qty)  { alert('Pehle Quantity enter karo.');  return; }
+  if (!size) { alert('Pehle Box Size enter karo.');  return; }
 
-  // Production days needed
   const prodDays = PRODUCTION_DAYS.calc(ply, qty);
-
-  // Check reel stock
-  let suggestion = null;
-  let reason     = '';
+  let suggestion = null, reason = '';
 
   if (reelSize) {
     const reelCheck = checkReelAvailability(reelSize);
-
     if (reelCheck.available) {
       const deliveryDate = addBusinessDays(todayStr, prodDays);
       suggestion = { date: deliveryDate, type: 'stock', reelSize, prodDays };
@@ -483,19 +649,19 @@ function getSuggestedDeliveryDate() {
     } else {
       const pending = getPendingDeliveries(reelSize);
       if (pending.length > 0) {
-        const earliest  = pending[0];
+        const earliest = pending[0];
         const afterReel = addBusinessDays(earliest.expectedDelivery, prodDays);
         suggestion = { date: afterReel, type: 'pending', reelSize, prodDays, reelArrival: earliest.expectedDelivery, supplier: earliest.supplier };
-        reason = `⏳ ${reelSize}" reel stock mein nahi. ${earliest.supplier} se delivery expected ${formatDate(earliest.expectedDelivery)}. Iske baad production shuru hogi.`;
+        reason = `⏳ ${reelSize}" reel stock mein nahi. ${earliest.supplier} se delivery expected ${formatDate(earliest.expectedDelivery)}.`;
       } else {
         suggestion = { date: null, type: 'unavailable', reelSize };
-        reason = `❌ ${reelSize}" reel stock mein nahi aur koi purchase pending nahi. Pehle reel order karo.`;
+        reason = `❌ ${reelSize}" reel nahi hai aur koi pending purchase nahi. Pehle reel order karo.`;
       }
     }
   } else {
     const deliveryDate = addBusinessDays(todayStr, prodDays);
     suggestion = { date: deliveryDate, type: 'generic', prodDays };
-    reason = `ℹ️ Reel size nahi mili. Sirf production time (${prodDays} din) ke basis pe suggest kar raha hoon.`;
+    reason = `ℹ️ Reel size nahi mili. Sirf production time (${prodDays} din) ke basis pe.`;
   }
 
   showDeliverySuggestion(suggestion, reason, prodDays);
@@ -506,45 +672,26 @@ function guessReelSize(boxSize) {
   const parts = boxSize.split(/[×xX]/).map(p => parseFloat(p.trim()));
   if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) return null;
   const needed = parts[0] + parts[1] + 2;
-  const availableSizes = reelData.map(r => r.size).sort((a, b) => a - b);
-  if (!availableSizes.length) {
-    const defaults = [35.5, 42, 44];
-    return defaults.find(s => s >= needed)?.toString() || null;
-  }
-  const match = availableSizes.find(s => s >= needed);
-  return match ? match.toString() : null;
+  const sizes  = reelData.map(r => r.size).sort((a, b) => a - b);
+  if (!sizes.length) return [35.5, 42, 44].find(s => s >= needed)?.toString() || null;
+  return sizes.find(s => s >= needed)?.toString() || null;
 }
 
 function showDeliverySuggestion(suggestion, reason, prodDays) {
   const box = document.getElementById('delivery-suggestion-box');
   if (!box) return;
-
-  const typeColor = suggestion.type === 'stock' ? 'var(--success)' :
-                    suggestion.type === 'pending' ? '#B45309' : 'var(--danger)';
-
-  box.style.display   = 'block';
+  const typeColor = suggestion.type === 'stock' ? 'var(--success)' : suggestion.type === 'pending' ? '#B45309' : 'var(--danger)';
+  box.style.display    = 'block';
   box.style.borderLeft = `4px solid ${typeColor}`;
   box.innerHTML = `
     <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:8px;">🎯 Suggested Delivery Date</div>
     <div style="font-size:12px;color:var(--text);margin-bottom:10px;">${reason}</div>
     ${suggestion.date ? `
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <div style="font-size:22px;font-weight:800;font-family:monospace;color:${typeColor}">
-          ${formatDate(suggestion.date)}
-        </div>
-        <div style="font-size:11px;color:var(--muted)">
-          Production: ${prodDays} din
-          ${suggestion.reelArrival ? `<br>Reel arrives: ${formatDate(suggestion.reelArrival)}` : ''}
-        </div>
-        <button class="btn-primary" onclick="acceptSuggestion('${suggestion.date}')" style="padding:8px 16px;font-size:12px;">
-          ✅ Yeh Date Use Karo
-        </button>
-      </div>
-    ` : `
-      <div style="font-size:13px;font-weight:600;color:var(--danger)">
-        Date suggest nahi ho sakti. Pehle reel purchase karo aur expected delivery date daalo.
-      </div>
-    `}
+        <div style="font-size:22px;font-weight:800;font-family:monospace;color:${typeColor}">${formatDate(suggestion.date)}</div>
+        <div style="font-size:11px;color:var(--muted)">Production: ${prodDays} din${suggestion.reelArrival ? `<br>Reel arrives: ${formatDate(suggestion.reelArrival)}` : ''}</div>
+        <button class="btn-primary" onclick="acceptSuggestion('${suggestion.date}')" style="padding:8px 16px;font-size:12px;">✅ Yeh Date Use Karo</button>
+      </div>` : `<div style="font-size:13px;font-weight:600;color:var(--danger)">Date suggest nahi ho sakti. Pehle reel purchase karo.</div>`}
   `;
 }
 
