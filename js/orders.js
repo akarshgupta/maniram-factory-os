@@ -411,11 +411,15 @@ function switchOrderTab(tab) {
   activeOrderTab = tab;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   event.target.classList.add('active');
-  document.getElementById('tab-all').style.display     = tab === 'all'     ? 'block' : 'none';
-  document.getElementById('tab-grouped').style.display = tab === 'grouped' ? 'block' : 'none';
-  document.getElementById('tab-reelmap').style.display = tab === 'reelmap' ? 'block' : 'none';
-  if (tab === 'grouped') renderGroupedOrders();
-  if (tab === 'reelmap') renderReelProductMap();
+  document.getElementById('tab-all').style.display        = tab === 'all'        ? 'block' : 'none';
+  document.getElementById('tab-grouped').style.display    = tab === 'grouped'    ? 'block' : 'none';
+  document.getElementById('tab-reelmap').style.display    = tab === 'reelmap'    ? 'block' : 'none';
+  document.getElementById('tab-ratecalc').style.display   = tab === 'ratecalc'   ? 'block' : 'none';
+  document.getElementById('tab-quotations').style.display = tab === 'quotations' ? 'block' : 'none';
+  if (tab === 'grouped')    renderGroupedOrders();
+  if (tab === 'reelmap')    renderReelProductMap();
+  if (tab === 'ratecalc')   { onPlyChange(); }
+  if (tab === 'quotations') renderQuotationsList();
 }
 
 // ══════════════════════════════════════════════════════════════
