@@ -2,9 +2,28 @@
 // ORDERS.JS — Fetch, Save, Edit, Render, Stock Check
 // ══════════════════════════════════════════════════════════════
 
-let orders         = [];
-let activeOrderTab = 'all';
-let editingOrderId = null; // tracks which order is being edited
+let orders          = [];
+let activeOrderTab  = 'all';
+let editingOrderId  = null;
+let orderSearchQuery = '';
+
+// ── Search helper (used by active + history views) ──
+function matchesSearch(o, query) {
+  if (!query) return true;
+  const q = query.toLowerCase();
+  return (
+    o.customer.toLowerCase().includes(q) ||
+    (o.product || '').toLowerCase().includes(q) ||
+    o.id.toLowerCase().includes(q) ||
+    (o.size || '').toLowerCase().includes(q)
+  );
+}
+
+function onOrderSearch() {
+  orderSearchQuery = (document.getElementById('order-search')?.value || '').trim().toLowerCase();
+  if (activeOrderTab === 'all')     renderOrders();
+  if (activeOrderTab === 'history') renderOrderHistory();
+}
 
 // ── Helpers ──
 function colourDot(c) {
@@ -411,10 +430,15 @@ function switchOrderTab(tab, e) {
   document.getElementById('tab-reelmap').style.display    = tab === 'reelmap'    ? 'block' : 'none';
   document.getElementById('tab-ratecalc').style.display   = tab === 'ratecalc'   ? 'block' : 'none';
   document.getElementById('tab-quotations').style.display = tab === 'quotations' ? 'block' : 'none';
+  document.getElementById('tab-history').style.display    = tab === 'history'    ? 'block' : 'none';
   if (tab === 'grouped')    renderGroupedOrders();
   if (tab === 'reelmap')    renderReelProductMap();
   if (tab === 'ratecalc')   { onPlyChange(); }
   if (tab === 'quotations') renderQuotationsList();
+  if (tab === 'history')    renderOrderHistory();
+  // Show/hide search bar only for filterable tabs
+  const searchBar = document.getElementById('order-search-bar');
+  if (searchBar) searchBar.style.display = ['all','history'].includes(tab) ? 'flex' : 'none';
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -427,10 +451,12 @@ function renderOrders() {
   const list = document.getElementById('orders-list');
   const activeOrders = [...orders]
     .filter(o => !FINISHED_STATUSES.includes(o.status))
+    .filter(o => matchesSearch(o, orderSearchQuery))
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
   if (!activeOrders.length) {
-    list.innerHTML = '<div class="empty-state">Koi active order nahi. Sab deliver ho gaye! 🎉</div>';
+    const msg = orderSearchQuery ? `"${orderSearchQuery}" se koi order nahi mila.` : 'Koi active order nahi. Sab deliver ho gaye! 🎉';
+    list.innerHTML = `<div class="empty-state">${msg}</div>`;
     return;
   }
   list.innerHTML = '';
@@ -453,9 +479,56 @@ function renderOrders() {
       <div style="font-size:12px">${o.weight ? o.weight + 'gm' : '—'}</div>
       <div style="font-size:12px;font-weight:500">${dateDisp}</div>
       <div><span class="status-badge ${STATUS_CLASS[o.status] || 'status-new'}">${o.status}</span></div>
-      <div style="font-size:13px;font-weight:600">${o.qty ? o.qty.toLocaleString('en-IN') : '—'}</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:13px;font-weight:600">${o.qty ? o.qty.toLocaleString('en-IN') : '—'}</span>
+        ${o.rate ? `<button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();openInvoice('${o.id}')">🧾</button>` : ''}
+      </div>
     `;
     list.appendChild(row);
+  });
+}
+
+// ── Render Order History (completed orders) ──
+function renderOrderHistory() {
+  const el = document.getElementById('history-orders-list');
+  if (!el) return;
+
+  const histOrders = [...orders]
+    .filter(o => FINISHED_STATUSES.includes(o.status))
+    .filter(o => matchesSearch(o, orderSearchQuery))
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  if (!histOrders.length) {
+    const msg = orderSearchQuery ? `"${orderSearchQuery}" se koi order nahi mila.` : 'Koi completed order nahi abhi.';
+    el.innerHTML = `<div class="empty-state">${msg}</div>`;
+    return;
+  }
+
+  el.innerHTML = '';
+  histOrders.forEach(o => {
+    const dateDisp = o.date ? new Date(o.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+    const row      = document.createElement('div');
+    row.className  = 'table-row';
+    row.style.cssText = 'background:#FAFAFA;cursor:pointer';
+    row.title = 'Click for invoice';
+    row.onclick = () => openInvoice(o.id);
+    row.innerHTML = `
+      <div style="font-family:monospace;font-size:11px;color:var(--muted)">${o.id}</div>
+      <div>
+        <div style="font-weight:600;font-size:13px">${o.customer}</div>
+        <div style="font-size:11px;color:var(--muted)">${o.product || '—'}</div>
+      </div>
+      <div style="font-size:12px;font-family:monospace">${o.size || '—'}</div>
+      <div style="font-size:12px">${colourDot(o.colour)}${o.colour || '—'}</div>
+      <div style="font-size:12px">${o.weight ? o.weight + 'gm' : '—'}</div>
+      <div style="font-size:12px">${dateDisp}</div>
+      <div><span class="status-badge ${STATUS_CLASS[o.status] || 'status-new'}">${o.status}</span></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:13px;font-weight:600">${o.qty ? o.qty.toLocaleString('en-IN') : '—'}</span>
+        ${o.rate ? `<span style="font-size:11px;color:var(--muted)">₹${(o.qty*o.rate).toLocaleString('en-IN',{maximumFractionDigits:0})}</span>` : ''}
+      </div>
+    `;
+    el.appendChild(row);
   });
 }
 

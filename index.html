@@ -25,6 +25,8 @@
     <div class="nav-item" onclick="showPage('reels')"><span class="nav-icon">🧻</span> Reel Stock</div>
     <div class="nav-item" onclick="showPage('purchase')"><span class="nav-icon">🛒</span> Purchase Register</div>
     <div class="nav-item" onclick="showPage('clients')"><span class="nav-icon">🤝</span> Clients</div>
+    <div class="nav-section">Finance</div>
+    <div class="nav-item" onclick="showPage('receivables')"><span class="nav-icon">💰</span> Receivables</div>
     <div class="nav-section">Tools</div>
     <div class="nav-item" onclick="showPage('reminders')" id="nav-reminders">
       <span class="nav-icon">🔔</span> Reminders
@@ -189,9 +191,16 @@
         <button class="btn-secondary" onclick="fetchOrders()">🔄 Refresh</button>
       </div>
 
+      <!-- Search Bar -->
+      <div id="order-search-bar" style="display:flex">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="order-search" placeholder="Search by customer, product, order ID, size..." oninput="onOrderSearch()" autocomplete="off">
+      </div>
+
       <!-- Tabs -->
       <div class="tab-bar">
         <button class="tab-btn active" onclick="switchOrderTab('all', event)">📋 Active Orders</button>
+        <button class="tab-btn" onclick="switchOrderTab('history', event)">📚 History</button>
         <button class="tab-btn" onclick="switchOrderTab('grouped', event)">👥 By Client</button>
         <button class="tab-btn" onclick="switchOrderTab('reelmap', event)">🧻 Reel → Products</button>
         <button class="tab-btn" onclick="switchOrderTab('ratecalc', event)">📐 Rate Calc</button>
@@ -281,9 +290,20 @@
       <div id="tab-quotations" style="display:none">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
           <div style="font-size:14px;font-weight:700;color:var(--navy)">📄 Quotations</div>
-          <button class="btn-secondary" onclick="switchOrderTab('ratecalc')" style="font-size:12px">+ New via Rate Calc</button>
+          <button class="btn-secondary" onclick="switchOrderTab('ratecalc', event)" style="font-size:12px">+ New via Rate Calc</button>
         </div>
         <div id="quotations-list"><div class="empty-state">Koi quotation nahi. Rate Calculator se banao.</div></div>
+      </div>
+
+      <!-- ── History Tab ── -->
+      <div id="tab-history" style="display:none">
+        <div class="orders-table">
+          <div class="table-header">
+            <div>Order ID</div><div>Customer & Product</div><div>Size</div>
+            <div>Colour</div><div>Wt(gm)</div><div>Delivery</div><div>Status</div><div>Qty / Amount</div>
+          </div>
+          <div id="history-orders-list"><div class="empty-state">Loading...</div></div>
+        </div>
       </div>
 
     </div>
@@ -407,6 +427,123 @@
       </div>
     </div>
 
+    <!-- ══ RECEIVABLES ══ -->
+    <div class="page" id="page-receivables">
+      <div class="section-header">
+        <div class="section-title">💰 Customer Outstanding</div>
+        <button class="btn-secondary" onclick="renderReceivables()" style="margin-left:0">🔄 Refresh</button>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:16px">
+        Delivered + Dispatched orders se automatically calculate hota hai. Payments manually record karo.
+      </div>
+      <div id="receivables-list"><div class="empty-state">Loading...</div></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- INVOICE MODAL -->
+<div id="invoice-overlay" onclick="closeInvoice()">
+  <div id="invoice-box" onclick="event.stopPropagation()">
+    <div id="invoice-printable">
+      <!-- Header -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid #042C53;flex-wrap:wrap;gap:12px">
+        <div>
+          <div style="font-size:22px;font-weight:800;color:#042C53;letter-spacing:-0.5px">MANIRAM INDUSTRIES</div>
+          <div style="font-size:12px;color:#666;margin-top:2px">Corrugated Box Manufacturer</div>
+          <div style="font-size:12px;color:#666">Jhansi, Uttar Pradesh · 284001</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:18px;font-weight:800;color:#042C53;letter-spacing:1px">TAX INVOICE</div>
+          <div style="font-size:12px;margin-top:6px"><strong>Invoice #:</strong> <span id="inv-number" style="font-family:monospace"></span></div>
+          <div style="font-size:12px;color:#666"><strong>Date:</strong> <span id="inv-date"></span></div>
+          <div style="font-size:12px;color:#666"><strong>Order ID:</strong> <span id="inv-order-id" style="font-family:monospace"></span></div>
+          <div style="font-size:12px;color:#666"><strong>Delivery:</strong> <span id="inv-delivery-date"></span></div>
+        </div>
+      </div>
+
+      <!-- Bill To -->
+      <div style="margin-bottom:20px;padding:12px 16px;background:#F0F5FB;border-radius:6px;border-left:3px solid #185FA5">
+        <div style="font-size:11px;font-weight:700;color:#6B8BAE;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Bill To</div>
+        <div style="font-size:16px;font-weight:700;color:#042C53" id="inv-customer-name"></div>
+        <div style="font-size:12px;color:#666;margin-top:2px" id="inv-customer-contact"></div>
+        <div style="font-size:12px;color:#666" id="inv-customer-city"></div>
+        <div style="font-size:12px;color:#666" id="inv-customer-phone"></div>
+      </div>
+
+      <!-- Items Table -->
+      <table class="invoice-table" style="width:100%;border-collapse:collapse;margin-bottom:16px">
+        <thead>
+          <tr>
+            <th style="width:50%">Description</th>
+            <th style="text-align:center">Qty</th>
+            <th style="text-align:right">Rate / Box</th>
+            <th style="text-align:right">Amount</th>
+          </tr>
+        </thead>
+        <tbody id="inv-items"></tbody>
+      </table>
+
+      <!-- Totals -->
+      <div style="display:flex;justify-content:flex-end;margin-bottom:20px">
+        <div style="min-width:280px">
+          <div class="invoice-totals-row" style="border-top:1px solid #e5e7eb">
+            <span style="color:#666">Subtotal (ex-GST)</span>
+            <span id="inv-subtotal" style="font-family:monospace"></span>
+          </div>
+          <div class="invoice-totals-row">
+            <span style="color:#666">GST @ 18%</span>
+            <span id="inv-gst" style="font-family:monospace"></span>
+          </div>
+          <div class="invoice-total-final">
+            <span>Total Amount</span>
+            <span id="inv-total" style="font-family:monospace"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Amount in words -->
+      <div style="font-size:12px;color:#444;padding:8px 12px;background:#F8F8F8;border-radius:4px;margin-bottom:16px;font-style:italic" id="inv-amount-words"></div>
+
+      <!-- Footer -->
+      <div style="font-size:11px;color:#aaa;border-top:1px solid #eee;padding-top:12px">
+        Thank you for your business with Maniram Industries, Jhansi.<br>
+        Payment due within 30 days. For queries: contact factory directly.
+      </div>
+    </div><!-- end printable -->
+
+    <!-- Actions (hidden on print) -->
+    <div class="no-print" style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end;border-top:1px solid #eee;padding-top:16px">
+      <button class="btn-primary" onclick="printInvoice()" style="font-size:13px">🖨 Print Invoice</button>
+      <button class="btn-secondary" onclick="closeInvoice()" style="font-size:13px">✖ Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- RECORD PAYMENT MODAL -->
+<div class="popup-overlay" id="record-payment-overlay" style="display:none" onclick="closeRecordPayment()">
+  <div class="popup-box" style="width:min(440px,95vw);padding:24px" onclick="event.stopPropagation()">
+    <div class="popup-title">💰 Record Payment</div>
+    <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:4px" id="pay-modal-customer"></div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:16px">Outstanding: <strong id="pay-modal-outstanding" style="color:var(--danger)"></strong></div>
+    <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div class="form-group">
+        <label class="form-label">Amount Received (₹)</label>
+        <input class="form-input" type="number" id="pay-amount" placeholder="e.g. 25000" step="100" min="1">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Date</label>
+        <input class="form-input" type="date" id="pay-date">
+      </div>
+      <div class="form-group" style="grid-column:span 2">
+        <label class="form-label">Note (optional)</label>
+        <input class="form-input" type="text" id="pay-note" placeholder="e.g. NEFT, cheque no, etc.">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn-primary" onclick="saveRecordedPayment()">💾 Save Payment</button>
+      <button class="btn-secondary" onclick="closeRecordPayment()">Cancel</button>
+    </div>
   </div>
 </div>
 
@@ -505,6 +642,8 @@
 <script src="js/reminders.js"></script>
 <script src="js/calendar.js"></script>
 <script src="js/dashboard.js"></script>
+<script src="js/invoices.js"></script>
+<script src="js/receivables.js"></script>
 <script src="js/app.js"></script>
 
 </body>
