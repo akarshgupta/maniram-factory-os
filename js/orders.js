@@ -24,11 +24,6 @@ function parseSheetDate(raw) {
   return '';
 }
 
-function formatDate(d) {
-  if (!d) return '—';
-  return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
 function addBusinessDays(fromDate, days) {
   const d = new Date(fromDate);
   let added = 0;
@@ -407,10 +402,10 @@ function setOrderSyncStatus(type, msg) {
 }
 
 // ── Tab Switch ──
-function switchOrderTab(tab) {
+function switchOrderTab(tab, e) {
   activeOrderTab = tab;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  event.target.classList.add('active');
+  if (e && e.target) e.target.classList.add('active');
   document.getElementById('tab-all').style.display        = tab === 'all'        ? 'block' : 'none';
   document.getElementById('tab-grouped').style.display    = tab === 'grouped'    ? 'block' : 'none';
   document.getElementById('tab-reelmap').style.display    = tab === 'reelmap'    ? 'block' : 'none';
@@ -674,8 +669,8 @@ function getSuggestedDeliveryDate() {
 function guessReelSize(boxSize) {
   if (!boxSize) return null;
   const parts = boxSize.split(/[×xX]/).map(p => parseFloat(p.trim()));
-  if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) return null;
-  const needed = parts[0] + parts[1] + 2;
+  if (parts.length < 3 || isNaN(parts[1]) || isNaN(parts[2])) return null;
+  const needed = parts[1] + parts[2] + 0.5; // sheet width = W + H + 0.5"
   const sizes  = reelData.map(r => r.size).sort((a, b) => a - b);
   if (!sizes.length) return [35.5, 42, 44].find(s => s >= needed)?.toString() || null;
   return sizes.find(s => s >= needed)?.toString() || null;

@@ -3,7 +3,7 @@
 // ══════════════════════════════════════════════════════════════
 
 function updateDashboardOrders() {
-  const active    = orders.filter(o => o.status !== 'Delivered' && o.status !== 'Cancelled');
+  const active    = orders.filter(o => !['Delivered', 'Dispatched', 'Cancelled'].includes(o.status));
   const todayO    = active.filter(o => o.date === todayStr);
   const tomorrowO = active.filter(o => o.date === tomorrowStr);
 

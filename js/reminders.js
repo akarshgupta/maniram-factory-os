@@ -208,7 +208,8 @@ function openWAPopup(key) {
   const lastDate  = dates[dates.length - 1];
   const nextDate  = avgCycle ? predictNextDate(lastDate, avgCycle) : '';
   const client    = CLIENTS.find(c => c.name.toLowerCase() === pattern.customer.toLowerCase());
-  const phone     = client?.phone || '';
+  const rawPhone  = (client?.phone || '').replace(/\D/g, '');
+  const phone     = rawPhone.startsWith('91') && rawPhone.length > 10 ? rawPhone.slice(2) : rawPhone;
   const message   = `Namaskar Sir! 🙏\n\nManiram Industries ki taraf se reminder:\n\n📦 *${pattern.product}* (${pattern.size})\nka order ${nextDate ? formatDate(nextDate) : 'jald hi'} tak due hota hai aapka.\n\nKya aap order confirm karna chahenge?\n\n— Maniram Industries, Jhansi`;
   const waUrl     = phone ? `https://wa.me/91${phone}?text=${encodeURIComponent(message)}` : `https://wa.me/?text=${encodeURIComponent(message)}`;
   pendingWALink   = waUrl + '||' + key + '||' + nextDate;

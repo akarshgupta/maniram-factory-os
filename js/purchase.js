@@ -185,6 +185,7 @@ function deletePurchase(id) {
   renderRateHistory();
 
   postPurchase({ action: 'deletePurchase', id });
+  setTimeout(fetchPurchases, 2000);
 }
 
 // ══════════════════════════════════════════════════════════════
