@@ -53,13 +53,17 @@ document.addEventListener('click', e => {
 // ══════════════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════════════
-function init() {
-  initClients();
-  initPurchases();
+async function init() {
+  // Start non-blocking fetches immediately
   renderCalendar();
-  renderClients();
   fetchOrders();
   fetchReelStock();
+
+  // Load clients + purchases from Sheets in parallel (may migrate from localStorage once)
+  await Promise.all([initClients(), initPurchases()]);
+
+  // Safe to render now — CLIENTS and purchases arrays are populated
+  renderClients();
 
   // Auto-refresh intervals
   setInterval(fetchReelStock,    10 * 60 * 1000); // every 10 min

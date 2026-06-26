@@ -1,47 +1,94 @@
 // ══════════════════════════════════════════════════════════════
 // PURCHASE.JS — Purchase Register (Reel Purchases + Rate History)
+// Data backend: Google Sheets (Purchases tab in ORDERS_SHEET_ID)
 // ══════════════════════════════════════════════════════════════
-
-const LS_PURCHASES = 'mi_purchases_v1';
-
-// ── Data Structure ──
-// {
-//   id:               'PUR001',
-//   supplier:         'Supplier Name',
-//   reelSize:         '44',       // inches
-//   gsm:              '120',
-//   bf:               '22',
-//   quantityKg:       500,
-//   ratePerKg:        32.5,       // ₹ per kg
-//   purchaseDate:     '2026-06-01',
-//   expectedDelivery: '2026-06-05',
-//   actualDelivery:   '',         // filled when received
-//   paymentStatus:    'Unpaid',   // Unpaid | Partial | Paid
-//   paidAmount:       0,
-//   remarks:          '',
-//   status:           'Pending',  // Pending | Received | Cancelled
-// }
 
 let purchases = [];
 
-// ── Load / Save ──
-function loadPurchases() {
+// ══════════════════════════════════════════════════════════════
+// SHEETS DATA LAYER
+// ══════════════════════════════════════════════════════════════
+
+async function fetchPurchases() {
   try {
+    const range = encodeURIComponent(`${PURCHASES_TAB}!A1:N2000`);
+    const url   = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${range}?key=${API_KEY}`;
+    const res   = await fetch(url);
+    const json  = await res.json();
+    if (json.error) return false;
+
+    const rows = (json.values || []).slice(1); // skip header
+    purchases  = rows
+      .filter(r => r[0])
+      .map(r => ({
+        id:               r[0]  || '',
+        supplier:         r[1]  || '',
+        reelSize:         r[2]  || '',
+        gsm:              r[3]  || '',
+        bf:               r[4]  || '',
+        quantityKg:       parseFloat(r[5])  || 0,
+        ratePerKg:        parseFloat(r[6])  || 0,
+        purchaseDate:     r[7]  || '',
+        expectedDelivery: r[8]  || '',
+        actualDelivery:   r[9]  || '',
+        paymentStatus:    r[10] || 'Unpaid',
+        paidAmount:       parseFloat(r[11]) || 0,
+        remarks:          r[12] || '',
+        status:           r[13] || 'Pending',
+      }));
+
+    return true;
+  } catch (e) {
+    console.error('fetchPurchases:', e);
+    return false;
+  }
+}
+
+function postPurchase(payload) {
+  return fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    mode:   'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).catch(() => {});
+}
+
+async function migratePurchasesToSheets(list) {
+  const reqs = list.map(p => postPurchase({ action: 'savePurchase', ...p }));
+  await Promise.all(reqs);
+  await new Promise(r => setTimeout(r, 3000));
+}
+
+async function initPurchases() {
+  const migrated = localStorage.getItem('mi_purchases_migrated');
+
+  if (!migrated) {
     const stored = localStorage.getItem(LS_PURCHASES);
-    if (stored) return JSON.parse(stored);
-  } catch (e) {}
-  return [];
+    if (stored) {
+      try {
+        const local = JSON.parse(stored);
+        if (Array.isArray(local) && local.length > 0) {
+          await migratePurchasesToSheets(local);
+        }
+      } catch (e) {}
+    }
+    localStorage.setItem('mi_purchases_migrated', '1');
+  }
+
+  const ok = await fetchPurchases();
+  if (!ok) {
+    // Sheets unreachable — fall back to localStorage
+    const stored = localStorage.getItem(LS_PURCHASES);
+    purchases = stored ? JSON.parse(stored) : [];
+  } else {
+    localStorage.removeItem(LS_PURCHASES);
+  }
 }
 
-function savePurchases(data) {
-  localStorage.setItem(LS_PURCHASES, JSON.stringify(data));
-}
+// ══════════════════════════════════════════════════════════════
+// ID GENERATION
+// ══════════════════════════════════════════════════════════════
 
-function initPurchases() {
-  purchases = loadPurchases();
-}
-
-// ── Generate ID ──
 function generatePurchaseId() {
   let max = 0;
   purchases.forEach(p => {
@@ -51,13 +98,16 @@ function generatePurchaseId() {
   return 'PUR' + String(max + 1).padStart(3, '0');
 }
 
-// ── Save Purchase ──
+// ══════════════════════════════════════════════════════════════
+// CRUD
+// ══════════════════════════════════════════════════════════════
+
 function savePurchase() {
   const supplier  = document.getElementById('pur-supplier').value.trim();
   const reelSize  = document.getElementById('pur-size').value.trim();
   const gsm       = document.getElementById('pur-gsm').value.trim();
   const bf        = document.getElementById('pur-bf').value.trim();
-  const qty       = parseFloat(document.getElementById('pur-qty').value) || 0;
+  const qty       = parseFloat(document.getElementById('pur-qty').value)  || 0;
   const rate      = parseFloat(document.getElementById('pur-rate').value) || 0;
   const purDate   = document.getElementById('pur-date').value;
   const expDel    = document.getElementById('pur-expected-delivery').value;
@@ -87,53 +137,60 @@ function savePurchase() {
   };
 
   purchases.push(entry);
-  savePurchases(purchases);
   clearPurchaseForm();
   renderPurchaseList();
   renderRateHistory();
   alert(`✅ Purchase ${entry.id} saved!`);
+
+  postPurchase({ action: 'savePurchase', ...entry });
+  setTimeout(fetchPurchases, 2000);
 }
 
-// ── Mark Received ──
 function markPurchaseReceived(id) {
   const idx = purchases.findIndex(p => p.id === id);
   if (idx < 0) return;
   const actual = prompt('Actual delivery date (YYYY-MM-DD):', todayStr);
   if (!actual) return;
-  purchases[idx].status          = 'Received';
-  purchases[idx].actualDelivery  = actual;
-  savePurchases(purchases);
+  purchases[idx].status         = 'Received';
+  purchases[idx].actualDelivery = actual;
   renderPurchaseList();
   renderRateHistory();
+
+  postPurchase({ action: 'updatePurchase', ...purchases[idx] });
+  setTimeout(fetchPurchases, 2000);
 }
 
-// ── Mark Payment ──
 function markPayment(id) {
   const idx = purchases.findIndex(p => p.id === id);
   if (idx < 0) return;
   const status = prompt('Payment status (Unpaid / Partial / Paid):', purchases[idx].paymentStatus);
   if (!status) return;
   purchases[idx].paymentStatus = status.trim();
-  if (status === 'Partial') {
+  if (status.trim() === 'Partial') {
     const amt = parseFloat(prompt('Kitna paid hua (₹):') || '0');
     purchases[idx].paidAmount = amt;
-  } else if (status === 'Paid') {
+  } else if (status.trim() === 'Paid') {
     purchases[idx].paidAmount = purchases[idx].quantityKg * purchases[idx].ratePerKg;
   }
-  savePurchases(purchases);
   renderPurchaseList();
+
+  postPurchase({ action: 'updatePurchase', ...purchases[idx] });
+  setTimeout(fetchPurchases, 2000);
 }
 
-// ── Delete Purchase ──
 function deletePurchase(id) {
   if (!confirm(`Delete ${id}?`)) return;
   purchases = purchases.filter(p => p.id !== id);
-  savePurchases(purchases);
   renderPurchaseList();
   renderRateHistory();
+
+  postPurchase({ action: 'deletePurchase', id });
 }
 
-// ── Clear Form ──
+// ══════════════════════════════════════════════════════════════
+// FORM HELPERS
+// ══════════════════════════════════════════════════════════════
+
 function clearPurchaseForm() {
   ['pur-supplier','pur-size','pur-gsm','pur-bf','pur-qty','pur-rate','pur-remarks','pur-expected-delivery'].forEach(id => {
     const el = document.getElementById(id);
@@ -146,7 +203,17 @@ function clearPurchaseForm() {
   document.getElementById('pur-id-display').textContent = generatePurchaseId();
 }
 
-// ── Rate History per Reel Size ──
+function initPurchaseForm() {
+  const dateEl = document.getElementById('pur-date');
+  if (dateEl) dateEl.value = todayStr;
+  const idEl = document.getElementById('pur-id-display');
+  if (idEl) idEl.textContent = generatePurchaseId();
+}
+
+// ══════════════════════════════════════════════════════════════
+// RATE HELPERS (used by reels.js and orders.js)
+// ══════════════════════════════════════════════════════════════
+
 function getRateHistory(reelSize) {
   return purchases
     .filter(p => p.reelSize === reelSize && p.status !== 'Cancelled')
@@ -164,19 +231,31 @@ function getAvgRate(reelSize) {
   return hist.reduce((s, p) => s + p.ratePerKg, 0) / hist.length;
 }
 
-// ── Get pending purchases for a reel size (expected delivery in future) ──
 function getPendingDeliveries(reelSize) {
   return purchases.filter(p =>
-    p.reelSize === reelSize &&
-    p.status   === 'Pending' &&
+    p.reelSize         === reelSize &&
+    p.status           === 'Pending' &&
     p.expectedDelivery &&
     p.expectedDelivery >= todayStr
   ).sort((a, b) => a.expectedDelivery.localeCompare(b.expectedDelivery));
 }
 
-// ── Render Purchase List ──
+// ══════════════════════════════════════════════════════════════
+// RENDER — Purchase List
+// ══════════════════════════════════════════════════════════════
+
 function renderPurchaseList() {
-  const el = document.getElementById('purchase-list');
+  // Dynamically rebuild the reel-size filter from actual purchase data
+  const filterSel = document.getElementById('pur-filter-size');
+  if (filterSel) {
+    const currentSize = filterSel.value;
+    const sizes = [...new Set(purchases.map(p => p.reelSize).filter(Boolean))]
+      .sort((a, b) => parseFloat(a) - parseFloat(b));
+    filterSel.innerHTML = '<option value="">All Sizes</option>' +
+      sizes.map(s => `<option value="${s}"${s === currentSize ? ' selected' : ''}>${s}"</option>`).join('');
+  }
+
+  const el           = document.getElementById('purchase-list');
   if (!el) return;
 
   const filterSize   = document.getElementById('pur-filter-size')?.value   || '';
@@ -193,10 +272,10 @@ function renderPurchaseList() {
 
   el.innerHTML = '';
   filtered.forEach(p => {
-    const totalAmt  = (p.quantityKg * p.ratePerKg).toLocaleString('en-IN', { maximumFractionDigits: 0 });
-    const isPending = p.status === 'Pending';
-    const isReceived= p.status === 'Received';
-    const payColor  = p.paymentStatus === 'Paid' ? 'var(--success)' : p.paymentStatus === 'Partial' ? '#B45309' : 'var(--danger)';
+    const totalAmt   = (p.quantityKg * p.ratePerKg).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+    const isPending  = p.status === 'Pending';
+    const isReceived = p.status === 'Received';
+    const payColor   = p.paymentStatus === 'Paid' ? 'var(--success)' : p.paymentStatus === 'Partial' ? '#B45309' : 'var(--danger)';
 
     const card = document.createElement('div');
     card.className = 'purchase-card';
@@ -248,12 +327,14 @@ function renderPurchaseList() {
   });
 }
 
-// ── Render Rate History Summary ──
+// ══════════════════════════════════════════════════════════════
+// RENDER — Rate History
+// ══════════════════════════════════════════════════════════════
+
 function renderRateHistory() {
   const el = document.getElementById('rate-history-list');
   if (!el) return;
 
-  // Collect unique reel sizes from purchases
   const sizes = [...new Set(purchases.map(p => p.reelSize))].sort((a, b) => parseFloat(b) - parseFloat(a));
 
   if (!sizes.length) {
@@ -263,18 +344,17 @@ function renderRateHistory() {
 
   el.innerHTML = '';
   sizes.forEach(size => {
-    const hist    = getRateHistory(size);
-    const latest  = hist.length ? hist[hist.length - 1].ratePerKg : null;
-    const avg     = getAvgRate(size);
-    const min     = hist.length ? Math.min(...hist.map(p => p.ratePerKg)) : null;
-    const max     = hist.length ? Math.max(...hist.map(p => p.ratePerKg)) : null;
-    const trend   = hist.length >= 2 ? (hist[hist.length-1].ratePerKg - hist[hist.length-2].ratePerKg) : 0;
+    const hist  = getRateHistory(size);
+    const latest = hist.length ? hist[hist.length - 1].ratePerKg : null;
+    const avg    = getAvgRate(size);
+    const min    = hist.length ? Math.min(...hist.map(p => p.ratePerKg)) : null;
+    const max    = hist.length ? Math.max(...hist.map(p => p.ratePerKg)) : null;
+    const trend  = hist.length >= 2 ? (hist[hist.length - 1].ratePerKg - hist[hist.length - 2].ratePerKg) : 0;
     const trendIcon = trend > 0 ? '📈' : trend < 0 ? '📉' : '➡️';
 
     const section = document.createElement('div');
     section.style.cssText = 'background:white;border-radius:12px;border:1px solid var(--border);padding:16px 20px;margin-bottom:12px;';
 
-    // History rows
     const histRows = hist.slice().reverse().slice(0, 5).map(p => `
       <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;">
         <span style="color:var(--muted)">${formatDate(p.purchaseDate)}</span>
@@ -311,12 +391,4 @@ function renderRateHistory() {
     `;
     el.appendChild(section);
   });
-}
-
-// ── Init Purchase form date ──
-function initPurchaseForm() {
-  const dateEl = document.getElementById('pur-date');
-  if (dateEl) dateEl.value = todayStr;
-  const idEl = document.getElementById('pur-id-display');
-  if (idEl) idEl.textContent = generatePurchaseId();
 }

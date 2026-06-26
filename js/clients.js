@@ -1,5 +1,6 @@
 // ══════════════════════════════════════════════════════════════
 // CLIENTS.JS — Client Data, Autocomplete, Product Dropdown
+// Data backend: Google Sheets (Clients + ClientProducts tabs in ORDERS_SHEET_ID)
 // ══════════════════════════════════════════════════════════════
 
 const DEFAULT_CLIENTS = [
@@ -37,33 +38,119 @@ const DEFAULT_CLIENTS = [
 ];
 
 // ── State ──
-let CLIENTS = [];
+let CLIENTS       = [];
 let acSelectedIdx = -1;
 let acFiltered    = [];
 
-// ── Load / Save ──
-function loadClients() {
+// ══════════════════════════════════════════════════════════════
+// SHEETS DATA LAYER
+// ══════════════════════════════════════════════════════════════
+
+async function fetchClients() {
   try {
-    const stored = localStorage.getItem(LS_CLIENTS);
-    if (stored) return JSON.parse(stored);
-  } catch (e) {}
-  localStorage.setItem(LS_CLIENTS, JSON.stringify(DEFAULT_CLIENTS));
-  return JSON.parse(JSON.stringify(DEFAULT_CLIENTS));
+    const cUrl = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent(CLIENTS_TAB + '!A1:D500')}?key=${API_KEY}`;
+    const pUrl = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent(PRODUCTS_TAB + '!A1:G2000')}?key=${API_KEY}`;
+
+    const [cRes, pRes]   = await Promise.all([fetch(cUrl), fetch(pUrl)]);
+    const [cJson, pJson] = await Promise.all([cRes.json(), pRes.json()]);
+
+    if (cJson.error) return false;
+
+    const cRows = (cJson.values || []).slice(1); // skip header
+    const pRows = (pJson.values || []).slice(1);
+
+    CLIENTS = cRows
+      .filter(r => r[0])
+      .map(r => ({
+        name:     r[0] || '',
+        contact:  r[1] || '',
+        phone:    r[2] || '',
+        city:     r[3] || '',
+        products: pRows
+          .filter(p => p[0] === r[0])
+          .map(p => ({
+            name:     p[1] || '',
+            size:     p[2] || '',
+            ply:      p[3] || '',
+            colour:   p[4] || '',
+            weight:   p[5] || '',
+            reelSize: p[6] || '',
+          })),
+      }));
+
+    return true;
+  } catch (e) {
+    console.error('fetchClients:', e);
+    return false;
+  }
 }
 
-function saveClients(data) {
-  localStorage.setItem(LS_CLIENTS, JSON.stringify(data));
+function postClient(payload) {
+  return fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    mode:   'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).catch(() => {});
 }
+
+async function migrateClientsToSheets(clients) {
+  const reqs = [];
+  for (const c of clients) {
+    reqs.push(postClient({
+      action: 'saveClient',
+      name: c.name, contact: c.contact || '', phone: c.phone || '', city: c.city || '',
+    }));
+    for (const p of (c.products || [])) {
+      reqs.push(postClient({
+        action: 'saveProduct',
+        clientName: c.name,
+        name: p.name, size: p.size || '', ply: p.ply || '',
+        colour: p.colour || '', weight: p.weight || '', reelSize: p.reelSize || '',
+      }));
+    }
+  }
+  await Promise.all(reqs);
+  // Give Apps Script time to write before we read back
+  await new Promise(r => setTimeout(r, 3000));
+}
+
+async function initClients() {
+  const migrated = localStorage.getItem('mi_clients_migrated');
+
+  if (!migrated) {
+    const stored = localStorage.getItem(LS_CLIENTS);
+    if (stored) {
+      try {
+        const local = JSON.parse(stored);
+        // Only migrate if the stored data differs from the placeholder defaults
+        if (Array.isArray(local) && JSON.stringify(local) !== JSON.stringify(DEFAULT_CLIENTS)) {
+          await migrateClientsToSheets(local);
+        }
+      } catch (e) {}
+    }
+    localStorage.setItem('mi_clients_migrated', '1');
+  }
+
+  const ok = await fetchClients();
+  if (!ok || CLIENTS.length === 0) {
+    // Sheets empty or unreachable — fall back to localStorage
+    const stored = localStorage.getItem(LS_CLIENTS);
+    CLIENTS = stored ? JSON.parse(stored) : JSON.parse(JSON.stringify(DEFAULT_CLIENTS));
+  } else {
+    // Sheets has data; safe to clear the old localStorage copy
+    localStorage.removeItem(LS_CLIENTS);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// AUTOCOMPLETE
+// ══════════════════════════════════════════════════════════════
 
 function sortedClients() {
   return [...CLIENTS].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function initClients() {
-  CLIENTS = loadClients();
-}
-
-// ── Autocomplete ──
 function onCustomerInput() {
   const val = document.getElementById('f-customer').value.trim().toLowerCase();
   const dd  = document.getElementById('customer-dropdown');
@@ -74,7 +161,7 @@ function onCustomerInput() {
   if (!acFiltered.length) { dd.style.display = 'none'; return; }
 
   dd.innerHTML = '';
-  acFiltered.forEach((c, i) => {
+  acFiltered.forEach((c) => {
     const item = document.createElement('div');
     item.className = 'autocomplete-item';
     const idx    = c.name.toLowerCase().indexOf(val);
@@ -108,7 +195,7 @@ function onCustomerKey(e) {
 }
 
 function selectCustomer(name) {
-  document.getElementById('f-customer').value          = name;
+  document.getElementById('f-customer').value               = name;
   document.getElementById('customer-dropdown').style.display = 'none';
   acFiltered    = [];
   acSelectedIdx = -1;
@@ -116,7 +203,10 @@ function selectCustomer(name) {
   refreshOrderId();
 }
 
-// ── Product Dropdown ──
+// ══════════════════════════════════════════════════════════════
+// PRODUCT DROPDOWN
+// ══════════════════════════════════════════════════════════════
+
 function populateProductDropdown(customerName) {
   const sel    = document.getElementById('f-product');
   sel.innerHTML = '';
@@ -155,8 +245,11 @@ function onProductChange() {
     const colour   = prompt('Print colour:', 'Red');             if (!colour)   { sel.value = ''; return; }
     const weight   = prompt('Weight (gm):');                     if (!weight)   { sel.value = ''; return; }
     const reelSize = prompt('Reel Size (inches, e.g. 35.5):');   if (!reelSize) { sel.value = ''; return; }
-    CLIENTS[ci].products.push({ name: name.trim(), size: size.trim(), ply: ply.trim(), colour: colour.trim(), weight: weight.trim(), reelSize: reelSize.trim() });
-    saveClients(CLIENTS);
+
+    const product = { name: name.trim(), size: size.trim(), ply: ply.trim(), colour: colour.trim(), weight: weight.trim(), reelSize: reelSize.trim() };
+    CLIENTS[ci].products.push(product);
+    postClient({ action: 'saveProduct', clientName: custNm, ...product });
+    setTimeout(fetchClients, 2000);
     populateProductDropdown(custNm);
     sel.value = CLIENTS[ci].products.length - 1;
     onProductChange();
@@ -175,7 +268,6 @@ function onProductChange() {
   document.getElementById('f-weight').value    = p.weight   || '';
   document.getElementById('f-reel-size').value = p.reelSize || '';
 
-  // Auto-trigger stock check after product loads
   checkStockForCurrentOrder();
 }
 
@@ -186,7 +278,10 @@ function clearProductFields() {
   hideStockCheck();
 }
 
-// ── Clients Page Render ──
+// ══════════════════════════════════════════════════════════════
+// CLIENTS PAGE — Render & CRUD
+// ══════════════════════════════════════════════════════════════
+
 function renderClients() {
   const list = document.getElementById('clients-list');
   list.innerHTML = '';
@@ -228,54 +323,75 @@ function renderClients() {
 
 function editClient(ci) {
   const c       = CLIENTS[ci];
-  const name    = prompt('Client name:', c.name);      if (name === null) return;
+  const name    = prompt('Client name:', c.name);      if (name    === null) return;
   const contact = prompt('Contact person:', c.contact); if (contact === null) return;
-  const phone   = prompt('Phone:', c.phone);            if (phone === null) return;
-  const city    = prompt('City:', c.city);              if (city === null) return;
-  CLIENTS[ci]   = { ...c, name: name.trim(), contact: contact.trim(), phone: phone.trim(), city: city.trim() };
-  saveClients(CLIENTS);
+  const phone   = prompt('Phone:', c.phone);            if (phone   === null) return;
+  const city    = prompt('City:', c.city);              if (city    === null) return;
+
+  const originalName = c.name;
+  CLIENTS[ci] = { ...c, name: name.trim(), contact: contact.trim(), phone: phone.trim(), city: city.trim() };
   renderClients();
+
+  postClient({ action: 'saveClient', name: name.trim(), contact: contact.trim(), phone: phone.trim(), city: city.trim(), originalName });
+  setTimeout(fetchClients, 2000);
 }
 
 function addNewClient() {
   const name    = prompt('Client name:');    if (!name) return;
   const contact = prompt('Contact person:'); if (contact === null) return;
-  const phone   = prompt('Phone:');          if (phone === null) return;
-  const city    = prompt('City:');           if (city === null) return;
-  CLIENTS.push({ name: name.trim(), contact: contact.trim(), phone: phone.trim(), city: city.trim(), products: [] });
+  const phone   = prompt('Phone:');          if (phone   === null) return;
+  const city    = prompt('City:');           if (city    === null) return;
+
+  const client = { name: name.trim(), contact: contact.trim(), phone: phone.trim(), city: city.trim(), products: [] };
+  CLIENTS.push(client);
   CLIENTS.sort((a, b) => a.name.localeCompare(b.name));
-  saveClients(CLIENTS);
   renderClients();
+
+  postClient({ action: 'saveClient', name: client.name, contact: client.contact, phone: client.phone, city: client.city });
+  setTimeout(fetchClients, 2000);
 }
 
 function addProduct(ci) {
-  const name     = prompt('Product name:');                    if (!name) return;
-  const size     = prompt('Box size:');                        if (!size) return;
-  const ply      = prompt('Ply (3/5/7):', '3');                if (!ply) return;
-  const colour   = prompt('Colour:', 'Red');                   if (!colour) return;
-  const weight   = prompt('Weight (gm):');                     if (!weight) return;
-  const reelSize = prompt('Reel Size (inches, e.g. 35.5):');   if (!reelSize) return;
-  CLIENTS[ci].products.push({ name: name.trim(), size: size.trim(), ply: ply.trim(), colour: colour.trim(), weight: weight.trim(), reelSize: reelSize.trim() });
-  saveClients(CLIENTS);
+  const name     = prompt('Product name:');                  if (!name)     return;
+  const size     = prompt('Box size:');                      if (!size)     return;
+  const ply      = prompt('Ply (3/5/7):', '3');              if (!ply)      return;
+  const colour   = prompt('Colour:', 'Red');                 if (!colour)   return;
+  const weight   = prompt('Weight (gm):');                   if (!weight)   return;
+  const reelSize = prompt('Reel Size (inches, e.g. 35.5):'); if (!reelSize) return;
+
+  const product = { name: name.trim(), size: size.trim(), ply: ply.trim(), colour: colour.trim(), weight: weight.trim(), reelSize: reelSize.trim() };
+  CLIENTS[ci].products.push(product);
   renderClients();
+
+  postClient({ action: 'saveProduct', clientName: CLIENTS[ci].name, ...product });
+  setTimeout(fetchClients, 2000);
 }
 
 function editProduct(ci, pi) {
   const p        = CLIENTS[ci].products[pi];
-  const name     = prompt('Product name:', p.name);              if (name === null) return;
-  const size     = prompt('Box size:', p.size);                  if (size === null) return;
-  const ply      = prompt('Ply:', p.ply);                        if (ply === null) return;
-  const colour   = prompt('Colour:', p.colour);                  if (colour === null) return;
-  const weight   = prompt('Weight (gm):', p.weight);             if (weight === null) return;
+  const name     = prompt('Product name:', p.name);                if (name     === null) return;
+  const size     = prompt('Box size:', p.size);                    if (size     === null) return;
+  const ply      = prompt('Ply:', p.ply);                          if (ply      === null) return;
+  const colour   = prompt('Colour:', p.colour);                    if (colour   === null) return;
+  const weight   = prompt('Weight (gm):', p.weight);               if (weight   === null) return;
   const reelSize = prompt('Reel Size (inches):', p.reelSize || ''); if (reelSize === null) return;
-  CLIENTS[ci].products[pi] = { name: name.trim(), size: size.trim(), ply: ply.trim(), colour: colour.trim(), weight: weight.trim(), reelSize: reelSize.trim() };
-  saveClients(CLIENTS);
+
+  const originalName = p.name;
+  const updated = { name: name.trim(), size: size.trim(), ply: ply.trim(), colour: colour.trim(), weight: weight.trim(), reelSize: reelSize.trim() };
+  CLIENTS[ci].products[pi] = updated;
   renderClients();
+
+  postClient({ action: 'saveProduct', clientName: CLIENTS[ci].name, ...updated, originalName });
+  setTimeout(fetchClients, 2000);
 }
 
 function deleteProduct(ci, pi) {
   if (!confirm(`Delete "${CLIENTS[ci].products[pi].name}"?`)) return;
+  const clientName  = CLIENTS[ci].name;
+  const productName = CLIENTS[ci].products[pi].name;
   CLIENTS[ci].products.splice(pi, 1);
-  saveClients(CLIENTS);
   renderClients();
+
+  postClient({ action: 'deleteProduct', clientName, productName });
+  setTimeout(fetchClients, 2000);
 }

@@ -10,6 +10,9 @@ const APPS_SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycbxCrZW5upLG7Y
 const API_KEY           = 'AIzaSyBz9doIxDqLCmUd5mKjemM9ui3tVJBD34k';
 const REEL_TAB          = 'Stock';
 const ORDERS_TAB        = 'Sheet1';
+const CLIENTS_TAB       = 'Clients';
+const PRODUCTS_TAB      = 'ClientProducts';
+const PURCHASES_TAB     = 'Purchases';
 
 const KATRA_BUFFER_KG  = 5000;
 const CRITICAL_SIZES   = ['35.5', '44', '42', '35'];
@@ -18,6 +21,7 @@ const MIN_REELS        = 4;
 const LS_ORDER_HISTORY = 'mi_order_history';
 const LS_REMINDER_SENT = 'mi_reminder_sent';
 const LS_CLIENTS       = 'mi_clients_v2';
+const LS_PURCHASES     = 'mi_purchases_v1';
 
 const today       = new Date();
 const todayStr    = today.toISOString().split('T')[0];
