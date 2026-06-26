@@ -44,7 +44,7 @@ const STATUS_CLASS = {
   'Ready':         'status-ready',
   'Dispatched':    'status-dispatched',
   'Delivered':     'status-delivered',
-  'Cancelled':     'status-delivered',
+  'Cancelled':     'status-cancelled',
 };
 
 const PRODUCTION_DAYS = {

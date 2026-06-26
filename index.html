@@ -191,11 +191,11 @@
 
       <!-- Tabs -->
       <div class="tab-bar">
-        <button class="tab-btn active" onclick="switchOrderTab('all')">📋 Active Orders</button>
-        <button class="tab-btn" onclick="switchOrderTab('grouped')">👥 By Client</button>
-        <button class="tab-btn" onclick="switchOrderTab('reelmap')">🧻 Reel → Products</button>
-        <button class="tab-btn" onclick="switchOrderTab('ratecalc')">📐 Rate Calc</button>
-        <button class="tab-btn" onclick="switchOrderTab('quotations')">📄 Quotations</button>
+        <button class="tab-btn active" onclick="switchOrderTab('all', event)">📋 Active Orders</button>
+        <button class="tab-btn" onclick="switchOrderTab('grouped', event)">👥 By Client</button>
+        <button class="tab-btn" onclick="switchOrderTab('reelmap', event)">🧻 Reel → Products</button>
+        <button class="tab-btn" onclick="switchOrderTab('ratecalc', event)">📐 Rate Calc</button>
+        <button class="tab-btn" onclick="switchOrderTab('quotations', event)">📄 Quotations</button>
       </div>
 
       <div class="sync-bar"><div class="sync-dot loading" id="order-sync-dot"></div><span id="order-sync-label">Loading from Google Sheets...</span></div>

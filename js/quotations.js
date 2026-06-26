@@ -287,15 +287,17 @@ function convertQuotation(id, mode) {
     }
     const productName = prompt('Product naam do:', q.boxSize);
     if (!productName) return;
-    CLIENTS[ci].products.push({
+    const product = {
       name: productName.trim(),
       size: q.boxSize,
       ply:  q.ply.toString(),
       colour: '',
       weight: q.weight.toString(),
       reelSize: q.reelSize?.toString() || '',
-    });
-    saveClients(CLIENTS);
+    };
+    CLIENTS[ci].products.push(product);
+    postClient({ action: 'saveProduct', clientName: CLIENTS[ci].name, ...product });
+    setTimeout(fetchClients, 2000);
     renderClients();
     alert(`✅ "${productName}" added to ${q.customer}!`);
   }
