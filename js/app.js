@@ -14,13 +14,14 @@ function escStr(s) {
 
 // ── Navigation ──
 const pageTitles = {
-  dashboard: 'Dashboard',
-  calendar:  'Order Calendar',
-  orders:    'Orders',
-  reels:     'Reel Stock',
-  clients:   'Clients & Product Master',
-  reminders: '🔔 Reminders',
-  purchase:  '🛒 Purchase Register',
+  dashboard:   'Dashboard',
+  calendar:    'Order Calendar',
+  orders:      'Orders',
+  reels:       'Reel Stock',
+  clients:     'Clients & Product Master',
+  reminders:   '🔔 Reminders',
+  purchase:    '🛒 Purchase Register',
+  receivables: '💰 Receivables',
 };
 
 function showPage(id) {
@@ -32,11 +33,12 @@ function showPage(id) {
   });
   document.getElementById('page-title').textContent = pageTitles[id] || id;
 
-  if (id === 'calendar')  renderCalendar();
-  if (id === 'orders')    { renderOrders(); refreshOrderId(); }
-  if (id === 'clients')   renderClients();
-  if (id === 'reminders') computeReminders();
-  if (id === 'purchase')  { renderPurchaseList(); renderRateHistory(); initPurchaseForm(); }
+  if (id === 'calendar')    renderCalendar();
+  if (id === 'orders')      { renderOrders(); refreshOrderId(); }
+  if (id === 'clients')     renderClients();
+  if (id === 'reminders')   computeReminders();
+  if (id === 'purchase')    { renderPurchaseList(); renderRateHistory(); initPurchaseForm(); }
+  if (id === 'receivables') renderReceivables();
 }
 
 // ── Topbar Date ──
@@ -61,6 +63,10 @@ async function init() {
 
   // Load clients + purchases from Sheets in parallel (may migrate from localStorage once)
   await Promise.all([initClients(), initPurchases()]);
+
+  // Initialise localStorage-backed modules
+  initInvoices();
+  initPayments();
 
   // Safe to render now — CLIENTS and purchases arrays are populated
   renderClients();
