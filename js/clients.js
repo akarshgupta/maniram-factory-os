@@ -42,6 +42,12 @@ let CLIENTS       = [];
 let acSelectedIdx = -1;
 let acFiltered    = [];
 
+// ── Client Modal State ──
+let _clientModalIdx  = -1; // -1 = adding new
+let _productModalCi  = -1;
+let _productModalPi  = -1; // -1 = adding new
+let _productModalCb  = null; // optional callback after save
+
 // ══════════════════════════════════════════════════════════════
 // SHEETS DATA LAYER
 // ══════════════════════════════════════════════════════════════
@@ -239,20 +245,12 @@ function onProductChange() {
   if (val === '__add__') {
     const ci = CLIENTS.findIndex(c => c.name === custNm);
     if (ci < 0) { alert('Pehle customer select karo.'); sel.value = ''; return; }
-    const name     = prompt('Product name (e.g. Kingfisher):'); if (!name)     { sel.value = ''; return; }
-    const size     = prompt('Box size (e.g. 20×14×27):');       if (!size)     { sel.value = ''; return; }
-    const ply      = prompt('Ply (3/5/7):', '3');                if (!ply)      { sel.value = ''; return; }
-    const colour   = prompt('Print colour:', 'Red');             if (!colour)   { sel.value = ''; return; }
-    const weight   = prompt('Weight (gm):');                     if (!weight)   { sel.value = ''; return; }
-    const reelSize = prompt('Reel Size (inches, e.g. 35.5):');   if (!reelSize) { sel.value = ''; return; }
-
-    const product = { name: name.trim(), size: size.trim(), ply: ply.trim(), colour: colour.trim(), weight: weight.trim(), reelSize: reelSize.trim() };
-    CLIENTS[ci].products.push(product);
-    postClient({ action: 'saveProduct', clientName: custNm, ...product });
-    setTimeout(fetchClients, 2000);
-    populateProductDropdown(custNm);
-    sel.value = CLIENTS[ci].products.length - 1;
-    onProductChange();
+    sel.value = '';
+    openProductModal(ci, -1, (product, newIdx) => {
+      populateProductDropdown(custNm);
+      document.getElementById('f-product').value = newIdx.toString();
+      onProductChange();
+    });
     return;
   }
 
@@ -321,69 +319,107 @@ function renderClients() {
   list.appendChild(addBtn);
 }
 
-function editClient(ci) {
-  const c       = CLIENTS[ci];
-  const name    = prompt('Client name:', c.name);      if (name    === null) return;
-  const contact = prompt('Contact person:', c.contact); if (contact === null) return;
-  const phone   = prompt('Phone:', c.phone);            if (phone   === null) return;
-  const city    = prompt('City:', c.city);              if (city    === null) return;
+// ── Client Modal ──
+function openClientModal(ci) {
+  _clientModalIdx = ci;
+  const c = ci >= 0 ? CLIENTS[ci] : null;
+  document.getElementById('client-modal-title').textContent   = ci >= 0 ? 'Edit Client' : 'Add New Client';
+  document.getElementById('cm-name').value    = c ? c.name    : '';
+  document.getElementById('cm-contact').value = c ? c.contact : '';
+  document.getElementById('cm-phone').value   = c ? c.phone   : '';
+  document.getElementById('cm-city').value    = c ? c.city    : '';
+  document.getElementById('client-modal-overlay').style.display = 'flex';
+  document.getElementById('cm-name').focus();
+}
 
-  const originalName = c.name;
-  CLIENTS[ci] = { ...c, name: name.trim(), contact: contact.trim(), phone: phone.trim(), city: city.trim() };
+function closeClientModal() {
+  document.getElementById('client-modal-overlay').style.display = 'none';
+}
+
+function saveClientModal() {
+  const name    = document.getElementById('cm-name').value.trim();
+  const contact = document.getElementById('cm-contact').value.trim();
+  const phone   = document.getElementById('cm-phone').value.trim();
+  const city    = document.getElementById('cm-city').value.trim();
+
+  if (!name) { document.getElementById('cm-name').focus(); return; }
+
+  if (_clientModalIdx >= 0) {
+    const originalName = CLIENTS[_clientModalIdx].name;
+    CLIENTS[_clientModalIdx] = { ...CLIENTS[_clientModalIdx], name, contact, phone, city };
+    postClient({ action: 'saveClient', name, contact, phone, city, originalName });
+  } else {
+    CLIENTS.push({ name, contact, phone, city, products: [] });
+    CLIENTS.sort((a, b) => a.name.localeCompare(b.name));
+    postClient({ action: 'saveClient', name, contact, phone, city });
+  }
+
+  closeClientModal();
   renderClients();
-
-  postClient({ action: 'saveClient', name: name.trim(), contact: contact.trim(), phone: phone.trim(), city: city.trim(), originalName });
   setTimeout(fetchClients, 2000);
 }
 
-function addNewClient() {
-  const name    = prompt('Client name:');    if (!name) return;
-  const contact = prompt('Contact person:'); if (contact === null) return;
-  const phone   = prompt('Phone:');          if (phone   === null) return;
-  const city    = prompt('City:');           if (city    === null) return;
+// ── Product Modal ──
+function openProductModal(ci, pi, callback) {
+  _productModalCi = ci;
+  _productModalPi = pi;
+  _productModalCb = callback || null;
+  const p = (pi >= 0) ? CLIENTS[ci].products[pi] : null;
+  document.getElementById('product-modal-title').textContent = pi >= 0 ? 'Edit Product' : 'Add Product';
+  document.getElementById('pm-name').value     = p ? p.name     : '';
+  document.getElementById('pm-size').value     = p ? p.size     : '';
+  document.getElementById('pm-ply').value      = p ? p.ply      : '3';
+  document.getElementById('pm-colour').value   = p ? p.colour   : 'Red';
+  document.getElementById('pm-weight').value   = p ? p.weight   : '';
+  document.getElementById('pm-reelsize').value = p ? p.reelSize : '';
+  document.getElementById('product-modal-overlay').style.display = 'flex';
+  document.getElementById('pm-name').focus();
+}
 
-  const client = { name: name.trim(), contact: contact.trim(), phone: phone.trim(), city: city.trim(), products: [] };
-  CLIENTS.push(client);
-  CLIENTS.sort((a, b) => a.name.localeCompare(b.name));
-  renderClients();
+function closeProductModal() {
+  document.getElementById('product-modal-overlay').style.display = 'none';
+  _productModalCb = null;
+}
 
-  postClient({ action: 'saveClient', name: client.name, contact: client.contact, phone: client.phone, city: client.city });
+function saveProductModal() {
+  const name     = document.getElementById('pm-name').value.trim();
+  const size     = document.getElementById('pm-size').value.trim();
+  const ply      = document.getElementById('pm-ply').value.trim();
+  const colour   = document.getElementById('pm-colour').value.trim();
+  const weight   = document.getElementById('pm-weight').value.trim();
+  const reelSize = document.getElementById('pm-reelsize').value.trim();
+
+  if (!name) { document.getElementById('pm-name').focus(); return; }
+  if (!size) { document.getElementById('pm-size').focus(); return; }
+
+  const product = { name, size, ply, colour, weight, reelSize };
+  const ci      = _productModalCi;
+
+  if (_productModalPi >= 0) {
+    const originalName = CLIENTS[ci].products[_productModalPi].name;
+    CLIENTS[ci].products[_productModalPi] = product;
+    postClient({ action: 'saveProduct', clientName: CLIENTS[ci].name, ...product, originalName });
+  } else {
+    CLIENTS[ci].products.push(product);
+    postClient({ action: 'saveProduct', clientName: CLIENTS[ci].name, ...product });
+  }
+
+  const cb    = _productModalCb;
+  const newIdx = CLIENTS[ci].products.length - 1;
+  closeProductModal();
+
+  if (cb) {
+    cb(product, _productModalPi >= 0 ? _productModalPi : newIdx);
+  } else {
+    renderClients();
+  }
   setTimeout(fetchClients, 2000);
 }
 
-function addProduct(ci) {
-  const name     = prompt('Product name:');                  if (!name)     return;
-  const size     = prompt('Box size:');                      if (!size)     return;
-  const ply      = prompt('Ply (3/5/7):', '3');              if (!ply)      return;
-  const colour   = prompt('Colour:', 'Red');                 if (!colour)   return;
-  const weight   = prompt('Weight (gm):');                   if (!weight)   return;
-  const reelSize = prompt('Reel Size (inches, e.g. 35.5):'); if (!reelSize) return;
-
-  const product = { name: name.trim(), size: size.trim(), ply: ply.trim(), colour: colour.trim(), weight: weight.trim(), reelSize: reelSize.trim() };
-  CLIENTS[ci].products.push(product);
-  renderClients();
-
-  postClient({ action: 'saveProduct', clientName: CLIENTS[ci].name, ...product });
-  setTimeout(fetchClients, 2000);
-}
-
-function editProduct(ci, pi) {
-  const p        = CLIENTS[ci].products[pi];
-  const name     = prompt('Product name:', p.name);                if (name     === null) return;
-  const size     = prompt('Box size:', p.size);                    if (size     === null) return;
-  const ply      = prompt('Ply:', p.ply);                          if (ply      === null) return;
-  const colour   = prompt('Colour:', p.colour);                    if (colour   === null) return;
-  const weight   = prompt('Weight (gm):', p.weight);               if (weight   === null) return;
-  const reelSize = prompt('Reel Size (inches):', p.reelSize || ''); if (reelSize === null) return;
-
-  const originalName = p.name;
-  const updated = { name: name.trim(), size: size.trim(), ply: ply.trim(), colour: colour.trim(), weight: weight.trim(), reelSize: reelSize.trim() };
-  CLIENTS[ci].products[pi] = updated;
-  renderClients();
-
-  postClient({ action: 'saveProduct', clientName: CLIENTS[ci].name, ...updated, originalName });
-  setTimeout(fetchClients, 2000);
-}
+function editClient(ci)    { openClientModal(ci); }
+function addNewClient()    { openClientModal(-1); }
+function addProduct(ci)    { openProductModal(ci, -1); }
+function editProduct(ci, pi) { openProductModal(ci, pi); }
 
 function deleteProduct(ci, pi) {
   if (!confirm(`Delete "${CLIENTS[ci].products[pi].name}"?`)) return;

@@ -632,6 +632,85 @@
   </div>
 </div>
 
+<!-- CLIENT MODAL -->
+<div class="popup-overlay" id="client-modal-overlay" style="display:none" onclick="closeClientModal()">
+  <div class="popup-box" style="width:min(460px,95vw);padding:24px" onclick="event.stopPropagation()">
+    <div class="popup-title" id="client-modal-title">Add New Client</div>
+    <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      <div class="form-group" style="grid-column:span 2">
+        <label class="form-label">Client Name <span style="color:var(--danger)">*</span></label>
+        <input class="form-input" type="text" id="cm-name" placeholder="e.g. NDS International"
+          onkeydown="if(event.key==='Enter')saveClientModal();if(event.key==='Escape')closeClientModal()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Contact Person</label>
+        <input class="form-input" type="text" id="cm-contact" placeholder="e.g. Rajesh Kumar"
+          onkeydown="if(event.key==='Enter')saveClientModal();if(event.key==='Escape')closeClientModal()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Phone</label>
+        <input class="form-input" type="tel" id="cm-phone" placeholder="e.g. 9800000001"
+          onkeydown="if(event.key==='Enter')saveClientModal();if(event.key==='Escape')closeClientModal()">
+      </div>
+      <div class="form-group" style="grid-column:span 2">
+        <label class="form-label">City</label>
+        <input class="form-input" type="text" id="cm-city" placeholder="e.g. Jhansi"
+          onkeydown="if(event.key==='Enter')saveClientModal();if(event.key==='Escape')closeClientModal()">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn-primary" onclick="saveClientModal()">💾 Save Client</button>
+      <button class="btn-secondary" onclick="closeClientModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- PRODUCT MODAL -->
+<div class="popup-overlay" id="product-modal-overlay" style="display:none" onclick="closeProductModal()">
+  <div class="popup-box" style="width:min(520px,95vw);padding:24px" onclick="event.stopPropagation()">
+    <div class="popup-title" id="product-modal-title">Add Product</div>
+    <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      <div class="form-group" style="grid-column:span 2">
+        <label class="form-label">Product Name <span style="color:var(--danger)">*</span></label>
+        <input class="form-input" type="text" id="pm-name" placeholder="e.g. Kingfisher"
+          onkeydown="if(event.key==='Escape')closeProductModal()">
+      </div>
+      <div class="form-group" style="grid-column:span 2">
+        <label class="form-label">Box Size <span style="color:var(--danger)">*</span></label>
+        <input class="form-input" type="text" id="pm-size" placeholder="e.g. 20×14×27"
+          onkeydown="if(event.key==='Escape')closeProductModal()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Ply</label>
+        <select class="form-select" id="pm-ply">
+          <option value="3">3 Ply</option>
+          <option value="5">5 Ply</option>
+          <option value="7">7 Ply</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Print Colour</label>
+        <input class="form-input" type="text" id="pm-colour" placeholder="e.g. Red"
+          onkeydown="if(event.key==='Escape')closeProductModal()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Weight (gm)</label>
+        <input class="form-input" type="number" id="pm-weight" placeholder="e.g. 648" step="0.1"
+          onkeydown="if(event.key==='Escape')closeProductModal()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Reel Size (inch)</label>
+        <input class="form-input" type="number" id="pm-reelsize" placeholder="e.g. 35.5" step="0.5"
+          onkeydown="if(event.key==='Escape')closeProductModal()">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn-primary" onclick="saveProductModal()">💾 Save Product</button>
+      <button class="btn-secondary" onclick="closeProductModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- JS MODULES — order matters -->
 <script src="js/config.js"></script>
 <script src="js/clients.js"></script>
