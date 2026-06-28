@@ -68,7 +68,7 @@ function renderReceivables() {
   el.innerHTML = '';
 
   if (!summaries.length) {
-    el.innerHTML = `<div class="empty-state">Koi billed order nahi abhi.<br>Jab orders Delivered ya Dispatched mark honge tab yahan dikhega.</div>`;
+    el.innerHTML = `<div class="empty-state">No billed orders yet.<br>Orders marked as Delivered or Dispatched will appear here.</div>`;
     return;
   }
 
@@ -182,7 +182,7 @@ function saveRecordedPayment() {
   const date   = document.getElementById('pay-date').value;
   const note   = document.getElementById('pay-note').value.trim();
 
-  if (!amount || amount <= 0) { alert('Valid amount daalo (₹ mein).'); return; }
+  if (!amount || amount <= 0) { alert('Please enter a valid amount (in ₹).'); return; }
   if (!date) { alert('Date required hai.'); return; }
 
   const entry = {

@@ -115,7 +115,7 @@ function savePurchase() {
   const remarks   = document.getElementById('pur-remarks').value.trim();
 
   if (!supplier || !reelSize || !qty || !rate || !purDate) {
-    alert('Supplier, Reel Size, Quantity, Rate aur Purchase Date required hai.');
+    alert('Supplier, Reel Size, Quantity, Rate and Purchase Date are required.');
     return;
   }
 
@@ -167,7 +167,7 @@ function markPayment(id) {
   if (!status) return;
   purchases[idx].paymentStatus = status.trim();
   if (status.trim() === 'Partial') {
-    const amt = parseFloat(prompt('Kitna paid hua (₹):') || '0');
+    const amt = parseFloat(prompt('Amount paid (₹):') || '0');
     purchases[idx].paidAmount = amt;
   } else if (status.trim() === 'Paid') {
     purchases[idx].paidAmount = purchases[idx].quantityKg * purchases[idx].ratePerKg;
@@ -267,7 +267,7 @@ function renderPurchaseList() {
   if (filterStatus) filtered = filtered.filter(p => p.status   === filterStatus);
 
   if (!filtered.length) {
-    el.innerHTML = '<div class="empty-state">Koi purchase nahi mila.</div>';
+    el.innerHTML = '<div class="empty-state">No purchases found.</div>';
     return;
   }
 
@@ -339,7 +339,7 @@ function renderRateHistory() {
   const sizes = [...new Set(purchases.map(p => p.reelSize))].sort((a, b) => parseFloat(b) - parseFloat(a));
 
   if (!sizes.length) {
-    el.innerHTML = '<div class="empty-state">Abhi koi purchase record nahi. Pehle koi purchase add karo.</div>';
+    el.innerHTML = '<div class="empty-state">No purchase records yet. Please add a purchase first.</div>';
     return;
   }
 
@@ -388,7 +388,7 @@ function renderRateHistory() {
         </div>
       </div>
       <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Last ${Math.min(hist.length,5)} Purchases</div>
-      ${histRows || '<div style="font-size:12px;color:var(--muted)">Koi record nahi</div>'}
+      ${histRows || '<div style="font-size:12px;color:var(--muted)">No records</div>'}
     `;
     el.appendChild(section);
   });

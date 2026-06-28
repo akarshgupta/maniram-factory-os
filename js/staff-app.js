@@ -52,10 +52,10 @@ function staffSetup() {
   const p1 = (document.getElementById('staff-new-pin')?.value  || '').trim();
   const p2 = (document.getElementById('staff-new-pin2')?.value || '').trim();
   staffShowErr('staff-setup-err', '');
-  if (p1.length < 4 || !/^\d+$/.test(p1)) { staffShowErr('staff-setup-err', '4-6 digit numeric PIN chahiye.'); return; }
-  if (p1 !== p2) { staffShowErr('staff-setup-err', 'Dono PIN match nahi kar rahe.'); return; }
+  if (p1.length < 4 || !/^\d+$/.test(p1)) { staffShowErr('staff-setup-err', 'PIN must be 4–6 numeric digits.'); return; }
+  if (p1 !== p2) { staffShowErr('staff-setup-err', 'PINs do not match.'); return; }
   if (!staffSave(STAFF_PIN_KEY, staffHash(p1))) {
-    staffShowErr('staff-setup-err', 'Browser ne save karne se roka. Private mode check karo.'); return;
+    staffShowErr('staff-setup-err', 'Browser blocked the save. Check if Private/Incognito mode is on.'); return;
   }
   staffSetSession();
   staffHideAuth();
@@ -64,19 +64,19 @@ function staffSetup() {
 function staffLogin() {
   const pin = (document.getElementById('staff-pin')?.value || '').trim();
   staffShowErr('staff-login-err', '');
-  if (!pin) { staffShowErr('staff-login-err', 'PIN daalo.'); return; }
+  if (!pin) { staffShowErr('staff-login-err', 'Please enter your PIN.'); return; }
   const stored = staffRead(STAFF_PIN_KEY);
   if (!stored) { staffShowAuthMode('setup'); return; }
   if (staffHash(pin) === stored) {
     staffSetSession(); staffHideAuth();
   } else {
-    staffShowErr('staff-login-err', 'Galat PIN. Dobara try karo.');
+    staffShowErr('staff-login-err', 'Incorrect PIN. Please try again.');
     const el = document.getElementById('staff-pin'); if (el) { el.value = ''; el.focus(); }
   }
 }
 
 function staffLogout() {
-  if (!confirm('Logout karna chahte ho?')) return;
+  if (!confirm('Are you sure you want to logout?')) return;
   staffClearSession();
   document.getElementById('staff-pin').value = '';
   staffShowAuthMode('login');
@@ -211,7 +211,7 @@ function renderStaffOrders() {
   });
 
   if (!orders.length) {
-    list.innerHTML = `<div class="empty-state">Koi active orders nahi hain.</div>`;
+    list.innerHTML = `<div class="empty-state">No active orders.</div>`;
     return;
   }
 
@@ -296,7 +296,7 @@ function saveStaffStatus() {
 function renderStaffStock() {
   const list = document.getElementById('staff-stock-list');
   if (!staffStock.length) {
-    list.innerHTML = `<div class="empty-state">Stock data nahi mila.</div>`;
+    list.innerHTML = `<div class="empty-state">No stock data found.</div>`;
     return;
   }
   list.innerHTML = '';

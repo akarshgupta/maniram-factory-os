@@ -217,8 +217,8 @@ function checkStockForCurrentOrder() {
     const subs = findSubstitutes(reelSize, neededKg);
     box.style.borderLeft = '4px solid var(--danger)';
     box.innerHTML = `
-      <div style="font-size:13px;font-weight:700;color:var(--danger);margin-bottom:6px;">❌ ${reelSize}" — Stock data nahi mila</div>
-      ${subs.length ? `<div style="font-size:12px;font-weight:600;color:#B45309;">🔄 Substitute:</div>${subs.map(s=>`<div style="font-size:12px;color:#92400E;">→ ${s.size}" · ${s.availableKg.toLocaleString('en-IN')} kg available</div>`).join('')}` : '<div style="font-size:12px;color:var(--danger)">Koi substitute bhi nahi.</div>'}`;
+      <div style="font-size:13px;font-weight:700;color:var(--danger);margin-bottom:6px;">❌ ${reelSize}" — No stock data found</div>
+      ${subs.length ? `<div style="font-size:12px;font-weight:600;color:#B45309;">🔄 Substitute:</div>${subs.map(s=>`<div style="font-size:12px;color:#92400E;">→ ${s.size}" · ${s.availableKg.toLocaleString('en-IN')} kg available</div>`).join('')}` : '<div style="font-size:12px;color:var(--danger)">No substitutes available.</div>'}`;
     return;
   }
 
@@ -227,22 +227,22 @@ function checkStockForCurrentOrder() {
     box.innerHTML = `
       <div style="font-size:13px;font-weight:700;color:var(--success);margin-bottom:6px;">✅ Stock Available — ${reelSize}"</div>
       <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:12px;">
-        <div><span style="color:var(--muted)">Chahiye:</span> <strong>${neededKg.toLocaleString('en-IN')} kg</strong></div>
+        <div><span style="color:var(--muted)">Required:</span> <strong>${neededKg.toLocaleString('en-IN')} kg</strong></div>
         <div><span style="color:var(--muted)">Reserved (other orders):</span> <strong>${reservedKg.toLocaleString('en-IN')} kg</strong></div>
-        <div><span style="color:var(--muted)">Baad mein bachega:</span> <strong style="color:var(--success)">${(availableKg - neededKg).toLocaleString('en-IN')} kg</strong></div>
+        <div><span style="color:var(--muted)">Remaining after order:</span> <strong style="color:var(--success)">${(availableKg - neededKg).toLocaleString('en-IN')} kg</strong></div>
       </div>`;
   } else {
     const shortage = neededKg - availableKg;
     const subs     = findSubstitutes(reelSize, neededKg);
     box.style.borderLeft = '4px solid var(--danger)';
     box.innerHTML = `
-      <div style="font-size:13px;font-weight:700;color:var(--danger);margin-bottom:6px;">⚠️ Stock Kam Hai — ${reelSize}"</div>
+      <div style="font-size:13px;font-weight:700;color:var(--danger);margin-bottom:6px;">⚠️ Low Stock — ${reelSize}"</div>
       <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:12px;margin-bottom:8px;">
-        <div><span style="color:var(--muted)">Chahiye:</span> <strong>${neededKg.toLocaleString('en-IN')} kg</strong></div>
+        <div><span style="color:var(--muted)">Required:</span> <strong>${neededKg.toLocaleString('en-IN')} kg</strong></div>
         <div><span style="color:var(--muted)">Available:</span> <strong style="color:var(--danger)">${Math.max(0,Math.round(availableKg)).toLocaleString('en-IN')} kg</strong></div>
         <div><span style="color:var(--muted)">Shortage:</span> <strong style="color:var(--danger)">${shortage.toLocaleString('en-IN')} kg</strong></div>
       </div>
-      ${subs.length ? `<div style="font-size:12px;font-weight:600;color:#B45309;margin-bottom:4px;">🔄 Substitute Available:</div>${subs.map(s=>`<div style="font-size:12px;color:#92400E;">→ ${s.size}" · ${s.availableKg.toLocaleString('en-IN')} kg ✅</div>`).join('')}` : '<div style="font-size:12px;color:var(--danger);font-weight:600;">Koi substitute bhi nahi. Pehle purchase karo.</div>'}`;
+      ${subs.length ? `<div style="font-size:12px;font-weight:600;color:#B45309;margin-bottom:4px;">🔄 Substitute Available:</div>${subs.map(s=>`<div style="font-size:12px;color:#92400E;">→ ${s.size}" · ${s.availableKg.toLocaleString('en-IN')} kg ✅</div>`).join('')}` : '<div style="font-size:12px;color:var(--danger);font-weight:600;">No substitutes available. Please place a purchase order first.</div>'}`;
   }
 }
 
@@ -285,7 +285,7 @@ async function saveOrderToSheet() {
   const priority = document.getElementById('f-priority').value;
   const reelSize = document.getElementById('f-reel-size').value.trim();
 
-  if (!customer || !date) { alert('Customer aur Delivery Date required hai.'); return; }
+  if (!customer || !date) { alert('Customer and Delivery Date are required.'); return; }
 
   const reservedKg = calcOrderKg(weight, qty);
   const d          = new Date(date);
@@ -369,7 +369,7 @@ async function saveEditedOrder() {
   const status   = document.getElementById('ef-status').value;
   const priority = document.getElementById('ef-priority').value;
 
-  if (!dateVal) { alert('Delivery Date required hai.'); return; }
+  if (!dateVal) { alert('Delivery Date is required.'); return; }
 
   const d          = new Date(dateVal);
   const formatted  = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
@@ -455,7 +455,7 @@ function renderOrders() {
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
   if (!activeOrders.length) {
-    const msg = orderSearchQuery ? `"${orderSearchQuery}" se koi order nahi mila.` : 'Koi active order nahi. Sab deliver ho gaye! 🎉';
+    const msg = orderSearchQuery ? `No orders found matching "${orderSearchQuery}".` : 'No active orders. All delivered! 🎉';
     list.innerHTML = `<div class="empty-state">${msg}</div>`;
     return;
   }
@@ -499,7 +499,7 @@ function renderOrderHistory() {
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
   if (!histOrders.length) {
-    const msg = orderSearchQuery ? `"${orderSearchQuery}" se koi order nahi mila.` : 'Koi completed order nahi abhi.';
+    const msg = orderSearchQuery ? `No orders found matching "${orderSearchQuery}".` : 'No completed orders yet.';
     el.innerHTML = `<div class="empty-state">${msg}</div>`;
     return;
   }
@@ -537,7 +537,7 @@ function renderGroupedOrders() {
   const el = document.getElementById('grouped-orders-list');
   const activeOrders = orders.filter(o => !FINISHED_STATUSES.includes(o.status));
 
-  if (!activeOrders.length) { el.innerHTML = '<div class="empty-state">Koi active order nahi.</div>'; return; }
+  if (!activeOrders.length) { el.innerHTML = '<div class="empty-state">No active orders.</div>'; return; }
 
   const groups = {};
   activeOrders.forEach(o => {
@@ -633,7 +633,7 @@ function renderReelProductMap() {
     });
 
   if (!Object.keys(map).length) {
-    el.innerHTML = '<div class="empty-state">Koi reel-product mapping nahi. Products mein reel size add karo.</div>';
+    el.innerHTML = '<div class="empty-state">No reel-product mappings found. Add reel sizes to products.</div>';
     return;
   }
 
@@ -706,8 +706,8 @@ function getSuggestedDeliveryDate() {
   const size     = (document.getElementById('f-size').value || '').trim();
   const reelSize = document.getElementById('f-reel-size').value.trim() || guessReelSize(size);
 
-  if (!qty)  { alert('Pehle Quantity enter karo.');  return; }
-  if (!size) { alert('Pehle Box Size enter karo.');  return; }
+  if (!qty)  { alert('Please enter a Quantity first.');  return; }
+  if (!size) { alert('Please enter a Box Size first.');  return; }
 
   const prodDays = PRODUCTION_DAYS.calc(ply, qty);
   let suggestion = null, reason = '';
@@ -717,23 +717,23 @@ function getSuggestedDeliveryDate() {
     if (reelCheck.available) {
       const deliveryDate = addBusinessDays(todayStr, prodDays);
       suggestion = { date: deliveryDate, type: 'stock', reelSize, prodDays };
-      reason = `✅ ${reelSize}" reel stock mein hai (${reelCheck.count} reels). Production aaj se shuru ho sakti hai.`;
+      reason = `✅ ${reelSize}" reel is in stock (${reelCheck.count} reels). Production can begin today.`;
     } else {
       const pending = getPendingDeliveries(reelSize);
       if (pending.length > 0) {
         const earliest = pending[0];
         const afterReel = addBusinessDays(earliest.expectedDelivery, prodDays);
         suggestion = { date: afterReel, type: 'pending', reelSize, prodDays, reelArrival: earliest.expectedDelivery, supplier: earliest.supplier };
-        reason = `⏳ ${reelSize}" reel stock mein nahi. ${earliest.supplier} se delivery expected ${formatDate(earliest.expectedDelivery)}.`;
+        reason = `⏳ ${reelSize}" reel not in stock. Delivery from ${earliest.supplier} expected on ${formatDate(earliest.expectedDelivery)}.`;
       } else {
         suggestion = { date: null, type: 'unavailable', reelSize };
-        reason = `❌ ${reelSize}" reel nahi hai aur koi pending purchase nahi. Pehle reel order karo.`;
+        reason = `❌ ${reelSize}" reel unavailable with no pending purchase orders. Please order reels first.`;
       }
     }
   } else {
     const deliveryDate = addBusinessDays(todayStr, prodDays);
     suggestion = { date: deliveryDate, type: 'generic', prodDays };
-    reason = `ℹ️ Reel size nahi mili. Sirf production time (${prodDays} din) ke basis pe.`;
+    reason = `ℹ️ Reel size not found. Estimate based on production time only (${prodDays} days).`;
   }
 
   showDeliverySuggestion(suggestion, reason, prodDays);
@@ -761,9 +761,9 @@ function showDeliverySuggestion(suggestion, reason, prodDays) {
     ${suggestion.date ? `
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         <div style="font-size:22px;font-weight:800;font-family:monospace;color:${typeColor}">${formatDate(suggestion.date)}</div>
-        <div style="font-size:11px;color:var(--muted)">Production: ${prodDays} din${suggestion.reelArrival ? `<br>Reel arrives: ${formatDate(suggestion.reelArrival)}` : ''}</div>
-        <button class="btn-primary" onclick="acceptSuggestion('${suggestion.date}')" style="padding:8px 16px;font-size:12px;">✅ Yeh Date Use Karo</button>
-      </div>` : `<div style="font-size:13px;font-weight:600;color:var(--danger)">Date suggest nahi ho sakti. Pehle reel purchase karo.</div>`}
+        <div style="font-size:11px;color:var(--muted)">Production: ${prodDays} days${suggestion.reelArrival ? `<br>Reel arrives: ${formatDate(suggestion.reelArrival)}` : ''}</div>
+        <button class="btn-primary" onclick="acceptSuggestion('${suggestion.date}')" style="padding:8px 16px;font-size:12px;">✅ Use This Date</button>
+      </div>` : `<div style="font-size:13px;font-weight:600;color:var(--danger)">Cannot suggest a date. Please place a reel purchase order first.</div>`}
   `;
 }
 

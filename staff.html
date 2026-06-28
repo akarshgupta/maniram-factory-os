@@ -51,23 +51,23 @@
 
     <!-- Setup panel -->
     <div id="staff-setup-panel" style="display:none">
-      <div style="font-size:14px;font-weight:700;color:#1A5C2A;margin-bottom:4px">Staff PIN Set Karo</div>
-      <div style="font-size:12px;color:#6B7280;margin-bottom:16px">4–6 digit PIN banao staff ke liye.</div>
-      <input id="staff-new-pin" type="password" inputmode="numeric" maxlength="6" placeholder="PIN daalo (4-6 digits)"
+      <div style="font-size:14px;font-weight:700;color:#1A5C2A;margin-bottom:4px">Set Staff PIN</div>
+      <div style="font-size:12px;color:#6B7280;margin-bottom:16px">Create a 4–6 digit PIN for staff access.</div>
+      <input id="staff-new-pin" type="password" inputmode="numeric" maxlength="6" placeholder="Enter PIN (4-6 digits)"
         style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:18px;letter-spacing:4px;text-align:center;box-sizing:border-box;margin-bottom:10px"
         onkeydown="if(event.key==='Enter')staffSetup()">
-      <input id="staff-new-pin2" type="password" inputmode="numeric" maxlength="6" placeholder="PIN dobara daalo"
+      <input id="staff-new-pin2" type="password" inputmode="numeric" maxlength="6" placeholder="Confirm PIN"
         style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:18px;letter-spacing:4px;text-align:center;box-sizing:border-box;margin-bottom:10px"
         onkeydown="if(event.key==='Enter')staffSetup()">
       <div id="staff-setup-err" style="display:none;font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 12px;border-radius:6px;margin-bottom:10px"></div>
-      <button onclick="staffSetup()" style="width:100%;padding:11px;background:#1A5C2A;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">🔐 PIN Set Karo</button>
+      <button onclick="staffSetup()" style="width:100%;padding:11px;background:#1A5C2A;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">🔐 Set PIN</button>
     </div>
 
     <!-- Login panel -->
     <div id="staff-login-panel" style="display:none">
       <div style="font-size:14px;font-weight:700;color:#1A5C2A;margin-bottom:4px">Staff Login</div>
-      <div style="font-size:12px;color:#6B7280;margin-bottom:16px">Staff PIN daalo.</div>
-      <input id="staff-pin" type="password" inputmode="numeric" maxlength="6" placeholder="PIN daalo"
+      <div style="font-size:12px;color:#6B7280;margin-bottom:16px">Enter your staff PIN.</div>
+      <input id="staff-pin" type="password" inputmode="numeric" maxlength="6" placeholder="Enter PIN"
         style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:24px;letter-spacing:6px;text-align:center;box-sizing:border-box;margin-bottom:10px"
         onkeydown="if(event.key==='Enter')staffLogin()">
       <div id="staff-login-err" style="display:none;font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 12px;border-radius:6px;margin-bottom:10px"></div>
@@ -102,12 +102,12 @@
       <!-- Today's banner -->
       <div class="grid-2" style="margin-bottom:16px">
         <div class="today-banner">
-          <div class="today-banner-title">🔴 Aaj Dispatch Karne Hain</div>
+          <div class="today-banner-title">🔴 Dispatch Today</div>
           <div class="today-count" id="staff-due-today">—</div>
           <div class="today-sub">orders due today</div>
         </div>
         <div class="today-banner" style="background:linear-gradient(135deg,#B45309,#D97706)">
-          <div class="today-banner-title">⚠️ Kal Ka Plan</div>
+          <div class="today-banner-title">⚠️ Tomorrow's Plan</div>
           <div class="today-count" id="staff-due-tomorrow">—</div>
           <div class="today-sub">orders due tomorrow</div>
         </div>
@@ -139,7 +139,7 @@
       <div class="card" style="max-width:520px">
         <div class="card-header"><div class="card-title">📅 Delivery Date Suggester</div></div>
         <div class="card-body">
-          <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Order ki details daalo — system batayega kab ready hoga.</p>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Enter order details — the system will calculate the suggested dispatch date.</p>
           <div class="calc-grid">
             <div class="form-group">
               <label class="form-label">Quantity (pcs)</label>
@@ -176,7 +176,7 @@
       <div class="card" style="max-width:520px">
         <div class="card-header"><div class="card-title">⚖️ Box Weight Calculator</div></div>
         <div class="card-body">
-          <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Box dimensions aur paper spec daalo — per-box aur batch weight milega.</p>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Enter box dimensions and paper spec — get per-box and total batch weight.</p>
           <div class="calc-grid">
             <div class="form-group">
               <label class="form-label">Length (cm)</label>
