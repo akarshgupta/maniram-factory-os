@@ -6,69 +6,73 @@ const STAFF_PIN_KEY     = 'mi_staff_pin_v1';
 const STAFF_SESSION_KEY = 'mi_staff_session_v1';
 const STAFF_SESSION_TTL = 12 * 60 * 60 * 1000; // 12 hours
 
-// ── Simple hash (works on HTTP/file:// too) ──
-async function staffHash(str) {
-  if (window.crypto?.subtle) {
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-    return 'sha:' + Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+// ── Synchronous hash — works everywhere ──
+function staffHash(str) {
+  const input = 'MI_STAFF_SALT_' + str + '_2024';
+  let a = 0x811c9dc5, b = 0xdeadbeef;
+  for (let i = 0; i < input.length; i++) {
+    const c = input.charCodeAt(i);
+    a = (Math.imul(a ^ c, 0x01000193) >>> 0);
+    b = (Math.imul(b ^ c, 0x85ebca6b) >>> 0);
   }
-  let h = 5381;
-  for (let i = 0; i < str.length; i++) h = ((h << 5) + h) ^ str.charCodeAt(i);
-  return 'djb:' + (h >>> 0).toString(16).padStart(8,'0');
+  return 'v2:' + a.toString(16).padStart(8,'0') + b.toString(16).padStart(8,'0');
 }
 
 // ── Auth ──
-function staffGetSession()  { try { return JSON.parse(localStorage.getItem(STAFF_SESSION_KEY) || '{}'); } catch { return {}; } }
-function staffIsLoggedIn()  { const s = staffGetSession(); return s.ok === true && s.expires && Date.now() < s.expires; }
-function staffSetSession()  { localStorage.setItem(STAFF_SESSION_KEY, JSON.stringify({ ok: true, expires: Date.now() + STAFF_SESSION_TTL })); }
-function staffClearSession(){ localStorage.removeItem(STAFF_SESSION_KEY); }
-function staffHasPin()      { return !!localStorage.getItem(STAFF_PIN_KEY); }
+function staffSave(k,v)     { try { localStorage.setItem(k,v); return true; } catch(e) { return false; } }
+function staffRead(k)        { try { return localStorage.getItem(k); } catch(e) { return null; } }
+function staffGetSession()   { try { return JSON.parse(staffRead(STAFF_SESSION_KEY) || '{}'); } catch { return {}; } }
+function staffIsLoggedIn()   { const s = staffGetSession(); return s.ok === true && typeof s.expires === 'number' && Date.now() < s.expires; }
+function staffSetSession()   { staffSave(STAFF_SESSION_KEY, JSON.stringify({ ok: true, expires: Date.now() + STAFF_SESSION_TTL })); }
+function staffClearSession() { try { localStorage.removeItem(STAFF_SESSION_KEY); } catch(e) {} }
+function staffHasPin()       { return !!staffRead(STAFF_PIN_KEY); }
 
 function staffShowAuthMode(mode) {
-  document.getElementById('staff-auth').style.display = 'flex';
-  document.getElementById('staff-setup-panel').style.display = mode === 'setup' ? 'block' : 'none';
-  document.getElementById('staff-login-panel').style.display = mode === 'login' ? 'block' : 'none';
-  const id = mode === 'setup' ? 'staff-new-pin' : 'staff-pin';
-  setTimeout(() => document.getElementById(id)?.focus(), 80);
+  const overlay = document.getElementById('staff-auth');
+  if (overlay) overlay.style.display = 'flex';
+  ['setup','login'].forEach(m => {
+    const el = document.getElementById('staff-' + m + '-panel');
+    if (el) el.style.display = m === mode ? 'block' : 'none';
+  });
+  const focusId = mode === 'setup' ? 'staff-new-pin' : 'staff-pin';
+  setTimeout(() => { const el = document.getElementById(focusId); if (el) el.focus(); }, 80);
 }
-function staffHideAuth()    { document.getElementById('staff-auth').style.display = 'none'; }
+function staffHideAuth() { const el = document.getElementById('staff-auth'); if (el) el.style.display = 'none'; }
 function staffShowErr(id, msg) {
   const el = document.getElementById(id);
   if (el) { el.textContent = msg; el.style.display = msg ? 'block' : 'none'; }
 }
 
-async function checkStaffAuth() {
+function checkStaffAuth() {
   if (staffIsLoggedIn()) { staffHideAuth(); return; }
   staffShowAuthMode(staffHasPin() ? 'login' : 'setup');
 }
 
-async function staffSetup() {
-  const p1 = document.getElementById('staff-new-pin').value.trim();
-  const p2 = document.getElementById('staff-new-pin2').value.trim();
+function staffSetup() {
+  const p1 = (document.getElementById('staff-new-pin')?.value  || '').trim();
+  const p2 = (document.getElementById('staff-new-pin2')?.value || '').trim();
   staffShowErr('staff-setup-err', '');
   if (p1.length < 4 || !/^\d+$/.test(p1)) { staffShowErr('staff-setup-err', '4-6 digit numeric PIN chahiye.'); return; }
   if (p1 !== p2) { staffShowErr('staff-setup-err', 'Dono PIN match nahi kar rahe.'); return; }
-  try {
-    localStorage.setItem(STAFF_PIN_KEY, await staffHash(p1));
-    staffSetSession();
-    staffHideAuth();
-  } catch(e) { staffShowErr('staff-setup-err', 'Error: ' + e.message); }
+  if (!staffSave(STAFF_PIN_KEY, staffHash(p1))) {
+    staffShowErr('staff-setup-err', 'Browser ne save karne se roka. Private mode check karo.'); return;
+  }
+  staffSetSession();
+  staffHideAuth();
 }
 
-async function staffLogin() {
-  const pin = document.getElementById('staff-pin').value.trim();
+function staffLogin() {
+  const pin = (document.getElementById('staff-pin')?.value || '').trim();
   staffShowErr('staff-login-err', '');
   if (!pin) { staffShowErr('staff-login-err', 'PIN daalo.'); return; }
-  try {
-    const hash = await staffHash(pin);
-    if (hash === localStorage.getItem(STAFF_PIN_KEY)) {
-      staffSetSession(); staffHideAuth();
-    } else {
-      staffShowErr('staff-login-err', 'Galat PIN. Dobara try karo.');
-      document.getElementById('staff-pin').value = '';
-      document.getElementById('staff-pin').focus();
-    }
-  } catch(e) { staffShowErr('staff-login-err', 'Error: ' + e.message); }
+  const stored = staffRead(STAFF_PIN_KEY);
+  if (!stored) { staffShowAuthMode('setup'); return; }
+  if (staffHash(pin) === stored) {
+    staffSetSession(); staffHideAuth();
+  } else {
+    staffShowErr('staff-login-err', 'Galat PIN. Dobara try karo.');
+    const el = document.getElementById('staff-pin'); if (el) { el.value = ''; el.focus(); }
+  }
 }
 
 function staffLogout() {
@@ -413,12 +417,11 @@ function staffInit() {
 
   document.getElementById('dd-start').value = todayStr;
 
-  checkStaffAuth().then(() => {
-    if (staffIsLoggedIn()) {
-      staffFetchOrders();
-      setInterval(staffFetchOrders, 5 * 60 * 1000);
-    }
-  });
+  checkStaffAuth();
+  if (staffIsLoggedIn()) {
+    staffFetchOrders();
+    setInterval(staffFetchOrders, 5 * 60 * 1000);
+  }
 }
 
 if (document.readyState === 'loading') {

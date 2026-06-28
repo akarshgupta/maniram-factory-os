@@ -5,91 +5,120 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Maniram Industries</title>
 <link rel="stylesheet" href="css/style.css">
+<!-- Auth script in head so app-shell is hidden before first paint -->
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
 </head>
 <body>
 
-<!-- AUTH OVERLAY — shown before main app -->
+<!-- AUTH OVERLAY -->
 <div id="auth-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#042C53 0%,#185FA5 100%);align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:16px;padding:36px 32px;width:min(400px,100%);box-shadow:0 24px 60px rgba(0,0,0,0.3)">
-    <!-- Logo -->
-    <div style="text-align:center;margin-bottom:28px">
-      <div style="display:inline-flex;align-items:center;justify-content:center;width:60px;height:60px;background:#042C53;border-radius:14px;font-size:22px;font-weight:800;color:#fff;margin-bottom:12px">MI</div>
-      <div style="font-size:18px;font-weight:700;color:#042C53">Maniram Industries</div>
+  <div style="background:#fff;border-radius:16px;padding:36px 32px;width:min(420px,100%);box-shadow:0 24px 60px rgba(0,0,0,0.3)">
+    <div style="text-align:center;margin-bottom:24px">
+      <div style="display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;background:#042C53;border-radius:14px;font-size:20px;font-weight:800;color:#fff;margin-bottom:10px">MI</div>
+      <div style="font-size:17px;font-weight:700;color:#042C53">Maniram Industries</div>
       <div style="font-size:12px;color:#6B7280;margin-top:2px">Factory OS · Admin</div>
     </div>
 
-    <!-- Setup panel (first run) -->
+    <!-- Setup panel -->
     <div id="auth-setup-panel" style="display:none">
       <div style="font-size:15px;font-weight:700;color:#042C53;margin-bottom:4px">Admin Password Set Karo</div>
-      <div style="font-size:12px;color:#6B7280;margin-bottom:20px">Pehli baar — apna admin password banao.</div>
-      <div style="margin-bottom:12px">
+      <div style="font-size:12px;color:#6B7280;margin-bottom:16px">Pehli baar — apna admin password banao.</div>
+      <div style="margin-bottom:10px">
         <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">New Password</label>
         <input id="auth-new-pw" type="password" placeholder="Minimum 4 characters"
-          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box;outline:none"
+          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box"
           onkeydown="if(event.key==='Enter')authSetup()">
       </div>
-      <div style="margin-bottom:16px">
+      <div style="margin-bottom:12px">
         <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Confirm Password</label>
         <input id="auth-new-pw2" type="password" placeholder="Password dobara daalo"
-          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box;outline:none"
+          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box"
           onkeydown="if(event.key==='Enter')authSetup()">
       </div>
       <div id="auth-setup-err" style="display:none;font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 12px;border-radius:6px;margin-bottom:12px"></div>
-      <button onclick="authSetup()" style="width:100%;padding:11px;background:#042C53;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">
-        🔐 Password Set Karo
-      </button>
+      <button onclick="authSetup()" style="width:100%;padding:11px;background:#042C53;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">🔐 Password Set Karo</button>
     </div>
 
     <!-- Login panel -->
     <div id="auth-login-panel" style="display:none">
       <div style="font-size:15px;font-weight:700;color:#042C53;margin-bottom:4px">Admin Login</div>
-      <div style="font-size:12px;color:#6B7280;margin-bottom:20px">Apna password daalo aage jaane ke liye.</div>
-      <div style="margin-bottom:16px">
+      <div style="font-size:12px;color:#6B7280;margin-bottom:16px">Apna password daalo aage jaane ke liye.</div>
+      <div style="margin-bottom:12px">
         <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Password</label>
         <input id="auth-pw" type="password" placeholder="Password daalo"
-          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box;outline:none"
+          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box"
           onkeydown="if(event.key==='Enter')authLogin()">
       </div>
       <div id="auth-login-err" style="display:none;font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 12px;border-radius:6px;margin-bottom:12px"></div>
-      <button onclick="authLogin()" style="width:100%;padding:11px;background:#042C53;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">
-        🔓 Login
-      </button>
+      <button onclick="authLogin()" style="width:100%;padding:11px;background:#042C53;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">🔓 Login</button>
+      <div style="text-align:center;margin-top:12px">
+        <button onclick="openRecovery()" style="background:none;border:none;color:#6B7280;font-size:12px;cursor:pointer;text-decoration:underline">Password bhool gaye?</button>
+      </div>
     </div>
 
     <!-- Change password panel -->
     <div id="auth-change-panel" style="display:none">
       <div style="font-size:15px;font-weight:700;color:#042C53;margin-bottom:4px">Password Badlo</div>
-      <div style="font-size:12px;color:#6B7280;margin-bottom:20px">Purana password verify karke naya set karo.</div>
-      <div style="margin-bottom:12px">
+      <div style="font-size:12px;color:#6B7280;margin-bottom:16px">Purana password verify karke naya set karo.</div>
+      <div style="margin-bottom:10px">
         <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Current Password</label>
         <input id="auth-cur-pw" type="password" placeholder="Purana password"
-          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box;outline:none"
+          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box"
+          onkeydown="if(event.key==='Enter')authChangePassword()">
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">New Password</label>
+        <input id="auth-ch-pw1" type="password" placeholder="Naya password (min. 4 chars)"
+          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box"
           onkeydown="if(event.key==='Enter')authChangePassword()">
       </div>
       <div style="margin-bottom:12px">
-        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">New Password</label>
-        <input id="auth-ch-pw1" type="password" placeholder="Naya password (min. 4 chars)"
-          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box;outline:none"
-          onkeydown="if(event.key==='Enter')authChangePassword()">
-      </div>
-      <div style="margin-bottom:16px">
         <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Confirm New Password</label>
         <input id="auth-ch-pw2" type="password" placeholder="Naya password dobara"
-          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box;outline:none"
+          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box"
           onkeydown="if(event.key==='Enter')authChangePassword()">
       </div>
       <div id="auth-change-err" style="display:none;font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 12px;border-radius:6px;margin-bottom:12px"></div>
       <div style="display:flex;gap:10px">
-        <button onclick="authChangePassword()" style="flex:1;padding:11px;background:#042C53;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">
-          💾 Save
-        </button>
-        <button onclick="closeChangePassword()" style="padding:11px 16px;background:#F3F4F6;color:#374151;border:none;border-radius:8px;font-size:14px;cursor:pointer">
-          Cancel
-        </button>
+        <button onclick="authChangePassword()" style="flex:1;padding:11px;background:#042C53;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">💾 Save</button>
+        <button onclick="closeChangePassword()" style="padding:11px 16px;background:#F3F4F6;color:#374151;border:none;border-radius:8px;font-size:14px;cursor:pointer">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Recovery panel -->
+    <div id="auth-recovery-panel" style="display:none">
+      <div style="font-size:15px;font-weight:700;color:#042C53;margin-bottom:4px">Password Reset</div>
+      <div style="font-size:12px;color:#6B7280;margin-bottom:16px">Reset code daalo (config.js mein <code>ADMIN_RESET_CODE</code> dekho), phir naya password set karo.</div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Reset Code</label>
+        <input id="auth-recovery-code" type="text" placeholder="e.g. MANIRAM-RESET-2024"
+          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:13px;box-sizing:border-box;font-family:monospace"
+          onkeydown="if(event.key==='Enter')authRecovery()">
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">New Password</label>
+        <input id="auth-recovery-pw1" type="password" placeholder="Naya password"
+          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box"
+          onkeydown="if(event.key==='Enter')authRecovery()">
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Confirm Password</label>
+        <input id="auth-recovery-pw2" type="password" placeholder="Password dobara"
+          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box"
+          onkeydown="if(event.key==='Enter')authRecovery()">
+      </div>
+      <div id="auth-recovery-err" style="display:none;font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 12px;border-radius:6px;margin-bottom:12px"></div>
+      <div style="display:flex;gap:10px">
+        <button onclick="authRecovery()" style="flex:1;padding:11px;background:#042C53;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">🔑 Reset Password</button>
+        <button onclick="authShowMode('login')" style="padding:11px 16px;background:#F3F4F6;color:#374151;border:none;border-radius:8px;font-size:14px;cursor:pointer">Cancel</button>
       </div>
     </div>
   </div>
 </div>
+
+<!-- APP SHELL — hidden until authenticated -->
+<div id="app-shell" style="display:none">
 
 <!-- SIDEBAR -->
 <div class="sidebar">
@@ -798,9 +827,10 @@
   </div>
 </div>
 
+</div><!-- /app-shell -->
+
 <!-- JS MODULES — order matters -->
-<script src="js/auth.js"></script>
-<script src="js/config.js"></script>
+<!-- config.js + auth.js already loaded in <head> -->
 <script src="js/clients.js"></script>
 <script src="js/purchase.js"></script>
 <script src="js/reels.js"></script>

@@ -55,3 +55,6 @@ const PRODUCTION_DAYS = {
   }
 };
 const MAX_SIMULTANEOUS_ORDERS = 3;
+
+// ── Auth recovery code — change this to something only you know ──
+const ADMIN_RESET_CODE = 'MANIRAM-RESET-2024';
