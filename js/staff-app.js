@@ -78,7 +78,8 @@ function staffLogin() {
 function staffLogout() {
   if (!confirm('Are you sure you want to logout?')) return;
   staffClearSession();
-  document.getElementById('staff-pin').value = '';
+  const pinEl = document.getElementById('staff-pin');
+  if (pinEl) pinEl.value = '';
   staffShowAuthMode('login');
 }
 
@@ -88,7 +89,6 @@ function staffLogout() {
 
 let staffOrders = [];
 let staffStock  = [];
-const todayStr  = new Date().toISOString().slice(0, 10);
 const tmrwStr   = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 
 function formatDate(d) {
