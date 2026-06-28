@@ -8,6 +8,89 @@
 </head>
 <body>
 
+<!-- AUTH OVERLAY — shown before main app -->
+<div id="auth-overlay" style="display:flex;position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#042C53 0%,#185FA5 100%);align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:16px;padding:36px 32px;width:min(400px,100%);box-shadow:0 24px 60px rgba(0,0,0,0.3)">
+    <!-- Logo -->
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="display:inline-flex;align-items:center;justify-content:center;width:60px;height:60px;background:#042C53;border-radius:14px;font-size:22px;font-weight:800;color:#fff;margin-bottom:12px">MI</div>
+      <div style="font-size:18px;font-weight:700;color:#042C53">Maniram Industries</div>
+      <div style="font-size:12px;color:#6B7280;margin-top:2px">Factory OS · Admin</div>
+    </div>
+
+    <!-- Setup panel (first run) -->
+    <div id="auth-setup-panel" style="display:none">
+      <div style="font-size:15px;font-weight:700;color:#042C53;margin-bottom:4px">Admin Password Set Karo</div>
+      <div style="font-size:12px;color:#6B7280;margin-bottom:20px">Pehli baar — apna admin password banao.</div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">New Password</label>
+        <input id="auth-new-pw" type="password" placeholder="Minimum 4 characters"
+          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box;outline:none"
+          onkeydown="if(event.key==='Enter')authSetup()">
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Confirm Password</label>
+        <input id="auth-new-pw2" type="password" placeholder="Password dobara daalo"
+          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box;outline:none"
+          onkeydown="if(event.key==='Enter')authSetup()">
+      </div>
+      <div id="auth-setup-err" style="display:none;font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 12px;border-radius:6px;margin-bottom:12px"></div>
+      <button onclick="authSetup()" style="width:100%;padding:11px;background:#042C53;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">
+        🔐 Password Set Karo
+      </button>
+    </div>
+
+    <!-- Login panel -->
+    <div id="auth-login-panel" style="display:none">
+      <div style="font-size:15px;font-weight:700;color:#042C53;margin-bottom:4px">Admin Login</div>
+      <div style="font-size:12px;color:#6B7280;margin-bottom:20px">Apna password daalo aage jaane ke liye.</div>
+      <div style="margin-bottom:16px">
+        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Password</label>
+        <input id="auth-pw" type="password" placeholder="Password daalo"
+          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box;outline:none"
+          onkeydown="if(event.key==='Enter')authLogin()">
+      </div>
+      <div id="auth-login-err" style="display:none;font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 12px;border-radius:6px;margin-bottom:12px"></div>
+      <button onclick="authLogin()" style="width:100%;padding:11px;background:#042C53;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">
+        🔓 Login
+      </button>
+    </div>
+
+    <!-- Change password panel -->
+    <div id="auth-change-panel" style="display:none">
+      <div style="font-size:15px;font-weight:700;color:#042C53;margin-bottom:4px">Password Badlo</div>
+      <div style="font-size:12px;color:#6B7280;margin-bottom:20px">Purana password verify karke naya set karo.</div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Current Password</label>
+        <input id="auth-cur-pw" type="password" placeholder="Purana password"
+          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box;outline:none"
+          onkeydown="if(event.key==='Enter')authChangePassword()">
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">New Password</label>
+        <input id="auth-ch-pw1" type="password" placeholder="Naya password (min. 4 chars)"
+          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box;outline:none"
+          onkeydown="if(event.key==='Enter')authChangePassword()">
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Confirm New Password</label>
+        <input id="auth-ch-pw2" type="password" placeholder="Naya password dobara"
+          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box;outline:none"
+          onkeydown="if(event.key==='Enter')authChangePassword()">
+      </div>
+      <div id="auth-change-err" style="display:none;font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 12px;border-radius:6px;margin-bottom:12px"></div>
+      <div style="display:flex;gap:10px">
+        <button onclick="authChangePassword()" style="flex:1;padding:11px;background:#042C53;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">
+          💾 Save
+        </button>
+        <button onclick="closeChangePassword()" style="padding:11px 16px;background:#F3F4F6;color:#374151;border:none;border-radius:8px;font-size:14px;cursor:pointer">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- SIDEBAR -->
 <div class="sidebar">
   <div class="sidebar-logo">
@@ -55,6 +138,10 @@
   <div class="topbar">
     <div class="topbar-title" id="page-title">Dashboard</div>
     <div class="topbar-date" id="topbar-date"></div>
+    <div style="display:flex;gap:8px;align-items:center;margin-left:auto">
+      <button onclick="openChangePassword()" style="background:none;border:1px solid rgba(255,255,255,0.3);color:#fff;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;opacity:0.8" title="Change Password">🔑 Password</button>
+      <button onclick="logout()" style="background:none;border:1px solid rgba(255,255,255,0.3);color:#fff;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;opacity:0.8" title="Logout">⏻ Logout</button>
+    </div>
   </div>
   <div class="content">
 
@@ -712,6 +799,8 @@
 </div>
 
 <!-- JS MODULES — order matters -->
+<script src="js/auth.js"></script>
+<script>document.addEventListener('DOMContentLoaded', checkAuth);</script>
 <script src="js/config.js"></script>
 <script src="js/clients.js"></script>
 <script src="js/purchase.js"></script>
