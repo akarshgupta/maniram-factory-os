@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maniram Industries — Staff</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+  /* ── Staff-specific overrides ── */
+  .sidebar, .bottom-nav { display: none !important; }
+  .main { margin-left: 0 !important; padding-bottom: 0 !important; }
+  .topbar { background: #1A5C2A; }
+
+  /* Staff tabs */
+  .staff-tabs { display: flex; gap: 0; border-bottom: 2px solid var(--border); margin-bottom: 20px; overflow-x: auto; }
+  .staff-tab  { padding: 10px 20px; font-size: 13px; font-weight: 600; color: var(--muted); background: none; border: none; border-bottom: 3px solid transparent; cursor: pointer; white-space: nowrap; }
+  .staff-tab.active { color: var(--navy); border-bottom-color: var(--primary); }
+
+  /* Order row status badge update */
+  .status-btn { font-size: 11px; padding: 4px 10px; border-radius: 12px; border: none; cursor: pointer; font-weight: 600; }
+  .status-btn:hover { opacity: 0.85; }
+
+  /* Calculator cards */
+  .calc-card { background: var(--bg); border-radius: 10px; padding: 20px; border: 1px solid var(--border); }
+  .calc-result { background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 8px; padding: 14px 18px; margin-top: 14px; }
+  .calc-result-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+  .calc-result-value { font-size: 22px; font-weight: 800; color: var(--navy); font-family: monospace; }
+  .calc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 600px) { .calc-grid { grid-template-columns: 1fr; } }
+
+  /* Today banner */
+  .today-banner { background: linear-gradient(135deg,#7C3AED,#4F46E5); color: #fff; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; }
+  .today-banner-title { font-size: 13px; font-weight: 700; opacity: 0.85; margin-bottom: 6px; }
+  .today-count { font-size: 32px; font-weight: 800; }
+  .today-sub { font-size: 12px; opacity: 0.75; margin-top: 2px; }
+
+  /* Staff login */
+  #staff-auth { display:none;position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#1A5C2A,#2D8E45);align-items:center;justify-content:center;padding:20px; }
+</style>
+</head>
+<body>
+
+<!-- STAFF AUTH -->
+<div id="staff-auth" style="display:none;position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#1A5C2A,#2D8E45);align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:16px;padding:36px 32px;width:min(380px,100%);box-shadow:0 24px 60px rgba(0,0,0,0.3)">
+    <div style="text-align:center;margin-bottom:24px">
+      <div style="display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;background:#1A5C2A;border-radius:14px;font-size:20px;font-weight:800;color:#fff;margin-bottom:10px">MI</div>
+      <div style="font-size:17px;font-weight:700;color:#1A5C2A">Maniram Industries</div>
+      <div style="font-size:12px;color:#6B7280;margin-top:2px">Staff Portal</div>
+    </div>
+
+    <!-- Setup panel -->
+    <div id="staff-setup-panel" style="display:none">
+      <div style="font-size:14px;font-weight:700;color:#1A5C2A;margin-bottom:4px">Staff PIN Set Karo</div>
+      <div style="font-size:12px;color:#6B7280;margin-bottom:16px">4–6 digit PIN banao staff ke liye.</div>
+      <input id="staff-new-pin" type="password" inputmode="numeric" maxlength="6" placeholder="PIN daalo (4-6 digits)"
+        style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:18px;letter-spacing:4px;text-align:center;box-sizing:border-box;margin-bottom:10px"
+        onkeydown="if(event.key==='Enter')staffSetup()">
+      <input id="staff-new-pin2" type="password" inputmode="numeric" maxlength="6" placeholder="PIN dobara daalo"
+        style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:18px;letter-spacing:4px;text-align:center;box-sizing:border-box;margin-bottom:10px"
+        onkeydown="if(event.key==='Enter')staffSetup()">
+      <div id="staff-setup-err" style="display:none;font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 12px;border-radius:6px;margin-bottom:10px"></div>
+      <button onclick="staffSetup()" style="width:100%;padding:11px;background:#1A5C2A;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">🔐 PIN Set Karo</button>
+    </div>
+
+    <!-- Login panel -->
+    <div id="staff-login-panel" style="display:none">
+      <div style="font-size:14px;font-weight:700;color:#1A5C2A;margin-bottom:4px">Staff Login</div>
+      <div style="font-size:12px;color:#6B7280;margin-bottom:16px">Staff PIN daalo.</div>
+      <input id="staff-pin" type="password" inputmode="numeric" maxlength="6" placeholder="PIN daalo"
+        style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:24px;letter-spacing:6px;text-align:center;box-sizing:border-box;margin-bottom:10px"
+        onkeydown="if(event.key==='Enter')staffLogin()">
+      <div id="staff-login-err" style="display:none;font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 12px;border-radius:6px;margin-bottom:10px"></div>
+      <button onclick="staffLogin()" style="width:100%;padding:11px;background:#1A5C2A;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">🔓 Login</button>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="staff-page-title">Orders</div>
+    <div class="topbar-date" id="staff-topbar-date"></div>
+    <div style="margin-left:auto">
+      <button onclick="staffLogout()" style="background:none;border:1px solid rgba(255,255,255,0.3);color:#fff;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;opacity:0.8">⏻ Logout</button>
+    </div>
+  </div>
+  <div class="content">
+
+    <!-- ── TABS ── -->
+    <div class="staff-tabs">
+      <button class="staff-tab active" onclick="showStaffTab('orders',this)">📦 Orders</button>
+      <button class="staff-tab" onclick="showStaffTab('stock',this)">🧻 Reel Stock</button>
+      <button class="staff-tab" onclick="showStaffTab('delivery',this)">📅 Delivery Date</button>
+      <button class="staff-tab" onclick="showStaffTab('weight',this)">⚖️ Box Weight</button>
+    </div>
+
+    <!-- ══ ORDERS TAB ══ -->
+    <div id="staff-tab-orders">
+      <div class="sync-bar" id="staff-orders-sync" style="margin-bottom:12px"><div class="sync-dot loading"></div><span>Orders load ho raha hai...</span></div>
+
+      <!-- Today's banner -->
+      <div class="grid-2" style="margin-bottom:16px">
+        <div class="today-banner">
+          <div class="today-banner-title">🔴 Aaj Dispatch Karne Hain</div>
+          <div class="today-count" id="staff-due-today">—</div>
+          <div class="today-sub">orders due today</div>
+        </div>
+        <div class="today-banner" style="background:linear-gradient(135deg,#B45309,#D97706)">
+          <div class="today-banner-title">⚠️ Kal Ka Plan</div>
+          <div class="today-count" id="staff-due-tomorrow">—</div>
+          <div class="today-sub">orders due tomorrow</div>
+        </div>
+      </div>
+
+      <!-- Filter -->
+      <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+        <select id="staff-status-filter" class="form-select" style="width:auto" onchange="renderStaffOrders()">
+          <option value="">All Active Orders</option>
+          <option value="New">New</option>
+          <option value="In Production">In Production</option>
+          <option value="Ready">Ready</option>
+          <option value="Dispatched">Dispatched</option>
+        </select>
+        <input id="staff-search" class="form-input" type="search" placeholder="Search customer / product..." style="flex:1;min-width:180px" oninput="renderStaffOrders()">
+      </div>
+
+      <div id="staff-orders-list"></div>
+    </div>
+
+    <!-- ══ STOCK TAB ══ -->
+    <div id="staff-tab-stock" style="display:none">
+      <div class="sync-bar" id="staff-stock-sync" style="margin-bottom:16px"><div class="sync-dot loading"></div><span>Stock data load ho raha hai...</span></div>
+      <div id="staff-stock-list"></div>
+    </div>
+
+    <!-- ══ DELIVERY DATE TAB ══ -->
+    <div id="staff-tab-delivery" style="display:none">
+      <div class="card" style="max-width:520px">
+        <div class="card-header"><div class="card-title">📅 Delivery Date Suggester</div></div>
+        <div class="card-body">
+          <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Order ki details daalo — system batayega kab ready hoga.</p>
+          <div class="calc-grid">
+            <div class="form-group">
+              <label class="form-label">Quantity (pcs)</label>
+              <input class="form-input" type="number" id="dd-qty" placeholder="e.g. 5000" min="1" oninput="calcDelivery()">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Ply</label>
+              <select class="form-select" id="dd-ply" onchange="calcDelivery()">
+                <option value="3">3 Ply</option>
+                <option value="5">5 Ply</option>
+                <option value="7">7 Ply</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Box Size</label>
+              <input class="form-input" type="text" id="dd-size" placeholder="e.g. 20×14×27" oninput="calcDelivery()">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Order Date</label>
+              <input class="form-input" type="date" id="dd-start" oninput="calcDelivery()">
+            </div>
+          </div>
+          <div id="dd-result" style="display:none" class="calc-result">
+            <div class="calc-result-label">Suggested Dispatch Date</div>
+            <div class="calc-result-value" id="dd-date">—</div>
+            <div style="margin-top:8px;font-size:12px;color:var(--muted)" id="dd-breakdown"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ WEIGHT TAB ══ -->
+    <div id="staff-tab-weight" style="display:none">
+      <div class="card" style="max-width:520px">
+        <div class="card-header"><div class="card-title">⚖️ Box Weight Calculator</div></div>
+        <div class="card-body">
+          <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Box dimensions aur paper spec daalo — per-box aur batch weight milega.</p>
+          <div class="calc-grid">
+            <div class="form-group">
+              <label class="form-label">Length (cm)</label>
+              <input class="form-input" type="number" id="wt-l" placeholder="e.g. 20" step="0.1" oninput="calcWeight()">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Width (cm)</label>
+              <input class="form-input" type="number" id="wt-w" placeholder="e.g. 14" step="0.1" oninput="calcWeight()">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Height (cm)</label>
+              <input class="form-input" type="number" id="wt-h" placeholder="e.g. 27" step="0.1" oninput="calcWeight()">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Ply</label>
+              <select class="form-select" id="wt-ply" onchange="calcWeight()">
+                <option value="3">3 Ply</option>
+                <option value="5">5 Ply</option>
+                <option value="7">7 Ply</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Paper GSM (grams/m²)</label>
+              <input class="form-input" type="number" id="wt-gsm" placeholder="e.g. 120" value="120" step="5" oninput="calcWeight()">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Quantity (pcs)</label>
+              <input class="form-input" type="number" id="wt-qty" placeholder="e.g. 1000" oninput="calcWeight()">
+            </div>
+          </div>
+          <div id="wt-result" style="display:none">
+            <div class="calc-result" style="margin-bottom:10px">
+              <div class="calc-result-label">Weight per Box</div>
+              <div class="calc-result-value" id="wt-per-box">—</div>
+            </div>
+            <div class="calc-result" id="wt-batch-block" style="display:none">
+              <div class="calc-result-label">Total Batch Weight</div>
+              <div class="calc-result-value" id="wt-batch">—</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:4px" id="wt-note"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<!-- STATUS UPDATE MODAL -->
+<div class="popup-overlay" id="staff-status-overlay" style="display:none" onclick="closeStaffStatus()">
+  <div class="popup-box" style="width:min(380px,95vw);padding:24px" onclick="event.stopPropagation()">
+    <div class="popup-title">📦 Status Update Karo</div>
+    <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:2px" id="ss-order-id"></div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:16px" id="ss-order-desc"></div>
+    <div class="form-group" style="margin-bottom:16px">
+      <label class="form-label">New Status</label>
+      <select class="form-select" id="ss-status">
+        <option value="New">New</option>
+        <option value="In Production">In Production</option>
+        <option value="Ready">Ready</option>
+        <option value="Dispatched">Dispatched</option>
+        <option value="Delivered">Delivered</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn-primary" onclick="saveStaffStatus()">✅ Save</button>
+      <button class="btn-secondary" onclick="closeStaffStatus()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- JS -->
+<script src="js/config.js"></script>
+<script src="js/staff-app.js"></script>
+
+</body>
+</html>
