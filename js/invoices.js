@@ -96,7 +96,8 @@ function printInvoice() {
 
 // ── Number to Words (Indian format) ──
 function amountToWords(amount) {
-  if (!amount || isNaN(amount)) return '';
+  if (amount === null || amount === undefined || isNaN(amount)) return '';
+  if (amount === 0) return 'Rupees Zero Only';
   const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine',
     'Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
   const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];

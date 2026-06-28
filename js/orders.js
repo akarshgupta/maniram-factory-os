@@ -424,7 +424,8 @@ function setOrderSyncStatus(type, msg) {
 function switchOrderTab(tab, e) {
   activeOrderTab = tab;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  if (e && e.target) e.target.classList.add('active');
+  const activeBtn = (e && e.target) || document.querySelector(`.tab-btn[onclick*="'${tab}'"]`);
+  if (activeBtn) activeBtn.classList.add('active');
   document.getElementById('tab-all').style.display        = tab === 'all'        ? 'block' : 'none';
   document.getElementById('tab-grouped').style.display    = tab === 'grouped'    ? 'block' : 'none';
   document.getElementById('tab-reelmap').style.display    = tab === 'reelmap'    ? 'block' : 'none';
