@@ -66,7 +66,7 @@ function runRateCalculator() {
   const withMargin = document.getElementById('rc-margin').checked;
   const plyCount   = parseInt(document.getElementById('rc-ply').value) || 5;
 
-  if (!L || !W || !H) { alert('Box size daalo pehle.'); return; }
+  if (!L || !W || !H) { alert('Please enter the box size first.'); return; }
 
   // Collect GSM layers
   const layers = [];
@@ -74,7 +74,7 @@ function runRateCalculator() {
     const gsm = parseFloat(document.getElementById(`rc-gsm-${i}`)?.value) || 0;
     layers.push(gsm);
   }
-  if (layers.some(g => !g)) { alert('Sab layers ka GSM daalo.'); return; }
+  if (layers.some(g => !g)) { alert('Please enter GSM for all layers.'); return; }
 
   const result = calcBoxWeight(L, W, H, layers, withMargin);
 
@@ -103,7 +103,7 @@ function runRateCalculator() {
       </div>
     </div>` : `
     <div style="font-size:11px;color:var(--muted);margin-top:8px;">
-      ℹ️ Reel Size enter karo validation ke liye
+      ℹ️ Enter Reel Size for validation
     </div>`;
 
   const layerRows = result.layerWeights.map((l, i) => `
@@ -119,7 +119,7 @@ function runRateCalculator() {
         <div><div style="font-size:11px;color:var(--muted)">Per Box (ex-GST)</div><div style="font-size:20px;font-weight:800;color:var(--navy)">₹${amtPerBox.toFixed(2)}</div></div>
         <div><div style="font-size:11px;color:var(--muted)">Per Box (inc GST 18%)</div><div style="font-size:20px;font-weight:800;color:var(--blue)">₹${amtGST.toFixed(2)}</div></div>
       </div>
-    </div>` : '<div style="font-size:11px;color:var(--muted);margin-top:8px;">Paper rate enter karo rate calculate karne ke liye.</div>';
+    </div>` : '<div style="font-size:11px;color:var(--muted);margin-top:8px;">Enter paper rate to calculate box rate.</div>';
 
   box.innerHTML = `
     <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:10px;">📐 Calculation Result</div>
@@ -194,7 +194,7 @@ function useInOrderForm() {
 function saveAsQuotation() {
   if (!window._lastCalc) return;
   const c = window._lastCalc;
-  const customer = prompt('Client naam (quotation ke liye):');
+  const customer = prompt('Client name (for quotation):');
   if (!customer) return;
 
   const qt = {
@@ -227,7 +227,7 @@ function renderQuotationsList() {
   const el = document.getElementById('quotations-list');
   if (!el) return;
   if (!quotations.length) {
-    el.innerHTML = '<div class="empty-state">Koi quotation nahi abhi. Rate Calculator se banao.</div>';
+    el.innerHTML = '<div class="empty-state">No quotations yet. Create one from the Rate Calculator.</div>';
     return;
   }
 
@@ -282,10 +282,10 @@ function convertQuotation(id, mode) {
     // Add as product to client
     const ci = CLIENTS.findIndex(c => c.name.toLowerCase() === q.customer.toLowerCase());
     if (ci < 0) {
-      alert(`"${q.customer}" clients mein nahi hai. Pehle client add karo.`);
+      alert(`"${q.customer}" is not in the client list. Please add the client first.`);
       return;
     }
-    const productName = prompt('Product naam do:', q.boxSize);
+    const productName = prompt('Product name:', q.boxSize);
     if (!productName) return;
     const product = {
       name: productName.trim(),
@@ -310,7 +310,7 @@ function convertQuotation(id, mode) {
 }
 
 function rejectQuotation(id) {
-  if (!confirm('Reject karna hai?')) return;
+  if (!confirm('Reject this quotation?')) return;
   const q = quotations.find(x => x.id === id);
   if (q) { q.status = 'Rejected'; saveQuotations(); renderQuotationsList(); }
 }

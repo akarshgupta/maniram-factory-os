@@ -22,8 +22,8 @@
 
     <!-- Setup panel -->
     <div id="auth-setup-panel" style="display:none">
-      <div style="font-size:15px;font-weight:700;color:#042C53;margin-bottom:4px">Admin Password Set Karo</div>
-      <div style="font-size:12px;color:#6B7280;margin-bottom:16px">Pehli baar — apna admin password banao.</div>
+      <div style="font-size:15px;font-weight:700;color:#042C53;margin-bottom:4px">Set Admin Password</div>
+      <div style="font-size:12px;color:#6B7280;margin-bottom:16px">First time — create your admin password.</div>
       <div style="margin-bottom:10px">
         <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">New Password</label>
         <input id="auth-new-pw" type="password" placeholder="Minimum 4 characters"
@@ -32,50 +32,50 @@
       </div>
       <div style="margin-bottom:12px">
         <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Confirm Password</label>
-        <input id="auth-new-pw2" type="password" placeholder="Password dobara daalo"
+        <input id="auth-new-pw2" type="password" placeholder="Confirm password"
           style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box"
           onkeydown="if(event.key==='Enter')authSetup()">
       </div>
       <div id="auth-setup-err" style="display:none;font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 12px;border-radius:6px;margin-bottom:12px"></div>
-      <button onclick="authSetup()" style="width:100%;padding:11px;background:#042C53;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">🔐 Password Set Karo</button>
+      <button onclick="authSetup()" style="width:100%;padding:11px;background:#042C53;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">🔐 Set Password</button>
     </div>
 
     <!-- Login panel -->
     <div id="auth-login-panel" style="display:none">
       <div style="font-size:15px;font-weight:700;color:#042C53;margin-bottom:4px">Admin Login</div>
-      <div style="font-size:12px;color:#6B7280;margin-bottom:16px">Apna password daalo aage jaane ke liye.</div>
+      <div style="font-size:12px;color:#6B7280;margin-bottom:16px">Enter your password to continue.</div>
       <div style="margin-bottom:12px">
         <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Password</label>
-        <input id="auth-pw" type="password" placeholder="Password daalo"
+        <input id="auth-pw" type="password" placeholder="Enter password"
           style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box"
           onkeydown="if(event.key==='Enter')authLogin()">
       </div>
       <div id="auth-login-err" style="display:none;font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 12px;border-radius:6px;margin-bottom:12px"></div>
       <button onclick="authLogin()" style="width:100%;padding:11px;background:#042C53;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">🔓 Login</button>
       <div style="text-align:center;margin-top:12px">
-        <button onclick="openRecovery()" style="background:none;border:none;color:#6B7280;font-size:12px;cursor:pointer;text-decoration:underline">Password bhool gaye?</button>
+        <button onclick="openRecovery()" style="background:none;border:none;color:#6B7280;font-size:12px;cursor:pointer;text-decoration:underline">Forgot password?</button>
       </div>
     </div>
 
     <!-- Change password panel -->
     <div id="auth-change-panel" style="display:none">
-      <div style="font-size:15px;font-weight:700;color:#042C53;margin-bottom:4px">Password Badlo</div>
-      <div style="font-size:12px;color:#6B7280;margin-bottom:16px">Purana password verify karke naya set karo.</div>
+      <div style="font-size:15px;font-weight:700;color:#042C53;margin-bottom:4px">Change Password</div>
+      <div style="font-size:12px;color:#6B7280;margin-bottom:16px">Verify your current password to set a new one.</div>
       <div style="margin-bottom:10px">
         <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Current Password</label>
-        <input id="auth-cur-pw" type="password" placeholder="Purana password"
+        <input id="auth-cur-pw" type="password" placeholder="Current password"
           style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box"
           onkeydown="if(event.key==='Enter')authChangePassword()">
       </div>
       <div style="margin-bottom:10px">
         <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">New Password</label>
-        <input id="auth-ch-pw1" type="password" placeholder="Naya password (min. 4 chars)"
+        <input id="auth-ch-pw1" type="password" placeholder="New password (min. 4 chars)"
           style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box"
           onkeydown="if(event.key==='Enter')authChangePassword()">
       </div>
       <div style="margin-bottom:12px">
         <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Confirm New Password</label>
-        <input id="auth-ch-pw2" type="password" placeholder="Naya password dobara"
+        <input id="auth-ch-pw2" type="password" placeholder="Confirm new password"
           style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box"
           onkeydown="if(event.key==='Enter')authChangePassword()">
       </div>
@@ -89,7 +89,7 @@
     <!-- Recovery panel -->
     <div id="auth-recovery-panel" style="display:none">
       <div style="font-size:15px;font-weight:700;color:#042C53;margin-bottom:4px">Password Reset</div>
-      <div style="font-size:12px;color:#6B7280;margin-bottom:16px">Reset code daalo (config.js mein <code>ADMIN_RESET_CODE</code> dekho), phir naya password set karo.</div>
+      <div style="font-size:12px;color:#6B7280;margin-bottom:16px">Enter the reset code (see <code>ADMIN_RESET_CODE</code> in config.js) and set a new password.</div>
       <div style="margin-bottom:10px">
         <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Reset Code</label>
         <input id="auth-recovery-code" type="text" placeholder="e.g. MANIRAM-RESET-2024"
@@ -98,13 +98,13 @@
       </div>
       <div style="margin-bottom:10px">
         <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">New Password</label>
-        <input id="auth-recovery-pw1" type="password" placeholder="Naya password"
+        <input id="auth-recovery-pw1" type="password" placeholder="New password"
           style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box"
           onkeydown="if(event.key==='Enter')authRecovery()">
       </div>
       <div style="margin-bottom:12px">
         <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Confirm Password</label>
-        <input id="auth-recovery-pw2" type="password" placeholder="Password dobara"
+        <input id="auth-recovery-pw2" type="password" placeholder="Confirm password"
           style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box"
           onkeydown="if(event.key==='Enter')authRecovery()">
       </div>
@@ -285,6 +285,7 @@
               <option value="Ready">Ready</option>
               <option value="Dispatched">Dispatched</option>
               <option value="Delivered">Delivered</option>
+              <option value="Cancelled">Cancelled</option>
             </select>
           </div>
           <div class="form-group">
@@ -392,7 +393,7 @@
           <!-- Margin toggle -->
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;font-size:13px">
             <input type="checkbox" id="rc-margin" checked>
-            <label for="rc-margin">Sheet Width mein 0.5" margin add karo (W+H+0.5)</label>
+            <label for="rc-margin">Add 0.5" margin to sheet width (W+H+0.5)</label>
           </div>
 
           <button class="btn-primary" onclick="runRateCalculator()">🧮 Calculate</button>
@@ -408,7 +409,7 @@
           <div style="font-size:14px;font-weight:700;color:var(--navy)">📄 Quotations</div>
           <button class="btn-secondary" onclick="switchOrderTab('ratecalc', event)" style="font-size:12px">+ New via Rate Calc</button>
         </div>
-        <div id="quotations-list"><div class="empty-state">Koi quotation nahi. Rate Calculator se banao.</div></div>
+        <div id="quotations-list"><div class="empty-state">No quotations yet. Create one from the Rate Calculator.</div></div>
       </div>
 
       <!-- ── History Tab ── -->
@@ -509,18 +510,18 @@
 
       <!-- Purchase List -->
       <div class="section-header"><div class="section-title">📋 Purchase History</div></div>
-      <div id="purchase-list"><div class="empty-state">Koi purchase nahi abhi.</div></div>
+      <div id="purchase-list"><div class="empty-state">No purchases yet.</div></div>
 
       <!-- Rate History -->
       <div class="section-header" style="margin-top:28px;"><div class="section-title">📈 Rate History by Reel Size</div></div>
-      <div id="rate-history-list"><div class="empty-state">Purchase add karne ke baad rate history yahan dikhegi.</div></div>
+      <div id="rate-history-list"><div class="empty-state">Rate history will appear here after purchases are added.</div></div>
     </div>
 
     <!-- ══ CLIENTS ══ -->
     <div class="page" id="page-clients">
       <div class="section-header">
         <div class="section-title">Clients & Product Master</div>
-        <span style="font-size:12px;color:var(--muted)">Edit karein — changes app mein save honge</span>
+        <span style="font-size:12px;color:var(--muted)">Edit here — changes will be saved to the app</span>
       </div>
       <div id="clients-list"></div>
     </div>
@@ -550,7 +551,7 @@
         <button class="btn-secondary" onclick="renderReceivables()" style="margin-left:0">🔄 Refresh</button>
       </div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:16px">
-        Delivered + Dispatched orders se automatically calculate hota hai. Payments manually record karo.
+        Automatically calculated from Delivered + Dispatched orders. Record payments manually.
       </div>
       <div id="receivables-list"><div class="empty-state">Loading...</div></div>
     </div>
@@ -738,12 +739,12 @@
 <!-- WHATSAPP POPUP -->
 <div class="popup-overlay" id="popup-overlay">
   <div class="popup-box">
-    <div class="popup-title">📲 Bhejna hai?</div>
+    <div class="popup-title">📲 Send WhatsApp Reminder?</div>
     <div class="popup-sub" id="popup-sub"></div>
     <div class="popup-preview" id="popup-preview"></div>
     <div class="popup-btns">
-      <button class="popup-btn-cancel" onclick="closePopup()">❌ Nahi</button>
-      <button class="popup-btn-confirm" onclick="confirmSendWA()">✅ Haan, Bhejo</button>
+      <button class="popup-btn-cancel" onclick="closePopup()">❌ No</button>
+      <button class="popup-btn-confirm" onclick="confirmSendWA()">✅ Yes, Send</button>
     </div>
   </div>
 </div>

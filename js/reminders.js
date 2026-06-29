@@ -104,7 +104,7 @@ function renderDashboardReminderBanner(active) {
   active.forEach(r => {
     const item  = document.createElement('div');
     item.className = 'reminder-alert-item';
-    const label = r.daysUntil <= 0 ? '🔴 Aaj!' : r.daysUntil === 1 ? '🟠 Kal' : `🟡 ${r.daysUntil} din`;
+    const label = r.daysUntil <= 0 ? '🔴 Today!' : r.daysUntil === 1 ? '🟠 Tomorrow' : `🟡 In ${r.daysUntil} days`;
     item.innerHTML = `
       <div class="reminder-alert-info">
         <div class="reminder-alert-customer">${r.customer} — ${r.product} (${r.size})</div>
@@ -119,11 +119,11 @@ function renderDashboardReminderBanner(active) {
 // ── Active Reminders ──
 function renderActiveReminders(active, sentMap) {
   const el = document.getElementById('active-reminders-list');
-  if (!active.length) { el.innerHTML = '<div class="empty-state">✅ Koi reminder due nahi (next 3 days).</div>'; return; }
+  if (!active.length) { el.innerHTML = '<div class="empty-state">✅ No reminders due in the next 3 days.</div>'; return; }
   el.innerHTML = '';
   active.forEach(r => {
     const wasSent  = sentMap[r.key + '_' + r.predictedDate];
-    const daysLabel = r.daysUntil <= 0 ? '🔴 Aaj due!' : r.daysUntil === 1 ? '🟠 Kal due' : `🟡 ${r.daysUntil} din mein`;
+    const daysLabel = r.daysUntil <= 0 ? '🔴 Due today!' : r.daysUntil === 1 ? '🟠 Due tomorrow' : `🟡 Due in ${r.daysUntil} days`;
     const card     = document.createElement('div');
     card.className = 'reminder-card' + (wasSent ? ' sent' : '');
     card.innerHTML = `
@@ -131,9 +131,9 @@ function renderActiveReminders(active, sentMap) {
       <div class="reminder-info">
         <div class="reminder-customer">${r.customer}</div>
         <div class="reminder-product">${r.product} · ${r.size}</div>
-        <div class="reminder-cycle">📊 Avg: ${r.avgCycle} din · ${r.orderCount} orders</div>
+        <div class="reminder-cycle">📊 Avg: ${r.avgCycle} days · ${r.orderCount} orders</div>
         <div class="reminder-due">📅 Last: ${formatDate(r.lastDate)} → Next: ${formatDate(r.predictedDate)} · ${daysLabel}</div>
-        ${wasSent ? '<div style="font-size:11px;color:var(--success);margin-top:4px;font-weight:600;">✓ Bhej diya</div>' : ''}
+        ${wasSent ? '<div style="font-size:11px;color:var(--success);margin-top:4px;font-weight:600;">✓ Sent</div>' : ''}
       </div>
       <div class="reminder-actions">
         <button class="btn-wa" onclick="openWAPopup('${escStr(r.key)}')">📲 Remind</button>
@@ -147,7 +147,7 @@ function renderActiveReminders(active, sentMap) {
 // ── Upcoming Reminders ──
 function renderUpcomingReminders(upcoming) {
   const el = document.getElementById('upcoming-reminders-list');
-  if (!upcoming.length) { el.innerHTML = '<div class="empty-state">Koi upcoming nahi next 30 days.</div>'; return; }
+  if (!upcoming.length) { el.innerHTML = '<div class="empty-state">No upcoming orders in the next 30 days.</div>'; return; }
   el.innerHTML = '';
   upcoming.forEach(r => {
     const card     = document.createElement('div');
@@ -159,8 +159,8 @@ function renderUpcomingReminders(upcoming) {
       <div class="reminder-info">
         <div class="reminder-customer">${r.customer}</div>
         <div class="reminder-product">${r.product} · ${r.size}</div>
-        <div class="reminder-cycle">📊 Avg: ${r.avgCycle} din · ${r.orderCount} orders</div>
-        <div class="reminder-due">Next: ${formatDate(r.predictedDate)} (${r.daysUntil} din baad)</div>
+        <div class="reminder-cycle">📊 Avg: ${r.avgCycle} days · ${r.orderCount} orders</div>
+        <div class="reminder-due">Next: ${formatDate(r.predictedDate)} (in ${r.daysUntil} days)</div>
       </div>
       <div class="reminder-actions"><span style="font-size:14px;font-weight:700;color:var(--muted)">${r.daysUntil}d</span></div>
     `;
@@ -173,7 +173,7 @@ function renderAllPatterns() {
   const el       = document.getElementById('all-patterns-list');
   const history  = loadOrderHistory();
   const patterns = Object.values(history);
-  if (!patterns.length) { el.innerHTML = '<div class="empty-state">Abhi koi repeat pattern nahi. 2+ same orders ke baad automatically track hoga.</div>'; return; }
+  if (!patterns.length) { el.innerHTML = '<div class="empty-state">No repeat patterns yet. Will automatically track after 2+ similar orders.</div>'; return; }
   el.innerHTML = '';
   patterns.sort((a, b) => b.orders.length - a.orders.length).forEach(p => {
     const dates    = p.orders.map(o => o.date);
@@ -210,10 +210,10 @@ function openWAPopup(key) {
   const client    = CLIENTS.find(c => c.name.toLowerCase() === pattern.customer.toLowerCase());
   const rawPhone  = (client?.phone || '').replace(/\D/g, '');
   const phone     = rawPhone.startsWith('91') && rawPhone.length > 10 ? rawPhone.slice(2) : rawPhone;
-  const message   = `Namaskar Sir! 🙏\n\nManiram Industries ki taraf se reminder:\n\n📦 *${pattern.product}* (${pattern.size})\nka order ${nextDate ? formatDate(nextDate) : 'jald hi'} tak due hota hai aapka.\n\nKya aap order confirm karna chahenge?\n\n— Maniram Industries, Jhansi`;
+  const message   = `Greetings! 🙏\n\nReminder from Maniram Industries:\n\n📦 *${pattern.product}* (${pattern.size})\nYour order is due by ${nextDate ? formatDate(nextDate) : 'soon'}.\n\nWould you like to confirm your order?\n\n— Maniram Industries, Jhansi`;
   const waUrl     = phone ? `https://wa.me/91${phone}?text=${encodeURIComponent(message)}` : `https://wa.me/?text=${encodeURIComponent(message)}`;
   pendingWALink   = waUrl + '||' + key + '||' + nextDate;
-  document.getElementById('popup-sub').textContent     = phone ? `${pattern.customer} (${phone})` : `${pattern.customer} — phone nahi mila`;
+  document.getElementById('popup-sub').textContent     = phone ? `${pattern.customer} (${phone})` : `${pattern.customer} — phone not found`;
   document.getElementById('popup-preview').textContent = message;
   document.getElementById('popup-overlay').classList.add('show');
 }

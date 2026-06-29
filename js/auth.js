@@ -91,7 +91,7 @@ function checkAuth() {
 function authLogin() {
   const pw = (document.getElementById('auth-pw')?.value || '').trim();
   authErr('auth-login-err', '');
-  if (!pw) { authErr('auth-login-err', 'Password daalo.'); return; }
+  if (!pw) { authErr('auth-login-err', 'Please enter your password.'); return; }
 
   const stored = authRead(AUTH_HASH_KEY);
   if (!stored) { authShowMode('setup'); return; } // no password set yet
@@ -101,7 +101,7 @@ function authLogin() {
     authHideOverlay();
     showApp();
   } else {
-    authErr('auth-login-err', 'Galat password. Dobara try karo.');
+    authErr('auth-login-err', 'Incorrect password. Please try again.');
     document.getElementById('auth-pw').value = '';
     document.getElementById('auth-pw').focus();
   }
@@ -113,12 +113,12 @@ function authSetup() {
   const pw2 = (document.getElementById('auth-new-pw2')?.value || '').trim();
   authErr('auth-setup-err', '');
 
-  if (pw1.length < 4) { authErr('auth-setup-err', 'Password kam se kam 4 characters ka hona chahiye.'); return; }
-  if (pw1 !== pw2)    { authErr('auth-setup-err', 'Dono passwords match nahi kar rahe.'); return; }
+  if (pw1.length < 4) { authErr('auth-setup-err', 'Password must be at least 4 characters.'); return; }
+  if (pw1 !== pw2)    { authErr('auth-setup-err', 'Passwords do not match.'); return; }
 
   const hash = authHash(pw1);
   if (!authSave(AUTH_HASH_KEY, hash)) {
-    authErr('auth-setup-err', 'Browser ne save karne se roka. Private/Incognito mode check karo.'); return;
+    authErr('auth-setup-err', 'Browser blocked the save. Check if Private/Incognito mode is on.'); return;
   }
   setSession();
   authHideOverlay();
@@ -133,16 +133,16 @@ function authChangePassword() {
   authErr('auth-change-err', '');
 
   const stored = authRead(AUTH_HASH_KEY);
-  if (authHash(cur) !== stored) { authErr('auth-change-err', 'Purana password galat hai.'); return; }
-  if (pw1.length < 4)           { authErr('auth-change-err', 'Naya password kam se kam 4 characters ka hona chahiye.'); return; }
-  if (pw1 !== pw2)              { authErr('auth-change-err', 'Naye passwords match nahi kar rahe.'); return; }
+  if (authHash(cur) !== stored) { authErr('auth-change-err', 'Current password is incorrect.'); return; }
+  if (pw1.length < 4)           { authErr('auth-change-err', 'New password must be at least 4 characters.'); return; }
+  if (pw1 !== pw2)              { authErr('auth-change-err', 'New passwords do not match.'); return; }
 
   authSave(AUTH_HASH_KEY, authHash(pw1));
   ['auth-cur-pw','auth-ch-pw1','auth-ch-pw2'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   closeChangePassword();
-  alert('Password badal gaya! ✅');
+  alert('Password changed successfully! ✅');
 }
 
 function openChangePassword()  {
@@ -169,20 +169,20 @@ function authRecovery() {
 
   // ADMIN_RESET_CODE is defined in config.js (loaded before this file's functions run)
   const resetCode = (typeof ADMIN_RESET_CODE !== 'undefined') ? ADMIN_RESET_CODE : '';
-  if (!resetCode || code !== resetCode) { authErr('auth-recovery-err', 'Galat reset code.'); return; }
-  if (newPw1.length < 4) { authErr('auth-recovery-err', 'Password kam se kam 4 characters ka hona chahiye.'); return; }
-  if (newPw1 !== newPw2) { authErr('auth-recovery-err', 'Passwords match nahi kar rahe.'); return; }
+  if (!resetCode || code !== resetCode) { authErr('auth-recovery-err', 'Invalid reset code.'); return; }
+  if (newPw1.length < 4) { authErr('auth-recovery-err', 'Password must be at least 4 characters.'); return; }
+  if (newPw1 !== newPw2) { authErr('auth-recovery-err', 'Passwords do not match.'); return; }
 
   authSave(AUTH_HASH_KEY, authHash(newPw1));
   setSession();
   authHideOverlay();
   showApp();
-  alert('Password reset ho gaya! ✅');
+  alert('Password reset successfully! ✅');
 }
 
 // ── Logout ──
 function logout() {
-  if (!confirm('Logout karna chahte ho?')) return;
+  if (!confirm('Are you sure you want to logout?')) return;
   clearSession();
   hideApp();
   const el = document.getElementById('auth-pw'); if (el) el.value = '';

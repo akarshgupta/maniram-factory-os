@@ -244,7 +244,7 @@ function onProductChange() {
 
   if (val === '__add__') {
     const ci = CLIENTS.findIndex(c => c.name === custNm);
-    if (ci < 0) { alert('Pehle customer select karo.'); sel.value = ''; return; }
+    if (ci < 0) { alert('Please select a customer first.'); sel.value = ''; return; }
     sel.value = '';
     openProductModal(ci, -1, (product, newIdx) => {
       populateProductDropdown(custNm);

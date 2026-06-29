@@ -67,6 +67,7 @@ async function init() {
   // Initialise localStorage-backed modules
   initInvoices();
   initPayments();
+  initQuotations();
 
   // Safe to render now — CLIENTS and purchases arrays are populated
   renderClients();
