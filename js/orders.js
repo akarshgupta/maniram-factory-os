@@ -86,7 +86,10 @@ async function fetchOrders() {
     }
 
     const header = rows[0].map(h => h.toString().trim().toLowerCase());
-    const col = {
+    // Positional fallback: matches the column order written by apps-script.gs appendOrder
+    // [Order ID, Customer, Product, Box Spec, Ply, Colour, Weight, Qty, Rate, Delivery, Status, Priority, ReelSize, ReservedKG, Remarks]
+    const hasHeaders = header.some(h => h.includes('customer') || h.includes('order'));
+    const col = hasHeaders ? {
       id:       header.findIndex(h => h.includes('order id') || h === 'order id'),
       customer: header.findIndex(h => h.includes('customer')),
       product:  header.findIndex(h => h.includes('product')),
@@ -101,10 +104,10 @@ async function fetchOrders() {
       priority: header.findIndex(h => h.includes('priority')),
       reelSize: header.findIndex(h => h.includes('reel size') || h === 'reel_size' || h === 'reelsize'),
       resvKg:   header.findIndex(h => h.includes('reserved kg') || h === 'reserved_kg'),
-    };
+    } : { id:0, customer:1, product:2, spec:3, ply:4, colour:5, weight:6, qty:7, rate:8, date:9, status:10, priority:11, reelSize:12, resvKg:13 };
 
     orders = [];
-    for (let i = 1; i < rows.length; i++) {
+    for (let i = hasHeaders ? 1 : 0; i < rows.length; i++) {
       const r = rows[i];
       if (!r || !r[col.customer]) continue;
       const rawDate = col.date >= 0 ? (r[col.date] || '') : '';
