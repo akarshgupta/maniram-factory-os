@@ -13,6 +13,7 @@ const ORDERS_TAB        = 'Sheet1';
 const CLIENTS_TAB       = 'Clients';
 const PRODUCTS_TAB      = 'ClientProducts';
 const PURCHASES_TAB     = 'Purchases';
+const TALLY_SYNC_TAB    = 'TallySync';
 
 const KATRA_BUFFER_KG  = 5000;
 const CRITICAL_SIZES   = ['35.5', '44', '42', '35'];

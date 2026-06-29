@@ -20,8 +20,9 @@ function doGet() {
 
 function doPost(e) {
   try {
-    var data = JSON.parse(e.postData.contents);
-    var ss   = SpreadsheetApp.openById(ORDERS_SHEET_ID);
+    var data  = JSON.parse(e.postData.contents);
+    var ss    = SpreadsheetApp.openById(ORDERS_SHEET_ID);
+    var extra = {};
 
     switch (data.action) {
       // ── Orders ──
@@ -40,11 +41,15 @@ function doPost(e) {
       case 'updatePurchase': updatePurchase(ss, data);   break;
       case 'deletePurchase': deletePurchase(ss, data);   break;
 
+      // ── Tally Sync ──
+      case 'syncTally':      extra = syncTallyData(ss, data); break;
+
       // ── Default: new order ──
       default:               appendOrder(ss, data);      break;
     }
 
-    return ContentService.createTextOutput(JSON.stringify({ success: true }))
+    return ContentService
+      .createTextOutput(JSON.stringify(Object.assign({ success: true }, extra)))
       .setMimeType(ContentService.MimeType.JSON);
 
   } catch (err) {
@@ -207,6 +212,87 @@ function deletePurchase(ss, d) {
   for (var i = data.length - 1; i >= 1; i--) {
     if (data[i][0] === d.id) { sheet.deleteRow(i + 1); break; }
   }
+}
+
+// ══════════════════════════════════════════════════════════════
+// TALLY SYNC
+// ══════════════════════════════════════════════════════════════
+
+var TALLY_SYNC_HEADERS = [
+  'SyncedAt', 'VoucherDate', 'Type', 'VoucherNo',
+  'Party', 'Amount', 'Narration', 'MatchedOrderID', 'MatchStatus'
+];
+
+function syncTallyData(ss, d) {
+  var syncSheet   = ensureSheet(ss, 'TallySync', TALLY_SYNC_HEADERS);
+  var ordersSheet = ss.getSheetByName('Sheet1');
+  var orderRows   = ordersSheet ? ordersSheet.getDataRange().getValues() : [];
+
+  // Load existing sync rows to prevent duplicates
+  var existing     = syncSheet.getDataRange().getValues();
+  var syncedKeys   = {};
+  for (var k = 1; k < existing.length; k++) {
+    // Key = VoucherDate + VoucherNo
+    syncedKeys[existing[k][1] + '|' + existing[k][3]] = true;
+  }
+
+  var vouchers = d.vouchers || [];
+  var matched  = 0;
+  var written  = 0;
+  var skipped  = 0;
+  var now      = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'dd/MM/yyyy HH:mm');
+
+  for (var idx = 0; idx < vouchers.length; idx++) {
+    var v = vouchers[idx];
+    if (v.type !== 'Sales') continue;
+
+    // Skip duplicates (same date + voucher number)
+    var key = (v.date || d.date) + '|' + (v.number || '');
+    if (syncedKeys[key]) { skipped++; continue; }
+
+    var matchedId   = '';
+    var matchStatus = 'Unmatched';
+    var partyLower  = (v.party || '').toLowerCase().trim();
+
+    // Match party name against order customer (partial, case-insensitive)
+    for (var i = 1; i < orderRows.length; i++) {
+      var customer = (orderRows[i][1] || '').toLowerCase().trim();
+      if (!customer || !partyLower) continue;
+
+      var isMatch = customer === partyLower ||
+                    customer.indexOf(partyLower) >= 0 ||
+                    partyLower.indexOf(customer) >= 0;
+
+      if (isMatch) {
+        matchedId   = (orderRows[i][0] || '').toString();
+        matchStatus = 'Auto-matched';
+        matched++;
+
+        // Auto-advance order status → Dispatched (only if currently active)
+        var curStatus = (orderRows[i][10] || '').toString();
+        if (curStatus === 'New' || curStatus === 'In Production' || curStatus === 'Ready') {
+          try { ordersSheet.getRange(i + 1, 11).setValue('Dispatched'); } catch (e) {}
+        }
+        break;
+      }
+    }
+
+    syncSheet.appendRow([
+      now,
+      v.date || d.date,
+      v.type,
+      v.number  || '',
+      v.party   || '',
+      v.amount  || 0,
+      v.narration || '',
+      matchedId,
+      matchStatus
+    ]);
+    syncedKeys[key] = true;
+    written++;
+  }
+
+  return { matched: matched, written: written, skipped: skipped };
 }
 
 // ══════════════════════════════════════════════════════════════

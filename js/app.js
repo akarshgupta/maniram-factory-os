@@ -22,6 +22,7 @@ const pageTitles = {
   reminders:   '🔔 Reminders',
   purchase:    '🛒 Purchase Register',
   receivables: '💰 Receivables',
+  tally:       '📊 Tally Sync',
 };
 
 function showPage(id) {
@@ -39,6 +40,7 @@ function showPage(id) {
   if (id === 'reminders')   computeReminders();
   if (id === 'purchase')    { renderPurchaseList(); renderRateHistory(); initPurchaseForm(); }
   if (id === 'receivables') renderReceivables();
+  if (id === 'tally')       fetchTallySync();
 }
 
 // ── Topbar Date ──
