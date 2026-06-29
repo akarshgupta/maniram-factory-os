@@ -57,8 +57,14 @@ function doPost(e) {
 // ORDERS
 // ══════════════════════════════════════════════════════════════
 
+var ORDER_HEADERS = [
+  'Order ID', 'Customer', 'Product', 'Box Spec', 'Ply', 'Colour',
+  'Weight(GM)', 'Quantity', 'Rate', 'Delivery Date', 'Status', 'Priority',
+  'Reel Size', 'Reserved KG', 'Remarks'
+];
+
 function appendOrder(ss, d) {
-  var sheet = ss.getSheetByName('Sheet1');
+  var sheet = ensureSheet(ss, 'Sheet1', ORDER_HEADERS);
   sheet.appendRow([
     d.id, d.customer, d.product, d.size, d.ply, d.colour,
     d.weight, d.qty, d.rate, d.date, d.status, d.priority,
@@ -67,7 +73,7 @@ function appendOrder(ss, d) {
 }
 
 function updateOrder(ss, d) {
-  var sheet = ss.getSheetByName('Sheet1');
+  var sheet = ensureSheet(ss, 'Sheet1', ORDER_HEADERS);
   var vals  = [
     d.id, d.customer, d.product, d.size, d.ply, d.colour,
     d.weight, d.qty, d.rate, d.date, d.status, d.priority,
