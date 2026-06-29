@@ -299,10 +299,14 @@ async function saveOrderToSheet() {
     const btn = document.querySelector('button.btn-primary[onclick="saveOrderToSheet()"]');
     if (btn) { btn.textContent = '⏳ Saving...'; btn.disabled = true; }
     await fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    // Optimistic update so generateOrderId() increments correctly on next save
+    orders.push({ id, customer, product, size, ply, colour, weight, qty: parseInt(qty)||0, rate: parseFloat(rate)||0, date: formatted, status, priority, reelSize, reservedKg, remarks: '', rowIndex: 9999 });
     clearOrderForm();
+    refreshOrderId();
+    renderOrders();
     if (btn) btn.textContent = '✅ Saved!';
     setTimeout(() => { if (btn) { btn.textContent = '💾 Save Order'; btn.disabled = false; } }, 2000);
-    setTimeout(() => fetchOrders(), 1500);
+    setTimeout(() => fetchOrders(), 4000);
   } catch (err) {
     alert(`Save failed: ${err.message}`);
     const btn = document.querySelector('button.btn-primary[onclick="saveOrderToSheet()"]');
@@ -311,7 +315,7 @@ async function saveOrderToSheet() {
 }
 
 function clearOrderForm() {
-  ['f-customer','f-qty','f-rate','f-date','f-reel-size'].forEach(id => document.getElementById(id).value = '');
+  ['f-id','f-customer','f-qty','f-rate','f-date','f-reel-size'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('f-product').innerHTML = '<option value="">— Select Customer First —</option>';
   clearProductFields();
   document.getElementById('f-status').value   = 'New';
