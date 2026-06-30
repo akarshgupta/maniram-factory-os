@@ -37,6 +37,30 @@ const DEFAULT_CLIENTS = [
   },
 ];
 
+const PLY_LAYERS = {
+  3: [
+    { label: 'Top Liner',    type: 'liner'   },
+    { label: 'Fluting',      type: 'fluting' },
+    { label: 'Bottom Liner', type: 'liner'   },
+  ],
+  5: [
+    { label: 'Top Liner',    type: 'liner'   },
+    { label: 'Fluting',      type: 'fluting' },
+    { label: 'Middle Liner', type: 'liner'   },
+    { label: 'Fluting',      type: 'fluting' },
+    { label: 'Bottom Liner', type: 'liner'   },
+  ],
+  7: [
+    { label: 'Top Liner',    type: 'liner'   },
+    { label: 'Fluting',      type: 'fluting' },
+    { label: 'Middle 1',     type: 'liner'   },
+    { label: 'Fluting',      type: 'fluting' },
+    { label: 'Middle 2',     type: 'liner'   },
+    { label: 'Fluting',      type: 'fluting' },
+    { label: 'Bottom Liner', type: 'liner'   },
+  ],
+};
+
 // ── State ──
 let CLIENTS       = [];
 let acSelectedIdx = -1;
@@ -49,6 +73,28 @@ let _productModalCi  = -1;
 let _productModalPi  = -1; // -1 = adding new
 let _productModalCb  = null; // optional callback after save
 
+// ── GSM Grid ──
+function updateGsmFields(existingGsm) {
+  const grid = document.getElementById('pm-gsm-grid');
+  if (!grid) return;
+  const ply    = parseInt(document.getElementById('pm-ply')?.value) || 3;
+  const layers = PLY_LAYERS[ply] || PLY_LAYERS[3];
+  grid.innerHTML = layers.map((layer, i) => {
+    const val         = Array.isArray(existingGsm) ? (existingGsm[i] || '') : '';
+    const isFluting   = layer.type === 'fluting';
+    const accent      = isFluting ? '#FFA500' : '#2980B9';
+    const placeholder = isFluting ? '100–150' : '120–200';
+    return `<div style="display:flex;flex-direction:column;gap:3px">
+      <label style="font-size:10px;font-weight:600;color:${accent}">${layer.label}</label>
+      <input class="form-input" type="number" id="pm-gsm-${i+1}"
+        placeholder="${placeholder}" min="60" max="400" step="5"
+        value="${val}"
+        style="border-left:3px solid ${accent};padding-left:8px"
+        onkeydown="if(event.key==='Escape')closeProductModal()">
+    </div>`;
+  }).join('');
+}
+
 // ══════════════════════════════════════════════════════════════
 // SHEETS DATA LAYER
 // ══════════════════════════════════════════════════════════════
@@ -56,7 +102,7 @@ let _productModalCb  = null; // optional callback after save
 async function fetchClients() {
   try {
     const cUrl = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent(CLIENTS_TAB + '!A1:D500')}?key=${API_KEY}`;
-    const pUrl = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent(PRODUCTS_TAB + '!A1:G2000')}?key=${API_KEY}`;
+    const pUrl = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent(PRODUCTS_TAB + '!A1:N2000')}?key=${API_KEY}`;
 
     const [cRes, pRes]   = await Promise.all([fetch(cUrl), fetch(pUrl)]);
     const [cJson, pJson] = await Promise.all([cRes.json(), pRes.json()]);
@@ -82,6 +128,7 @@ async function fetchClients() {
             colour:   p[4] || '',
             weight:   p[5] || '',
             reelSize: p[6] || '',
+            gsm:      [p[7],p[8],p[9],p[10],p[11],p[12],p[13]].map(Number).filter(v => v > 0),
           })),
       }));
 
@@ -204,6 +251,7 @@ async function migrateClientsToSheets(clients) {
         clientName: c.name,
         name: p.name, size: p.size || '', ply: p.ply || '',
         colour: p.colour || '', weight: p.weight || '', reelSize: p.reelSize || '',
+        gsm: p.gsm || [],
       }));
     }
   }
@@ -377,14 +425,15 @@ function renderClients() {
   CLIENTS.forEach((c, ci) => {
     const card = document.createElement('div');
     card.className = 'client-card';
-    const productsHtml = c.products.map((p, pi) => `
-      <div class="product-chip" style="display:flex;align-items:center;gap:6px;padding:6px 12px;">
+    const productsHtml = c.products.map((p, pi) => {
+      const gsmStr = (p.gsm && p.gsm.length) ? ` · <span style="color:var(--muted);font-size:10px">${p.gsm.join('/')}</span>` : '';
+      return `<div class="product-chip" style="display:flex;align-items:center;gap:6px;padding:6px 12px;">
         <span class="colour-dot" style="background:${COLOUR_HEX[p.colour?.toLowerCase()] || '#999'}"></span>
-        <span><strong>${p.name}</strong> · ${p.size} · ${p.ply}ply · ${p.weight}gm · 🧻${p.reelSize || '?'}"</span>
+        <span><strong>${p.name}</strong> · ${p.size} · ${p.ply}ply · ${p.weight}gm · 🧻${p.reelSize || '?'}"${gsmStr}</span>
         <button class="btn-sm" style="margin-left:6px" onclick="editProduct(${ci},${pi})">✏️</button>
         <button class="btn-sm" style="color:var(--danger)" onclick="deleteProduct(${ci},${pi})">🗑</button>
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
     card.innerHTML = `
       <div class="client-card-header">
         <div class="client-avatar">${c.name[0]}</div>
@@ -470,6 +519,7 @@ function openProductModal(ci, pi, callback) {
   document.getElementById('pm-weight').value   = p ? p.weight   : '';
   document.getElementById('pm-reelsize').value = p ? p.reelSize : '';
   document.getElementById('product-modal-overlay').style.display = 'flex';
+  updateGsmFields(p ? p.gsm : null);
   document.getElementById('pm-name').focus();
 }
 
@@ -485,20 +535,22 @@ function saveProductModal() {
   const colour   = document.getElementById('pm-colour').value.trim();
   const weight   = document.getElementById('pm-weight').value.trim();
   const reelSize = document.getElementById('pm-reelsize').value.trim();
+  const layers   = PLY_LAYERS[parseInt(ply)] || PLY_LAYERS[3];
+  const gsm      = layers.map((_, i) => parseInt(document.getElementById('pm-gsm-' + (i+1))?.value) || 0).filter(v => v > 0);
 
   if (!name) { document.getElementById('pm-name').focus(); return; }
   if (!size) { document.getElementById('pm-size').focus(); return; }
 
-  const product = { name, size, ply, colour, weight, reelSize };
+  const product = { name, size, ply, colour, weight, reelSize, gsm };
   const ci      = _productModalCi;
 
   if (_productModalPi >= 0) {
     const originalName = CLIENTS[ci].products[_productModalPi].name;
     CLIENTS[ci].products[_productModalPi] = product;
-    postClient({ action: 'saveProduct', clientName: CLIENTS[ci].name, ...product, originalName });
+    postClient({ action: 'saveProduct', clientName: CLIENTS[ci].name, ...product, gsm, originalName });
   } else {
     CLIENTS[ci].products.push(product);
-    postClient({ action: 'saveProduct', clientName: CLIENTS[ci].name, ...product });
+    postClient({ action: 'saveProduct', clientName: CLIENTS[ci].name, ...product, gsm });
   }
 
   const cb    = _productModalCb;
