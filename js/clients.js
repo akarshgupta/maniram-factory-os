@@ -59,6 +59,17 @@ const PLY_LAYERS = {
     { label: 'Fluting',      type: 'fluting' },
     { label: 'Bottom Liner', type: 'liner'   },
   ],
+  9: [
+    { label: 'Top Liner',    type: 'liner'   },
+    { label: 'Fluting',      type: 'fluting' },
+    { label: 'Middle 1',     type: 'liner'   },
+    { label: 'Fluting',      type: 'fluting' },
+    { label: 'Middle 2',     type: 'liner'   },
+    { label: 'Fluting',      type: 'fluting' },
+    { label: 'Middle 3',     type: 'liner'   },
+    { label: 'Fluting',      type: 'fluting' },
+    { label: 'Bottom Liner', type: 'liner'   },
+  ],
 };
 
 // ── State ──
@@ -128,7 +139,7 @@ async function fetchClients() {
             colour:   p[4] || '',
             weight:   p[5] || '',
             reelSize: p[6] || '',
-            gsm:      [p[7],p[8],p[9],p[10],p[11],p[12],p[13]].map(Number).filter(v => v > 0),
+            gsm:      [p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]].map(Number).filter(v => v > 0),
           })),
       }));
 
