@@ -6,8 +6,9 @@
 //     count < 4 = critical, == 4 = low
 //   42" and 44" — plain 100 GSM count only, same threshold
 //   All other sizes → no criticality badge
-//   "gy" in GSM value = coloured paper (tracked separately, not counted
-//     toward the 100 GSM plain threshold)
+//   "GY" = coloured paper — appears in a 5th column (no header) in the
+//     reel sheet, NOT in the GSM column. Tracked separately, not counted
+//     toward the 100 GSM plain threshold.
 // ══════════════════════════════════════════════════════════════
 
 let reelData = [];
@@ -48,9 +49,13 @@ async function fetchReelStock() {
       if (!size || isNaN(size)) continue;
       const qty      = colQty >= 0 ? (parseInt(r[colQty]) || 1) : 1;
       const gsmRaw   = colGSM >= 0 ? (r[colGSM] || '').toString().trim() : '';
-      const gsmLow   = gsmRaw.toLowerCase();
-      const isColoured = gsmLow.includes('gy');
-      const is100Plain = (gsmLow.startsWith('100') || gsmRaw === '100') && !isColoured;
+      // GY is in a separate 5th column (no header) — never in the GSM value
+      const isColoured = r.some((cell, ci) =>
+        ci !== colSize && ci !== colGSM && ci !== colBF && ci !== colWeight && ci !== colQty &&
+        (cell || '').toString().trim().toUpperCase() === 'GY'
+      );
+      const gsm100 = parseInt(gsmRaw) === 100 || gsmRaw === '100';
+      const is100Plain = gsm100 && !isColoured;
       parsed.push({
         size, gsm: gsmRaw || '—', bf: colBF >= 0 ? r[colBF] : '—',
         weight: isNaN(weight) ? 0 : weight, qty, is100Plain, isColoured,
