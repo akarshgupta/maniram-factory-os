@@ -84,9 +84,94 @@ function getNextAvailableDispatchDate(earliestDeliveryStr, reelSize) {
   return batchDate || freshDate || null;
 }
 
+// ── Merge Opportunity Detection ──
+// Returns orders that can be delivered EARLIER by joining an existing
+// same-reel Stage-1 run that has spare capacity.
+function getMergeOpportunities() {
+  const active = orders.filter(o =>
+    !['Delivered','Dispatched','Cancelled'].includes(o.status) && o.date && o.reelSize
+  );
+
+  // Build: stage1DateStr → { reelSize → [orders] }
+  const s1Map = {};
+  active.forEach(o => {
+    const s1 = new Date(o.date + 'T00:00:00');
+    s1.setDate(s1.getDate() - 1);
+    const s1Str = s1.toISOString().split('T')[0];
+    const rs    = String(o.reelSize);
+    if (!s1Map[s1Str])     s1Map[s1Str]     = {};
+    if (!s1Map[s1Str][rs]) s1Map[s1Str][rs] = [];
+    s1Map[s1Str][rs].push(o);
+  });
+
+  const opps = [];
+  active.forEach(o => {
+    const rs      = String(o.reelSize);
+    const myS1    = new Date(o.date + 'T00:00:00');
+    myS1.setDate(myS1.getDate() - 1);
+    const myS1Str = myS1.toISOString().split('T')[0];
+
+    // Look for an EARLIER Stage-1 run with same reel that has capacity
+    Object.entries(s1Map).forEach(([s1Str, reelMap]) => {
+      if (!reelMap[rs]) return;
+      if (s1Str >= myS1Str) return;      // not earlier
+      if (s1Str < todayStr) return;      // already past
+      const existingOrders = reelMap[rs];
+      if (existingOrders.find(x => x.id === o.id)) return; // same order
+      if (existingOrders.length >= MAX_SIMULTANEOUS_ORDERS) return; // full
+
+      const earlierDeliv = new Date(s1Str + 'T00:00:00');
+      earlierDeliv.setDate(earlierDeliv.getDate() + 1);
+      const earlierStr   = earlierDeliv.toISOString().split('T')[0];
+      const daysSaved    = Math.round((new Date(o.date) - earlierDeliv) / 86400000);
+      if (daysSaved <= 0) return;
+
+      opps.push({ order: o, suggestedDelivery: earlierStr, stage1Date: s1Str, daysSaved, existingOrders });
+    });
+  });
+
+  // Deduplicate: one opportunity per order (earliest)
+  const seen = new Set();
+  return opps.filter(op => {
+    if (seen.has(op.order.id)) return false;
+    seen.add(op.order.id);
+    return true;
+  }).sort((a, b) => b.daysSaved - a.daysSaved);
+}
+
+function applyMergeDate(orderId, newDate) {
+  const o = orders.find(x => x.id === orderId);
+  if (!o) return;
+  const label = new Date(newDate + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  if (!confirm(`Move ${orderId} delivery to ${label}? This will update the sheet.`)) return;
+
+  o.date = newDate;
+  if (o.rowIndex && o.rowIndex !== 9999) {
+    const d   = new Date(newDate + 'T00:00:00');
+    const fmt = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+    fetch(APPS_SCRIPT_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'update', rowIndex: o.rowIndex,
+        id: o.id, customer: o.customer, product: o.product || '', size: o.size || '',
+        ply: o.ply || '', colour: o.colour || '', weight: o.weight || '',
+        qty: o.qty, rate: o.rate, date: fmt, status: o.status,
+        priority: o.priority || 'Normal', reelSize: o.reelSize || '',
+        reservedKg: o.reservedKg || 0, remarks: o.remarks || ''
+      })
+    });
+  }
+  renderProductionPlan();
+  renderCalendar();
+  updateDashboardOrders();
+}
+
 function renderProductionPlan() {
   const el = document.getElementById('production-plan-body');
   if (!el) return;
+
+  initStaffWidget();
 
   const active = orders.filter(o =>
     !['Delivered', 'Dispatched', 'Cancelled'].includes(o.status) && o.date
@@ -116,8 +201,29 @@ function renderProductionPlan() {
     <button class="btn-secondary" onclick="applySuggestedDate('${nextSlot ? nextSlot.date : ''}')" style="font-size:12px;white-space:nowrap" ${!nextSlot ? 'disabled' : ''}>Use in New Order →</button>
   </div>`;
 
+  // Merge opportunity alerts
+  const opps    = getMergeOpportunities();
+  const mergeBanner = opps.length ? `
+    <div class="merge-alerts">
+      <div class="merge-alerts-title">💡 Deliver Earlier — Merge with Existing Production Runs</div>
+      ${opps.map(op => {
+        const cur  = new Date(op.order.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+        const sug  = new Date(op.suggestedDelivery + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+        const s1   = new Date(op.stage1Date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+        return `<div class="merge-alert-card">
+          <div class="merge-alert-order">${op.order.id} · ${op.order.product || op.order.size || 'Order'} · ${op.order.customer}</div>
+          <div class="merge-alert-info">
+            ${op.order.reelSize}" reel is already going into production on <strong>${s1}</strong>.
+            Deliver on <strong>${sug}</strong> instead of ${cur}
+            <span class="merge-days-saved">${op.daysSaved}d earlier</span>
+          </div>
+          <button class="btn-primary" onclick="applyMergeDate('${escStr(op.order.id)}','${op.suggestedDelivery}')" style="font-size:11px;padding:5px 12px;white-space:nowrap">Apply Earlier Date →</button>
+        </div>`;
+      }).join('')}
+    </div>` : '';
+
   if (!active.length) {
-    el.innerHTML = banner + '<div class="empty-state" style="padding:40px 0">No active orders with delivery dates.<br><span style="font-size:12px;color:var(--muted)">Add orders on the Orders page first.</span></div>';
+    el.innerHTML = banner + mergeBanner + '<div class="empty-state" style="padding:40px 0">No active orders with delivery dates.<br><span style="font-size:12px;color:var(--muted)">Add orders on the Orders page first.</span></div>';
     return;
   }
 
@@ -146,7 +252,7 @@ function renderProductionPlan() {
 
   const sortedDays = Object.keys(dayMap).sort();
 
-  el.innerHTML = banner + sortedDays.map(ds => {
+  el.innerHTML = banner + mergeBanner + sortedDays.map(ds => {
     const data    = dayMap[ds];
     if (!data.stage1.length && !data.stage2.length) return '';
     const d       = new Date(ds + 'T00:00:00');
@@ -162,14 +268,28 @@ function renderProductionPlan() {
       </div>`;
 
     if (data.stage1.length) {
+      // Group by reel size so each physical reel setup is visible
+      const byReel = {};
+      data.stage1.forEach(o => {
+        const rs = o.reelSize ? String(o.reelSize) : 'Unknown';
+        if (!byReel[rs]) byReel[rs] = [];
+        byReel[rs].push(o);
+      });
+      const reelGroups = Object.entries(byReel).sort((a, b) => parseFloat(a[0]) - parseFloat(b[0]));
+
       html += `<div class="prod-stage prod-stage1">
         <div class="prod-stage-title">
           <span class="prod-stage-dot s1"></span>
           Stage 1 — Corrugation &nbsp;·&nbsp; Printing &nbsp;·&nbsp; Pasting
         </div>
-        <div class="prod-orders">
-          ${data.stage1.map(o => prodOrderRow(o, 1)).join('')}
-        </div>
+        ${reelGroups.map(([rs, reelOrders]) => `
+          <div class="prod-reel-group">
+            <div class="prod-reel-group-hdr">
+              🔧 ${rs}" Reel &nbsp;→&nbsp; ${reelOrders.length} order${reelOrders.length > 1 ? 's' : ''}
+              ${reelOrders.length >= MAX_SIMULTANEOUS_ORDERS ? '<span class="prod-reel-full">FULL</span>' : ''}
+            </div>
+            <div class="prod-orders">${reelOrders.map(o => prodOrderRow(o, 1)).join('')}</div>
+          </div>`).join('')}
       </div>`;
     }
 

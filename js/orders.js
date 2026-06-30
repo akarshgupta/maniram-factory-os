@@ -735,7 +735,9 @@ function getSuggestedDeliveryDate() {
   if (!qty)  { alert('Please enter a Quantity first.');  return; }
   if (!size) { alert('Please enter a Box Size first.');  return; }
 
-  const prodDays = PRODUCTION_DAYS.calc(ply, qty);
+  const prodDays = typeof getLearnedProductionDays === 'function'
+    ? getLearnedProductionDays(ply, qty)
+    : PRODUCTION_DAYS.calc(ply, qty);
   let suggestion = null, reason = '';
 
   if (reelSize) {

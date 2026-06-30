@@ -29,6 +29,7 @@ function calToggleDelivered(orderId) {
   const nowDelivered = o.status !== 'Delivered';
   const newStatus    = nowDelivered ? 'Delivered' : 'Ready';
   o.status = newStatus;
+  if (nowDelivered && typeof recordDeliveredOrder === 'function') recordDeliveredOrder(o);
   // clear dispatch log when manually reverting to un-delivered
   if (!nowDelivered && typeof clearDispatch === 'function') clearDispatch(orderId);
 

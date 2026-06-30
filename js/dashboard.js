@@ -60,6 +60,24 @@ function updateDashboardOrders() {
     });
   }
 
+  // Merge opportunity banner on dashboard
+  const mergeEl = document.getElementById('dashboard-merge-banner');
+  if (mergeEl && typeof getMergeOpportunities === 'function') {
+    const opps = getMergeOpportunities();
+    if (opps.length) {
+      mergeEl.style.display = 'block';
+      mergeEl.innerHTML = `<div style="font-weight:700;margin-bottom:6px">💡 ${opps.length} order${opps.length > 1 ? 's' : ''} can be delivered earlier by merging with existing production runs</div>` +
+        opps.map(op => {
+          const sug = new Date(op.suggestedDelivery + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+          const cur = new Date(op.order.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+          return `<div style="font-size:12px;margin-top:2px">→ <strong>${op.order.id}</strong> · ${op.order.product || op.order.customer} · ${op.order.reelSize}" reel already in production — deliver <strong>${sug}</strong> (was ${cur}, save ${op.daysSaved}d)</div>`;
+        }).join('') +
+        `<div style="margin-top:8px"><button class="btn-secondary" onclick="showPage('production')" style="font-size:11px">View Production Plan →</button></div>`;
+    } else {
+      mergeEl.style.display = 'none';
+    }
+  }
+
   // Active Pipeline card — all active orders sorted by date
   const pipe = document.getElementById('dashboard-pipeline-list');
   if (!pipe) return;
