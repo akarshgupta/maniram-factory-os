@@ -235,7 +235,8 @@ function showReelHint(reelSize, hintId) {
   const active = orders
     .filter(o =>
       !['Delivered','Dispatched','Cancelled'].includes(o.status) &&
-      o.date && o.reelSize && o.reelSize.toString() === rs
+      o.date && o.reelSize && o.reelSize.toString() === rs &&
+      !(typeof isSheetsReady === 'function' && isSheetsReady(o.id))
     )
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
