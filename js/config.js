@@ -11,11 +11,17 @@ const PROD_LOG_SHEET_ID = '1T3mED9PNC9twyc1O6S4_4XBB1aOsd6-BqTGwLopgkYU'; // Man
 const APPS_SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycbxCrZW5upLG7YWixwxaLq1y13opChsJdkcz-4sn2h9LwyuKSgW3mVFgb9KoDdq8lQP6/exec';
 const API_KEY           = 'AIzaSyBz9doIxDqLCmUd5mKjemM9ui3tVJBD34k';
 const REEL_TAB          = 'Stock';
-const ORDERS_TAB        = 'Sheet1';
-const CLIENTS_TAB       = 'Clients';
-const PRODUCTS_TAB      = 'ClientProducts';
+const ORDERS_TAB        = 'Orders';
+const CUSTOMERS_TAB     = 'Customers';
+const PRODUCTS_TAB      = 'Products';
+const DISPATCH_TAB      = 'Dispatch';
+const STAFF_LOG_TAB     = 'StaffLog';
+const PROD_PERF_TAB     = 'ProdPerf';
 const PURCHASES_TAB     = 'Purchases';
 const TALLY_SYNC_TAB    = 'TallySync';
+
+// legacy alias so any old reference to CLIENTS_TAB still works
+const CLIENTS_TAB       = 'Customers';
 
 const NOTION_CLIENTS_DB = '5be5433513b64fc9a14fa539ca06c475'; // Maniram Clients database
 

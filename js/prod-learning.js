@@ -1,31 +1,60 @@
 // ══════════════════════════════════════════════════════════════
-// PROD-LEARNING.JS — Staff presence tracking + production rate learning
+// PROD-LEARNING.JS — Staff presence + production rate learning
+// Tabs: StaffLog (Date · StaffCount) · ProdPerf (OrderID · Date · Ply · Qty · Staff · RecordedAt)
 // ══════════════════════════════════════════════════════════════
 
-const LS_STAFF_LOG = 'mi_staff_log_v1'; // { dateStr: count }
-const LS_PROD_PERF = 'mi_prod_perf_v1'; // [{ orderId, date, ply, qty, staff }]
+const BASELINE_RATE = { 3: 1000, 5: 667, 7: 500 }; // boxes/staff/day baseline
 
-// Hardcoded baseline rates (boxes/staff/day) — learned rates override these
-const BASELINE_RATE = { 3: 1000, 5: 667, 7: 500 };
+let _staffCache = {}; // { dateStr: count }
+let _perfCache  = []; // [{ orderId, date, ply, qty, staff }]
 
-// ── Staff Presence ──
-function loadStaffLog() {
-  try { return JSON.parse(localStorage.getItem(LS_STAFF_LOG) || '{}'); } catch { return {}; }
+// ── Load from Sheets ──
+async function fetchStaffLog() {
+  try {
+    const url  = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent(STAFF_LOG_TAB + '!A2:B500')}?key=${API_KEY}`;
+    const json = await fetch(url).then(r => r.json());
+    _staffCache = {};
+    (json.values || []).forEach(r => {
+      if (r[0]) _staffCache[r[0]] = parseInt(r[1]) || 0;
+    });
+  } catch(e) { console.warn('fetchStaffLog:', e); }
 }
 
+async function fetchProdPerf() {
+  try {
+    const url  = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent(PROD_PERF_TAB + '!A2:F2000')}?key=${API_KEY}`;
+    const json = await fetch(url).then(r => r.json());
+    _perfCache = [];
+    (json.values || []).forEach(r => {
+      if (r[0]) _perfCache.push({
+        orderId: r[0],
+        date:    r[1] || '',
+        ply:     parseInt(r[2]) || 3,
+        qty:     parseInt(r[3]) || 0,
+        staff:   parseInt(r[4]) || 0,
+      });
+    });
+  } catch(e) { console.warn('fetchProdPerf:', e); }
+}
+
+// ── Staff Presence ──
 function getStaffForDate(ds) {
-  return loadStaffLog()[ds] || 0;
+  return _staffCache[ds] || 0;
 }
 
 function logTodayStaff() {
   const inp   = document.getElementById('prod-staff-input');
   const count = parseInt(inp ? inp.value : 0) || 0;
   if (!count || count < 1) { alert('Enter number of staff on floor today.'); return; }
-  const log   = loadStaffLog();
-  log[todayStr] = count;
-  localStorage.setItem(LS_STAFF_LOG, JSON.stringify(log));
 
-  // Provide instant feedback and refresh the perf widget
+  _staffCache[todayStr] = count;
+
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST', mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'saveStaff', date: todayStr, count }),
+  }).catch(() => {});
+
   if (inp) inp.style.borderColor = 'var(--success)';
   setTimeout(() => { if (inp) inp.style.borderColor = ''; }, 1200);
   renderPerfWidget();
@@ -33,115 +62,104 @@ function logTodayStaff() {
 }
 
 // ── Production Performance Recording ──
-function loadProdPerf() {
-  try { return JSON.parse(localStorage.getItem(LS_PROD_PERF) || '[]'); } catch { return []; }
-}
-
-// Called when an order is marked Delivered (from dispatch.js or calendar.js)
 function recordDeliveredOrder(order) {
   if (!order || !order.date || !order.qty || !order.ply) return;
-  const perf = loadProdPerf();
-  if (perf.find(p => p.orderId === order.id)) return; // already recorded
+  if (_perfCache.find(p => p.orderId === order.id)) return; // already recorded
 
-  // Stage 1 = day before delivery
   const s1 = new Date(order.date + 'T00:00:00');
   s1.setDate(s1.getDate() - 1);
   const s1Str = s1.toISOString().split('T')[0];
-  const staff = getStaffForDate(s1Str) || getStaffForDate(order.date) || 0;
-
-  perf.push({
+  const staff  = getStaffForDate(s1Str) || getStaffForDate(order.date) || 0;
+  const entry  = {
     orderId: order.id,
     date:    s1Str,
     ply:     parseInt(order.ply) || 3,
     qty:     parseInt(order.qty) || 0,
-    staff:   staff,
-  });
+    staff,
+  };
 
-  // Keep last 100 entries
-  if (perf.length > 100) perf.splice(0, perf.length - 100);
-  localStorage.setItem(LS_PROD_PERF, JSON.stringify(perf));
+  _perfCache.push(entry);
+  if (_perfCache.length > 100) _perfCache.splice(0, _perfCache.length - 100);
+
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST', mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action:    'saveProdPerf',
+      orderId:   entry.orderId,
+      date:      entry.date,
+      ply:       entry.ply,
+      qty:       entry.qty,
+      staff:     entry.staff,
+      recordedAt: new Date().toISOString(),
+    }),
+  }).catch(() => {});
 }
 
 // ── Learned Rate ──
-// Returns boxes per staff per day for a given ply, based on recent history.
-// Returns null if < 3 data points exist (caller should fall back to baseline).
 function getLearnedRate(ply) {
   const p       = parseInt(ply) || 3;
-  const entries = loadProdPerf().filter(e => e.ply === p && e.qty > 0 && e.staff > 0);
+  const entries = _perfCache.filter(e => e.ply === p && e.qty > 0 && e.staff > 0);
   if (entries.length < 3) return null;
   const rates = entries.slice(-20).map(e => e.qty / e.staff);
   return rates.reduce((s, r) => s + r, 0) / rates.length;
 }
 
-// Get effective production days for an order using learned data + today's staff
 function getLearnedProductionDays(ply, qty) {
-  const p     = parseInt(ply) || 3;
-  const q     = parseInt(qty) || 0;
-  const rate  = getLearnedRate(p); // boxes/staff/day or null
-  if (!rate) return PRODUCTION_DAYS.calc(p, q); // not enough data, use hardcoded
-
+  const p    = parseInt(ply) || 3;
+  const q    = parseInt(qty) || 0;
+  const rate = getLearnedRate(p);
+  if (!rate) return PRODUCTION_DAYS.calc(p, q);
   const staff = getStaffForDate(todayStr) || 3;
-  const days  = Math.ceil(q / (rate * staff));
-  return Math.max(1, days);
+  return Math.max(1, Math.ceil(q / (rate * staff)));
 }
 
-// Returns { ply: { rate, staff, dataPoints, vsBaseline } } for display
+// ── Performance Summary ──
 function getPerfSummary() {
-  const perf = loadProdPerf();
-  if (!perf.length) return {};
-
+  if (!_perfCache.length) return {};
   const byPly = {};
-  perf.slice(-30).forEach(e => {
+  _perfCache.slice(-30).forEach(e => {
     if (!e.staff || !e.qty) return;
     if (!byPly[e.ply]) byPly[e.ply] = [];
-    byPly[e.ply].push(e.qty / e.staff); // boxes/staff/day
+    byPly[e.ply].push(e.qty / e.staff);
   });
-
   const summary = {};
   Object.entries(byPly).forEach(([ply, rates]) => {
-    const avg = Math.round(rates.reduce((s, r) => s + r, 0) / rates.length);
+    const avg  = Math.round(rates.reduce((s, r) => s + r, 0) / rates.length);
     const base = BASELINE_RATE[ply] || 1000;
-    summary[ply] = {
-      rate:        avg,
-      dataPoints:  rates.length,
-      vsBaseline:  Math.round((avg / base - 1) * 100),
-    };
+    summary[ply] = { rate: avg, dataPoints: rates.length, vsBaseline: Math.round((avg / base - 1) * 100) };
   });
   return summary;
 }
 
-// ── UI: Performance Widget ──
+// ── UI Widgets ──
 function renderPerfWidget() {
   const el = document.getElementById('prod-perf-widget');
   if (!el) return;
-
   const todayStaff = getStaffForDate(todayStr);
   const summary    = getPerfSummary();
   const plies      = Object.keys(summary);
-
-  const staffLine = todayStaff > 0
+  const staffLine  = todayStaff > 0
     ? `<span style="color:var(--success);font-weight:700">${todayStaff} staff logged today</span>`
     : `<span style="color:var(--warn)">No staff logged for today yet</span>`;
 
   if (!plies.length) {
-    el.innerHTML = `<div style="font-size:12px;color:var(--muted)">${staffLine} · No performance data yet — starts learning after first deliveries.</div>`;
+    el.innerHTML = `<div style="font-size:12px;color:var(--muted)">${staffLine} · No performance data yet.</div>`;
     return;
   }
-
   const rows = plies.map(ply => {
     const d   = summary[ply];
     const dir = d.vsBaseline >= 0 ? `↑ ${d.vsBaseline}%` : `↓ ${Math.abs(d.vsBaseline)}%`;
     const col = d.vsBaseline >= 0 ? 'var(--success)' : 'var(--danger)';
     return `<span style="font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:3px 8px;margin-right:4px">
-      <strong>${ply}ply</strong> ${d.rate.toLocaleString('en-IN')} boxes/staff/day <span style="color:${col}">${dir}</span>
+      <strong>${ply}ply</strong> ${d.rate.toLocaleString('en-IN')} boxes/staff/day
+      <span style="color:${col}">${dir}</span>
       <span style="color:var(--muted)"> (${d.dataPoints} orders)</span>
     </span>`;
   }).join('');
-
-  el.innerHTML = `<div style="font-size:11px;color:var(--muted);margin-bottom:4px">Learned Production Rate · ${staffLine}</div><div>${rows}</div>`;
+  el.innerHTML = `<div style="font-size:11px;color:var(--muted);margin-bottom:4px">Learned Rate · ${staffLine}</div><div>${rows}</div>`;
 }
 
-// Initialise the staff input with today's saved value
 function initStaffWidget() {
   const inp = document.getElementById('prod-staff-input');
   if (!inp) return;
