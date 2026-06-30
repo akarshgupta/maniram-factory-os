@@ -308,27 +308,64 @@ async function initClients() {
   }
 }
 
-// ── One-click migration: copy from old ORDERS tabs → new dedicated sheets ──
+// ── One-click migration: reads directly from Orders sheet → new dedicated sheets ──
 async function runClientMigration() {
   const statusEl = document.getElementById('migration-status');
   const btn      = document.querySelector('#client-migration-banner .btn-primary');
 
-  if (!CLIENTS || CLIENTS.length === 0) {
-    if (statusEl) statusEl.textContent = '❌ No client data loaded. Refresh first.';
-    return;
-  }
-
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Copying...'; }
-  if (statusEl) statusEl.textContent = `Sending ${CLIENTS.length} clients…`;
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Reading Orders sheet…'; }
+  if (statusEl) statusEl.textContent = 'Looking for client data…';
 
   try {
-    await migrateClientsToSheets(CLIENTS);
+    // Read directly from old ORDERS_SHEET_ID tabs — the guaranteed source of truth
+    const cUrl = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent('Customers!A2:D500')}?key=${API_KEY}`;
+    const pUrl = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent('Products!A2:P2000')}?key=${API_KEY}`;
+
+    const [cRes, pRes]   = await Promise.all([fetch(cUrl), fetch(pUrl)]);
+    const [cJson, pJson] = await Promise.all([cRes.json(), pRes.json()]);
+
+    let cRows = (cJson.values || []).filter(r => r[0]);
+    let pRows = (pJson.values || []).filter(r => r[0] && r[1]);
+
+    // If Orders sheet has no Customers tab, fall back to in-memory CLIENTS (if real data)
+    if (!cRows.length && CLIENTS.length > 0 &&
+        JSON.stringify(CLIENTS) !== JSON.stringify(DEFAULT_CLIENTS)) {
+      cRows = CLIENTS.map(c => [c.name, c.contact || '', c.phone || '', c.city || '']);
+      pRows = CLIENTS.flatMap(c =>
+        (c.products || []).map(p => [c.name, p.name, p.size||'', p.ply||'',
+          p.colour||'', p.weight||'', p.reelSize||'', ...(p.gsm||[])])
+      );
+    }
+
+    if (!cRows.length) {
+      if (statusEl) statusEl.textContent = '⚠️ No client data found. Please add clients manually.';
+      if (btn) { btn.disabled = false; btn.textContent = '📤 Retry'; }
+      return;
+    }
+
+    if (btn) btn.textContent = '⏳ Writing…';
+    if (statusEl) statusEl.textContent = `Found ${cRows.length} clients — copying to new sheets…`;
+
+    const reqs = cRows.map(r =>
+      postClient({ action: 'saveClient', name: r[0], contact: r[1]||'', phone: r[2]||'', city: r[3]||'' })
+    );
+    for (const p of pRows) {
+      const gsm = [p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]].map(Number).filter(v => v > 0);
+      reqs.push(postClient({
+        action: 'saveProduct', clientName: p[0], name: p[1],
+        size: p[2]||'', ply: p[3]||'', colour: p[4]||'', weight: p[5]||'', reelSize: p[6]||'', gsm
+      }));
+    }
+
+    await Promise.all(reqs);
+    await new Promise(r => setTimeout(r, 3000)); // wait for Apps Script to write
+
     localStorage.setItem('mi_new_sheets_migrated', '1');
-    if (statusEl) statusEl.textContent = `✅ ${CLIENTS.length} clients copied. Reloading…`;
+    if (statusEl) statusEl.textContent = `✅ ${cRows.length} clients + ${pRows.length} products copied. Reloading…`;
     if (btn) btn.textContent = '✅ Done';
     setTimeout(() => window.location.reload(), 2500);
   } catch (e) {
-    if (statusEl) statusEl.textContent = '❌ Failed — check that Apps Script is updated.';
+    if (statusEl) statusEl.textContent = '❌ Error: ' + e.message;
     if (btn) { btn.disabled = false; btn.textContent = '📤 Retry'; }
   }
 }
