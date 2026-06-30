@@ -4,6 +4,25 @@
 // Stage 2 (D):   Rotary · RS4 · Stitching · Packing · Dispatch
 // ══════════════════════════════════════════════════════════════
 
+// ── Sheets-Ready store ──────────────────────────────────────
+// Supervisor taps once to mark an order's corrugated sheets as
+// already cut. Stored in localStorage — no Sheets write needed.
+const LS_SHEETS_READY = 'mi_sheets_ready_v1';
+let _sheetsReady = {};
+try { _sheetsReady = JSON.parse(localStorage.getItem(LS_SHEETS_READY) || '{}'); } catch {}
+
+function isSheetsReady(orderId) { return !!_sheetsReady[orderId]; }
+
+function toggleSheetsReady(orderId) {
+  if (_sheetsReady[orderId]) {
+    delete _sheetsReady[orderId];
+  } else {
+    _sheetsReady[orderId] = true;
+  }
+  localStorage.setItem(LS_SHEETS_READY, JSON.stringify(_sheetsReady));
+  renderProductionPlan();
+}
+
 // ── Size converter: cm ↔ inches ──
 // inputId: field to read, hintId: div below the field to write to
 function convertSizeCmIn(inputId, hintId) {
@@ -655,8 +674,15 @@ function prodOrderRow(o, stage) {
     ? `<button class="btn-sm" style="white-space:nowrap;font-size:11px" onclick="event.stopPropagation();openDispatchModal('${eid}')">📦 Dispatch</button>`
     : '';
 
+  const sheetsReady = isSheetsReady(o.id);
+  const sheetsBtn = `<button class="btn-sm sheets-ready-btn${sheetsReady ? ' active' : ''}"
+    onclick="event.stopPropagation();toggleSheetsReady('${eid}')"
+    title="${sheetsReady ? 'Sheets marked as pre-made — tap to unmark' : 'Mark corrugated sheets as already cut & ready'}">
+    ${sheetsReady ? '✅ Sheets' : '📋 Sheets'}
+  </button>`;
+
   return `
-    <div class="prod-order-row">
+    <div class="prod-order-row${sheetsReady ? ' sheets-ready-row' : ''}">
       ${reelBadge}
       <div class="prod-order-info">
         <div class="prod-product-name">${o.product || size || 'Order'}</div>
@@ -666,6 +692,7 @@ function prodOrderRow(o, stage) {
         <select class="prod-status-select" onchange="quickUpdateStatus('${eid}',this.value)" onclick="event.stopPropagation()" title="Change status">
           ${statusOpts}
         </select>
+        ${sheetsBtn}
         ${dispatchBtn}
         <button class="btn-sm" onclick="openEditModal('${eid}')" title="Edit order">✏️</button>
       </div>

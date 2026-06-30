@@ -594,6 +594,19 @@
         <div class="section-title">Clients & Product Master</div>
         <span style="font-size:12px;color:var(--muted)">Edit here — changes will be saved to the app</span>
       </div>
+      <div id="client-migration-banner" style="display:none;background:#EFF6FF;border:1.5px solid #BFDBFE;border-radius:10px;padding:12px 16px;margin-bottom:14px">
+        <div style="font-size:12px;font-weight:700;color:#1E40AF;margin-bottom:4px">📦 Sync to Dedicated Sheets</div>
+        <div style="font-size:11px;color:#1D4ED8;margin-bottom:10px">
+          Client data is currently being read from the <strong>Orders</strong> spreadsheet (old location).
+          Click below to copy everything to the dedicated <strong>Customers</strong> and <strong>Products</strong> spreadsheets so all data is properly organised.<br>
+          <span style="color:#6B7280">Make sure you have updated the Apps Script first (see <code>apps-script/Code.gs</code> in the repo).</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <button class="btn-primary" onclick="runClientMigration()" style="font-size:11px;padding:6px 14px">📤 Copy to New Sheets</button>
+          <span id="migration-status" style="font-size:11px;color:var(--muted)"></span>
+          <button onclick="document.getElementById('client-migration-banner').style.display='none'" style="margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1">×</button>
+        </div>
+      </div>
       <div id="clients-list"></div>
     </div>
 

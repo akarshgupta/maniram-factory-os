@@ -112,11 +112,20 @@ function updateGsmFields(existingGsm) {
 
 async function fetchClients() {
   try {
-    const cUrl = `https://sheets.googleapis.com/v4/spreadsheets/${CUSTOMERS_SHEET_ID}/values/${encodeURIComponent(CUSTOMERS_TAB + '!A1:D500')}?key=${API_KEY}`;
-    const pUrl = `https://sheets.googleapis.com/v4/spreadsheets/${PRODUCTS_SHEET_ID}/values/${encodeURIComponent(PRODUCTS_TAB + '!A1:N2000')}?key=${API_KEY}`;
+    const cUrl    = `https://sheets.googleapis.com/v4/spreadsheets/${CUSTOMERS_SHEET_ID}/values/${encodeURIComponent(CUSTOMERS_TAB + '!A1:D500')}?key=${API_KEY}`;
+    const cUrlOld = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent('Customers!A1:D500')}?key=${API_KEY}`;
+    const pUrl    = `https://sheets.googleapis.com/v4/spreadsheets/${PRODUCTS_SHEET_ID}/values/${encodeURIComponent(PRODUCTS_TAB + '!A1:P2000')}?key=${API_KEY}`;
+    const pUrlOld = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent('Products!A1:P2000')}?key=${API_KEY}`;
 
-    const [cRes, pRes]   = await Promise.all([fetch(cUrl), fetch(pUrl)]);
-    const [cJson, pJson] = await Promise.all([cRes.json(), pRes.json()]);
+    let [cRes, pRes] = await Promise.all([fetch(cUrl), fetch(pUrl)]);
+    let [cJson, pJson] = await Promise.all([cRes.json(), pRes.json()]);
+
+    // Fall back to the old Customers/Products tabs in the Orders spreadsheet
+    if (cJson.error || !(cJson.values || []).slice(1).filter(r => r[0]).length) {
+      const [cResOld, pResOld] = await Promise.all([fetch(cUrlOld), fetch(pUrlOld)]);
+      const [cJsonOld, pJsonOld] = await Promise.all([cResOld.json(), pResOld.json()]);
+      if (!cJsonOld.error) { cJson = cJsonOld; pJson = pJsonOld; }
+    }
 
     if (cJson.error) return false;
 
@@ -271,6 +280,9 @@ async function migrateClientsToSheets(clients) {
   await new Promise(r => setTimeout(r, 3000));
 }
 
+// Track whether data came from the old fallback location
+let _clientsFromFallback = false;
+
 async function initClients() {
   const migrated = localStorage.getItem('mi_clients_migrated');
 
@@ -279,7 +291,6 @@ async function initClients() {
     if (stored) {
       try {
         const local = JSON.parse(stored);
-        // Only migrate if the stored data differs from the placeholder defaults
         if (Array.isArray(local) && JSON.stringify(local) !== JSON.stringify(DEFAULT_CLIENTS)) {
           await migrateClientsToSheets(local);
         }
@@ -290,12 +301,35 @@ async function initClients() {
 
   const ok = await fetchClients();
   if (!ok || CLIENTS.length === 0) {
-    // Sheets empty or unreachable — fall back to localStorage
     const stored = localStorage.getItem(LS_CLIENTS);
     CLIENTS = stored ? JSON.parse(stored) : JSON.parse(JSON.stringify(DEFAULT_CLIENTS));
   } else {
-    // Sheets has data; safe to clear the old localStorage copy
     localStorage.removeItem(LS_CLIENTS);
+  }
+}
+
+// ── One-click migration: copy from old ORDERS tabs → new dedicated sheets ──
+async function runClientMigration() {
+  const statusEl = document.getElementById('migration-status');
+  const btn      = document.querySelector('#client-migration-banner .btn-primary');
+
+  if (!CLIENTS || CLIENTS.length === 0) {
+    if (statusEl) statusEl.textContent = '❌ No client data loaded. Refresh first.';
+    return;
+  }
+
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Copying...'; }
+  if (statusEl) statusEl.textContent = `Sending ${CLIENTS.length} clients…`;
+
+  try {
+    await migrateClientsToSheets(CLIENTS);
+    localStorage.setItem('mi_new_sheets_migrated', '1');
+    if (statusEl) statusEl.textContent = `✅ ${CLIENTS.length} clients copied. Reloading…`;
+    if (btn) btn.textContent = '✅ Done';
+    setTimeout(() => window.location.reload(), 2500);
+  } catch (e) {
+    if (statusEl) statusEl.textContent = '❌ Failed — check that Apps Script is updated.';
+    if (btn) { btn.disabled = false; btn.textContent = '📤 Retry'; }
   }
 }
 
@@ -431,6 +465,13 @@ function clearProductFields() {
 // ══════════════════════════════════════════════════════════════
 
 function renderClients() {
+  // Show migration banner if not yet migrated to new sheets
+  const banner = document.getElementById('client-migration-banner');
+  if (banner) {
+    const alreadyMigrated = !!localStorage.getItem('mi_new_sheets_migrated');
+    banner.style.display = (!alreadyMigrated && CLIENTS.length > 0) ? 'block' : 'none';
+  }
+
   const list = document.getElementById('clients-list');
   list.innerHTML = '';
   CLIENTS.forEach((c, ci) => {
