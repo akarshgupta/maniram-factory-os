@@ -101,6 +101,96 @@ function postClient(payload) {
   }).catch(() => {});
 }
 
+function createNotionClientPage(name, contact, phone, city) {
+  const content = [
+    '## Psychology Profile',
+    '',
+    '> *Fill in the answers below after your first few interactions with this client.*',
+    '',
+    '---',
+    '',
+    '## Negotiator Type (Chris Voss)',
+    '',
+    '> **Accommodator** — relationship-first, quick decider, avoids conflict, goes quiet when unhappy',
+    '> **Analyst** — data-first, slow to decide, needs details, hates surprises',
+    '> **Assertive** — results-now, direct, time is money, can be aggressive',
+    '',
+    '**Type:** *(fill after observation)*',
+    '',
+    '---',
+    '',
+    '## 10 Psychology Questions',
+    '',
+    '**Q1. When you give them something extra (free delivery, extra boxes) — do they feel obligated to return the favour?**',
+    'Answer:',
+    '',
+    '**Q2. If they verbally agree to an order but haven\'t paid advance — do they follow through?**',
+    'Answer:',
+    '',
+    '**Q3. Do they mention competitors or "everyone else does it differently"?**',
+    'Answer:',
+    '',
+    '**Q4. When you explain your experience/quality — does it impress them?**',
+    'Answer:',
+    '',
+    '**Q5. Is your relationship personal (know family, casual chat) or purely transactional?**',
+    'Answer:',
+    '',
+    '**Q6. If you say "stock is running low, order now" — do they order faster?**',
+    'Answer:',
+    '',
+    '**Q7. How long does it take them to decide on a new order — quick or lots of back and forth?**',
+    'Answer:',
+    '',
+    '**Q8. What do they complain about most — price, delivery time, quality, or service?**',
+    'Answer:',
+    '',
+    '**Q9. When there\'s a problem — do they get aggressive, go quiet, or talk it out calmly?**',
+    'Answer:',
+    '',
+    '**Q10. Do they pay on time, late but reliably, or do you have to follow up?**',
+    'Answer:',
+    '',
+    '---',
+    '',
+    '## Key Rules For This Client',
+    '',
+    '*(Fill after completing the questionnaire)*',
+    '',
+    '1.',
+    '2.',
+    '3.',
+    '',
+    '---',
+    '',
+    '## Relationship Notes',
+    '',
+    '*(Personal details — family names, interests, important dates, past conversations)*',
+    '',
+    '---',
+    '',
+    '## Order History Notes',
+    '',
+    '*(Seasonal patterns, preferred box sizes, recurring complaints, special requests)*',
+    '',
+    '---',
+    '',
+    '## Follow-Up Log',
+    '',
+    '*(Date | What was discussed | Next action)*',
+  ].join('\n');
+
+  postClient({
+    action:         'createNotionPage',
+    notionDbId:     NOTION_CLIENTS_DB,
+    clientName:     name,
+    clientContact:  contact || '',
+    clientPhone:    phone || '',
+    clientCity:     city || '',
+    pageContent:    content,
+  });
+}
+
 async function migrateClientsToSheets(clients) {
   const reqs = [];
   for (const c of clients) {
@@ -354,6 +444,7 @@ function saveClientModal() {
     CLIENTS.push({ name, contact, phone, city, products: [] });
     CLIENTS.sort((a, b) => a.name.localeCompare(b.name));
     postClient({ action: 'saveClient', name, contact, phone, city });
+    createNotionClientPage(name, contact, phone, city);
   }
 
   closeClientModal();
