@@ -141,6 +141,7 @@
     <div class="nav-item" onclick="showPage('calendar')"><span class="nav-icon">📅</span> Calendar</div>
     <div class="nav-item" onclick="showPage('orders')"><span class="nav-icon">📦</span> Orders</div>
     <div class="nav-section">Factory</div>
+    <div class="nav-item" onclick="showPage('production')"><span class="nav-icon">🏭</span> Production Plan</div>
     <div class="nav-item" onclick="showPage('reels')"><span class="nav-icon">🧻</span> Reel Stock</div>
     <div class="nav-item" onclick="showPage('purchase')"><span class="nav-icon">🛒</span> Purchase Register</div>
     <div class="nav-item" onclick="showPage('clients')"><span class="nav-icon">🤝</span> Clients</div>
@@ -565,6 +566,23 @@
       <div id="receivables-list"><div class="empty-state">Loading...</div></div>
     </div>
 
+    <!-- ══ PRODUCTION PLAN ══ -->
+    <div class="page" id="page-production">
+      <div class="section-header">
+        <div class="section-title">🏭 Production Plan</div>
+        <div style="font-size:12px;color:var(--muted)">Auto-planned from delivery dates</div>
+      </div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px">
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)">
+          <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#F59E0B"></span> Stage 1 — Corrugation · Printing · Pasting (day before delivery)
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)">
+          <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#3B82F6"></span> Stage 2 — Rotary · RS4 · Stitching · Packing · Dispatch (delivery day)
+        </div>
+      </div>
+      <div id="production-plan-body"><div class="empty-state">Loading production plan...</div></div>
+    </div>
+
     <!-- ══ TALLY SYNC ══ -->
     <div class="page" id="page-tally">
       <div class="section-header">
@@ -854,6 +872,29 @@
   </div>
 </div>
 
+<!-- DISPATCH MODAL -->
+<div class="popup-overlay" id="dispatch-overlay" style="display:none" onclick="closeDispatchModal()">
+  <div class="popup-box" style="width:min(420px,95vw);padding:24px" onclick="event.stopPropagation()">
+    <div class="popup-title">🚚 Record Dispatch</div>
+    <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:2px" id="dm-order-label"></div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:4px" id="dm-customer-label"></div>
+    <div style="font-size:12px;color:var(--blue);font-weight:600;margin-bottom:16px" id="dm-progress-label"></div>
+    <div class="form-group">
+      <label class="form-label">Boxes Dispatched Now</label>
+      <input class="form-input" type="number" id="dm-qty-input" min="1"
+        onkeydown="if(event.key==='Enter')confirmDispatch();if(event.key==='Escape')closeDispatchModal()">
+    </div>
+    <input type="hidden" id="dm-order-id">
+    <div style="font-size:11px;color:var(--muted);margin-top:6px">
+      95% of total quantity counts as fully delivered.
+    </div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn-primary" onclick="confirmDispatch()">✅ Confirm Dispatch</button>
+      <button class="btn-secondary" onclick="closeDispatchModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- WHATSAPP IMPORT MODAL -->
 <div class="popup-overlay" id="wa-import-overlay" style="display:none" onclick="if(event.target===this)closeWhatsAppImport()">
   <div class="popup-box" style="width:min(620px,96vw);max-height:92vh;overflow-y:auto;padding:28px" onclick="event.stopPropagation()">
@@ -893,6 +934,8 @@
 <script src="js/receivables.js"></script>
 <script src="js/whatsapp-import.js"></script>
 <script src="js/tally-sync.js"></script>
+<script src="js/dispatch.js"></script>
+<script src="js/production-plan.js"></script>
 <script src="js/app.js"></script>
 
 </body>

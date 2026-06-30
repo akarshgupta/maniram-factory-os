@@ -17,6 +17,7 @@ const pageTitles = {
   dashboard:   'Dashboard',
   calendar:    'Order Calendar',
   orders:      'Orders',
+  production:  '🏭 Production Plan',
   reels:       'Reel Stock',
   clients:     'Clients & Product Master',
   reminders:   '🔔 Reminders',
@@ -36,6 +37,7 @@ function showPage(id) {
 
   if (id === 'calendar')    renderCalendar();
   if (id === 'orders')      { renderOrders(); refreshOrderId(); }
+  if (id === 'production')  renderProductionPlan();
   if (id === 'clients')     renderClients();
   if (id === 'reminders')   computeReminders();
   if (id === 'purchase')    { renderPurchaseList(); renderRateHistory(); initPurchaseForm(); }
