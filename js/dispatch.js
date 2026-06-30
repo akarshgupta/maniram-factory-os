@@ -7,7 +7,7 @@ let _dispatchCache = {}; // { orderId: qty } — loaded from Sheets at startup
 
 async function fetchDispatch() {
   try {
-    const url  = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent(DISPATCH_TAB + '!A2:B2000')}?key=${API_KEY}`;
+    const url  = `https://sheets.googleapis.com/v4/spreadsheets/${DISPATCH_SHEET_ID}/values/${encodeURIComponent(DISPATCH_TAB + '!A2:B2000')}?key=${API_KEY}`;
     const json = await fetch(url).then(r => r.json());
     _dispatchCache = {};
     (json.values || []).forEach(r => {

@@ -101,8 +101,8 @@ function updateGsmFields(existingGsm) {
 
 async function fetchClients() {
   try {
-    const cUrl = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent(CLIENTS_TAB + '!A1:D500')}?key=${API_KEY}`;
-    const pUrl = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent(PRODUCTS_TAB + '!A1:N2000')}?key=${API_KEY}`;
+    const cUrl = `https://sheets.googleapis.com/v4/spreadsheets/${CUSTOMERS_SHEET_ID}/values/${encodeURIComponent(CUSTOMERS_TAB + '!A1:D500')}?key=${API_KEY}`;
+    const pUrl = `https://sheets.googleapis.com/v4/spreadsheets/${PRODUCTS_SHEET_ID}/values/${encodeURIComponent(PRODUCTS_TAB + '!A1:N2000')}?key=${API_KEY}`;
 
     const [cRes, pRes]   = await Promise.all([fetch(cUrl), fetch(pUrl)]);
     const [cJson, pJson] = await Promise.all([cRes.json(), pRes.json()]);

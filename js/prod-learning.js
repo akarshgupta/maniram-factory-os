@@ -11,7 +11,7 @@ let _perfCache  = []; // [{ orderId, date, ply, qty, staff }]
 // ── Load from Sheets ──
 async function fetchStaffLog() {
   try {
-    const url  = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent(STAFF_LOG_TAB + '!A2:B500')}?key=${API_KEY}`;
+    const url  = `https://sheets.googleapis.com/v4/spreadsheets/${STAFF_LOG_SHEET_ID}/values/${encodeURIComponent(STAFF_LOG_TAB + '!A2:B500')}?key=${API_KEY}`;
     const json = await fetch(url).then(r => r.json());
     _staffCache = {};
     (json.values || []).forEach(r => {
@@ -22,7 +22,7 @@ async function fetchStaffLog() {
 
 async function fetchProdPerf() {
   try {
-    const url  = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent(PROD_PERF_TAB + '!A2:F2000')}?key=${API_KEY}`;
+    const url  = `https://sheets.googleapis.com/v4/spreadsheets/${PROD_PERF_SHEET_ID}/values/${encodeURIComponent(PROD_PERF_TAB + '!A2:F2000')}?key=${API_KEY}`;
     const json = await fetch(url).then(r => r.json());
     _perfCache = [];
     (json.values || []).forEach(r => {
