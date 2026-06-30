@@ -942,8 +942,12 @@
     <div style="font-size:11px;color:var(--muted);margin-top:6px">
       95% of total quantity counts as fully delivered.
     </div>
-    <div style="display:flex;gap:10px;margin-top:16px">
+    <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
       <button class="btn-primary" onclick="confirmDispatch()">✅ Confirm Dispatch</button>
+      <button class="btn-secondary" style="background:var(--success);color:#fff;border-color:var(--success)"
+        onclick="generateDispatchPDF(document.getElementById('dm-order-id').value, parseInt(document.getElementById('dm-qty-input').value)||undefined)">
+        📄 PDF Slip
+      </button>
       <button class="btn-secondary" onclick="closeDispatchModal()">Cancel</button>
     </div>
   </div>
@@ -974,6 +978,9 @@
 
 </div><!-- /app-shell -->
 
+<!-- jsPDF — client-side PDF generation -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
 <!-- JS MODULES — order matters -->
 <!-- config.js + auth.js already loaded in <head> -->
 <script src="js/clients.js"></script>
@@ -989,6 +996,7 @@
 <script src="js/whatsapp-import.js"></script>
 <script src="js/tally-sync.js"></script>
 <script src="js/dispatch.js"></script>
+<script src="js/dispatch-pdf.js"></script>
 <script src="js/prod-learning.js"></script>
 <script src="js/production-plan.js"></script>
 <script src="js/app.js"></script>
