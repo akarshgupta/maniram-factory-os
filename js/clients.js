@@ -43,7 +43,8 @@ let acSelectedIdx = -1;
 let acFiltered    = [];
 
 // ── Client Modal State ──
-let _clientModalIdx  = -1; // -1 = adding new
+let _clientModalIdx    = -1; // -1 = adding new
+let _clientSaveCallback = null; // optional callback(name) after adding a new client
 let _productModalCi  = -1;
 let _productModalPi  = -1; // -1 = adding new
 let _productModalCb  = null; // optional callback after save
@@ -320,8 +321,9 @@ function renderClients() {
 }
 
 // ── Client Modal ──
-function openClientModal(ci) {
-  _clientModalIdx = ci;
+function openClientModal(ci, onSaved) {
+  _clientModalIdx     = ci;
+  _clientSaveCallback = onSaved || null;
   const c = ci >= 0 ? CLIENTS[ci] : null;
   document.getElementById('client-modal-title').textContent   = ci >= 0 ? 'Edit Client' : 'Add New Client';
   document.getElementById('cm-name').value    = c ? c.name    : '';
@@ -356,6 +358,10 @@ function saveClientModal() {
 
   closeClientModal();
   renderClients();
+  if (_clientModalIdx < 0 && _clientSaveCallback) {
+    _clientSaveCallback(name);
+    _clientSaveCallback = null;
+  }
   setTimeout(fetchClients, 2000);
 }
 

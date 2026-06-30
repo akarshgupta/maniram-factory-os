@@ -251,7 +251,7 @@
             <input class="form-input" type="text" id="f-id" readonly placeholder="Auto-generated">
           </div>
           <div class="form-group" id="customer-group">
-            <label class="form-label">Customer</label>
+            <label class="form-label">Customer <button class="add-inline-btn" onclick="openClientModal(-1, function(n){ selectCustomer(n); })">+ New Client</button></label>
             <input class="form-input" type="text" id="f-customer" placeholder="Type to search..." autocomplete="off" oninput="onCustomerInput()" onkeydown="onCustomerKey(event)">
             <div class="autocomplete-list" id="customer-dropdown" style="display:none"></div>
           </div>
