@@ -733,25 +733,34 @@ function getSuggestedDeliveryDate() {
   if (reelSize) {
     const reelCheck = checkReelAvailability(reelSize);
     if (reelCheck.available) {
-      const deliveryDate = addBusinessDays(todayStr, prodDays);
-      suggestion = { date: deliveryDate, type: 'stock', reelSize, prodDays };
-      reason = `✅ ${reelSize}" reel is in stock (${reelCheck.count} reels). Production can begin today.`;
+      const earliest  = addBusinessDays(todayStr, prodDays);
+      const slot      = typeof getNextAvailableDispatchDate === 'function' ? getNextAvailableDispatchDate(earliest) : { date: earliest, pushedBy: 0 };
+      const finalDate = slot ? slot.date : earliest;
+      const pushed    = slot && slot.pushedBy > 0 ? ` Floor full — pushed ${slot.pushedBy} day(s) forward.` : '';
+      suggestion = { date: finalDate, type: 'stock', reelSize, prodDays };
+      reason = `✅ ${reelSize}" reel in stock (${reelCheck.count} reels). Production can begin today.${pushed}`;
     } else {
       const pending = getPendingDeliveries(reelSize);
       if (pending.length > 0) {
-        const earliest = pending[0];
-        const afterReel = addBusinessDays(earliest.expectedDelivery, prodDays);
-        suggestion = { date: afterReel, type: 'pending', reelSize, prodDays, reelArrival: earliest.expectedDelivery, supplier: earliest.supplier };
-        reason = `⏳ ${reelSize}" reel not in stock. Delivery from ${earliest.supplier} expected on ${formatDate(earliest.expectedDelivery)}.`;
+        const earliest  = pending[0];
+        const baseDate  = addBusinessDays(earliest.expectedDelivery, prodDays);
+        const slot      = typeof getNextAvailableDispatchDate === 'function' ? getNextAvailableDispatchDate(baseDate) : { date: baseDate, pushedBy: 0 };
+        const finalDate = slot ? slot.date : baseDate;
+        const pushed    = slot && slot.pushedBy > 0 ? ` Floor full — pushed ${slot.pushedBy} day(s) forward.` : '';
+        suggestion = { date: finalDate, type: 'pending', reelSize, prodDays, reelArrival: earliest.expectedDelivery, supplier: earliest.supplier };
+        reason = `⏳ ${reelSize}" reel not in stock. Delivery from ${earliest.supplier} expected ${formatDate(earliest.expectedDelivery)}.${pushed}`;
       } else {
         suggestion = { date: null, type: 'unavailable', reelSize };
-        reason = `❌ ${reelSize}" reel unavailable with no pending purchase orders. Please order reels first.`;
+        reason = `❌ ${reelSize}" reel unavailable — no pending purchase orders. Please order reels first.`;
       }
     }
   } else {
-    const deliveryDate = addBusinessDays(todayStr, prodDays);
-    suggestion = { date: deliveryDate, type: 'generic', prodDays };
-    reason = `ℹ️ Reel size not found. Estimate based on production time only (${prodDays} days).`;
+    const earliest  = addBusinessDays(todayStr, prodDays);
+    const slot      = typeof getNextAvailableDispatchDate === 'function' ? getNextAvailableDispatchDate(earliest) : { date: earliest, pushedBy: 0 };
+    const finalDate = slot ? slot.date : earliest;
+    const pushed    = slot && slot.pushedBy > 0 ? ` Floor full — pushed ${slot.pushedBy} day(s) forward.` : '';
+    suggestion = { date: finalDate, type: 'generic', prodDays };
+    reason = `ℹ️ Reel size unknown. Estimate based on production time (${prodDays} days).${pushed}`;
   }
 
   showDeliverySuggestion(suggestion, reason, prodDays);

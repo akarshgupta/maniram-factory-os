@@ -4,6 +4,40 @@
 // Stage 2 (D):   Rotary · RS4 · Stitching · Packing · Dispatch
 // ══════════════════════════════════════════════════════════════
 
+// Returns map of { stage1DayStr → count } for all active orders
+function getStage1Load() {
+  const load = {};
+  orders
+    .filter(o => !['Delivered','Dispatched','Cancelled'].includes(o.status) && o.date)
+    .forEach(o => {
+      const d    = new Date(o.date + 'T00:00:00');
+      if (isNaN(d)) return;
+      d.setDate(d.getDate() - 1); // day before delivery = Stage 1 day
+      const key  = d.toISOString().split('T')[0];
+      load[key]  = (load[key] || 0) + 1;
+    });
+  return load;
+}
+
+// Given the earliest possible delivery date, return the first date on or after
+// it where the production floor (Stage 1 the day before) has capacity.
+function getNextAvailableDispatchDate(earliestDeliveryStr) {
+  const load = getStage1Load();
+  const start = new Date(earliestDeliveryStr + 'T00:00:00');
+  for (let i = 0; i < 60; i++) {
+    const tryDeliv = new Date(start);
+    tryDeliv.setDate(start.getDate() + i);
+    const tryDelivStr  = tryDeliv.toISOString().split('T')[0];
+    const tryStage1    = new Date(tryDeliv);
+    tryStage1.setDate(tryDeliv.getDate() - 1);
+    const tryStage1Str = tryStage1.toISOString().split('T')[0];
+    if ((load[tryStage1Str] || 0) < MAX_SIMULTANEOUS_ORDERS) {
+      return { date: tryDelivStr, pushedBy: i };
+    }
+  }
+  return null;
+}
+
 function renderProductionPlan() {
   const el = document.getElementById('production-plan-body');
   if (!el) return;
@@ -12,8 +46,32 @@ function renderProductionPlan() {
     !['Delivered', 'Dispatched', 'Cancelled'].includes(o.status) && o.date
   );
 
+  // Next available dispatch date banner (always shown)
+  const tomorrow       = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  const tomorrowStr2   = tomorrow.toISOString().split('T')[0];
+  const nextSlot       = getNextAvailableDispatchDate(tomorrowStr2);
+  const nextSlotLabel  = nextSlot
+    ? new Date(nextSlot.date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
+    : '—';
+  const slotNote       = nextSlot && nextSlot.pushedBy > 0
+    ? `<span style="font-size:11px;color:var(--warn);margin-left:8px">Floor full for ${nextSlot.pushedBy} day(s) — pushed forward</span>`
+    : nextSlot ? `<span style="font-size:11px;color:var(--success);margin-left:8px">Floor available</span>` : '';
+
+  const banner = `<div style="background:var(--card-bg);border:1px solid var(--border);border-left:4px solid var(--blue);border-radius:10px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+    <div>
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:4px">Next Available Dispatch Date</div>
+      <div style="font-size:22px;font-weight:800;font-family:monospace;color:var(--blue)">${nextSlotLabel}</div>
+    </div>
+    <div style="flex:1;font-size:12px;color:var(--muted)">
+      ${slotNote}
+      <div style="margin-top:4px">Stage 1 must start the day before · Max ${MAX_SIMULTANEOUS_ORDERS} orders per day</div>
+    </div>
+    <button class="btn-secondary" onclick="applySuggestedDate('${nextSlot ? nextSlot.date : ''}')" style="font-size:12px;white-space:nowrap" ${!nextSlot ? 'disabled' : ''}>Use in New Order →</button>
+  </div>`;
+
   if (!active.length) {
-    el.innerHTML = '<div class="empty-state" style="padding:40px 0">No active orders with delivery dates.<br><span style="font-size:12px;color:var(--muted)">Add orders on the Orders page first.</span></div>';
+    el.innerHTML = banner + '<div class="empty-state" style="padding:40px 0">No active orders with delivery dates.<br><span style="font-size:12px;color:var(--muted)">Add orders on the Orders page first.</span></div>';
     return;
   }
 
@@ -42,7 +100,7 @@ function renderProductionPlan() {
 
   const sortedDays = Object.keys(dayMap).sort();
 
-  el.innerHTML = sortedDays.map(ds => {
+  el.innerHTML = banner + sortedDays.map(ds => {
     const data    = dayMap[ds];
     if (!data.stage1.length && !data.stage2.length) return '';
     const d       = new Date(ds + 'T00:00:00');
@@ -84,6 +142,16 @@ function renderProductionPlan() {
     html += '</div>';
     return html;
   }).join('');
+}
+
+// Navigate to orders page and pre-fill the suggested date
+function applySuggestedDate(dateStr) {
+  if (!dateStr) return;
+  showPage('orders');
+  setTimeout(() => {
+    const el = document.getElementById('f-date');
+    if (el) { el.value = dateStr; el.dispatchEvent(new Event('change')); }
+  }, 80);
 }
 
 function prodOrderRow(o, stage) {
