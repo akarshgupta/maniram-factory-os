@@ -6,6 +6,7 @@ let orders          = [];
 let activeOrderTab  = 'all';
 let editingOrderId  = null;
 let orderSearchQuery = '';
+const pendingOrderIds = new Set(); // saved locally, not yet confirmed in sheet
 
 // ── Search helper (used by active + history views) ──
 function matchesSearch(o, query) {
@@ -106,13 +107,18 @@ async function fetchOrders() {
       resvKg:   header.findIndex(h => h.includes('reserved kg') || h === 'reserved_kg'),
     } : { id:0, customer:1, product:2, spec:3, ply:4, colour:5, weight:6, qty:7, rate:8, date:9, status:10, priority:11, reelSize:12, resvKg:13 };
 
+    // Snapshot pending local orders before we overwrite
+    const stillPending = orders.filter(o => pendingOrderIds.has(o.id));
+
     orders = [];
     for (let i = hasHeaders ? 1 : 0; i < rows.length; i++) {
       const r = rows[i];
       if (!r || !r[col.customer]) continue;
       const rawDate = col.date >= 0 ? (r[col.date] || '') : '';
+      const fetchedId = col.id >= 0 ? (r[col.id] || `MIORD${String(i).padStart(3,'0')}`) : `MIORD${String(i).padStart(3,'0')}`;
+      pendingOrderIds.delete(fetchedId); // confirmed in sheet
       orders.push({
-        id:         col.id >= 0       ? (r[col.id]       || `MIORD${String(i).padStart(3,'0')}`) : `MIORD${String(i).padStart(3,'0')}`,
+        id:         fetchedId,
         customer:   col.customer >= 0 ? (r[col.customer] || '') : '',
         product:    col.product  >= 0 ? (r[col.product]  || '') : '',
         size:       col.spec     >= 0 ? (r[col.spec]     || '') : '',
@@ -129,6 +135,9 @@ async function fetchOrders() {
         done: false, rowIndex: i + 1,
       });
     }
+
+    // Re-inject any locally-saved orders the sheet hasn't confirmed yet
+    stillPending.forEach(o => { if (pendingOrderIds.has(o.id)) orders.push(o); });
 
     const now = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
     setOrderSyncStatus('ok', `Live · ${orders.length} orders · ${now}`);
@@ -299,10 +308,15 @@ async function saveOrderToSheet() {
     const btn = document.querySelector('button.btn-primary[onclick="saveOrderToSheet()"]');
     if (btn) { btn.textContent = '⏳ Saving...'; btn.disabled = true; }
     await fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    // Optimistic update so generateOrderId() increments correctly on next save
+    orders.push({ id, customer, product, size, ply, colour, weight, qty: parseInt(qty)||0, rate: parseFloat(rate)||0, date, status, priority, reelSize, reservedKg, remarks: '', rowIndex: 9999 });
+    pendingOrderIds.add(id);
     clearOrderForm();
+    refreshOrderId();
+    renderOrders();
     if (btn) btn.textContent = '✅ Saved!';
     setTimeout(() => { if (btn) { btn.textContent = '💾 Save Order'; btn.disabled = false; } }, 2000);
-    setTimeout(() => fetchOrders(), 1500);
+    setTimeout(() => fetchOrders(), 4000);
   } catch (err) {
     alert(`Save failed: ${err.message}`);
     const btn = document.querySelector('button.btn-primary[onclick="saveOrderToSheet()"]');
@@ -311,7 +325,7 @@ async function saveOrderToSheet() {
 }
 
 function clearOrderForm() {
-  ['f-customer','f-qty','f-rate','f-date','f-reel-size'].forEach(id => document.getElementById(id).value = '');
+  ['f-id','f-customer','f-qty','f-rate','f-date','f-reel-size'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('f-product').innerHTML = '<option value="">— Select Customer First —</option>';
   clearProductFields();
   document.getElementById('f-status').value   = 'New';

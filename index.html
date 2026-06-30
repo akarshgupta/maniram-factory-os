@@ -146,6 +146,7 @@
     <div class="nav-item" onclick="showPage('clients')"><span class="nav-icon">🤝</span> Clients</div>
     <div class="nav-section">Finance</div>
     <div class="nav-item" onclick="showPage('receivables')"><span class="nav-icon">💰</span> Receivables</div>
+    <div class="nav-item" onclick="showPage('tally')"><span class="nav-icon">📊</span> Tally Sync</div>
     <div class="nav-section">Tools</div>
     <div class="nav-item" onclick="showPage('reminders')" id="nav-reminders">
       <span class="nav-icon">🔔</span> Reminders
@@ -564,6 +565,23 @@
       <div id="receivables-list"><div class="empty-state">Loading...</div></div>
     </div>
 
+    <!-- ══ TALLY SYNC ══ -->
+    <div class="page" id="page-tally">
+      <div class="section-header">
+        <div class="section-title">📊 Tally Sync</div>
+        <button class="btn-secondary" onclick="fetchTallySync()" style="margin-left:0">🔄 Refresh</button>
+      </div>
+      <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:20px">
+        <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:6px">How to sync</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.7">
+          1. Make sure TallyPrime is open on your PC and showing Gateway of Tally.<br>
+          2. Run <code style="background:var(--bg);padding:1px 6px;border-radius:4px;font-size:11px">node scripts/fetch-tally.js</code> in a terminal on that PC, or double-click <code style="background:var(--bg);padding:1px 6px;border-radius:4px;font-size:11px">run-tally-sync.bat</code>.<br>
+          3. Sales vouchers from Tally appear below. Orders are auto-matched by customer name and marked <strong>Dispatched</strong>.
+        </div>
+      </div>
+      <div id="tally-sync-list"><div class="empty-state">Click Refresh to load Tally data.</div></div>
+    </div>
+
   </div>
 </div>
 
@@ -874,6 +892,7 @@
 <script src="js/invoices.js"></script>
 <script src="js/receivables.js"></script>
 <script src="js/whatsapp-import.js"></script>
+<script src="js/tally-sync.js"></script>
 <script src="js/app.js"></script>
 
 </body>
