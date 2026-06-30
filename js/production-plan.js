@@ -4,6 +4,274 @@
 // Stage 2 (D):   Rotary · RS4 · Stitching · Packing · Dispatch
 // ══════════════════════════════════════════════════════════════
 
+// ── Size converter: cm ↔ inches ──
+// inputId: field to read, hintId: div below the field to write to
+function convertSizeCmIn(inputId, hintId) {
+  const inp  = document.getElementById(inputId);
+  const hint = document.getElementById(hintId);
+  if (!inp || !hint) return;
+  const raw = inp.value.trim();
+  if (!raw) { hint.textContent = ''; return; }
+
+  // Parse dimensions: support ×, x, X, × as separator
+  const parts = raw.split(/[×xX\/\s]+/).map(s => parseFloat(s.replace(',', '.'))).filter(n => !isNaN(n) && n > 0);
+  if (!parts.length) { hint.textContent = ''; return; }
+
+  // Detect unit: if largest dimension > 60 assume cm, else inches
+  const maxVal = Math.max(...parts);
+  if (maxVal <= 60) {
+    // Assume cm → show inches conversion
+    const inParts = parts.map(d => (d / 2.54).toFixed(1));
+    hint.textContent = `≈ ${inParts.join(' × ')} inches`;
+  } else {
+    // Possibly already inches (unusual) — just show cm equivalent
+    const cmParts = parts.map(d => (d * 2.54).toFixed(1));
+    hint.textContent = `≈ ${cmParts.join(' × ')} cm`;
+  }
+}
+
+// ── Priority Queue (order rearranging + auto-scheduler) ──
+let priorityQueue   = []; // ordered array of order IDs
+let _pqDragId       = null;
+
+function togglePriorityQueue() {
+  const sec = document.getElementById('priority-queue-section');
+  const btn = document.getElementById('pq-toggle-btn');
+  if (!sec) return;
+  const open = sec.style.display === 'none' || !sec.style.display;
+  sec.style.display = open ? 'block' : 'none';
+  if (btn) btn.textContent = open ? '✕ Close Queue' : '⚡ Priority Queue';
+  if (open) renderPriorityQueue();
+}
+
+function renderPriorityQueue() {
+  const el = document.getElementById('priority-queue-list');
+  if (!el) return;
+
+  const active = orders.filter(o => !['Delivered','Dispatched','Cancelled'].includes(o.status));
+
+  // Sync queue: keep existing order, add new orders at end, remove gone ones
+  const activeIds = active.map(o => o.id);
+  priorityQueue = priorityQueue.filter(id => activeIds.includes(id));
+  activeIds.forEach(id => { if (!priorityQueue.includes(id)) priorityQueue.push(id); });
+
+  if (!active.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:10px 0">No active orders to schedule.</div>';
+    return;
+  }
+
+  el.innerHTML = '';
+  priorityQueue.forEach((id, idx) => {
+    const o = active.find(x => x.id === id);
+    if (!o) return;
+    const dateDisp = o.date ? new Date(o.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—';
+    const kg       = o.qty && o.weight ? Math.round(o.qty * parseFloat(o.weight) / 1000) : 0;
+
+    const card = document.createElement('div');
+    card.className   = 'pq-card';
+    card.draggable   = true;
+    card.dataset.id  = id;
+    card.innerHTML   = `
+      <div class="pq-rank">#${idx + 1}</div>
+      <div class="pq-info">
+        <div style="font-weight:700;font-size:12px">${o.customer}</div>
+        <div style="font-size:11px;color:var(--muted)">${o.product || o.size || id} · ${(o.qty||0).toLocaleString('en-IN')} pcs · ${o.ply||'?'}ply${kg ? ' · ' + kg + ' kg' : ''}</div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);white-space:nowrap">${dateDisp}</div>
+      <div class="pq-drag-handle" title="Drag to reorder">⠿</div>
+    `;
+
+    card.addEventListener('dragstart', e => {
+      _pqDragId = id;
+      e.dataTransfer.effectAllowed = 'move';
+      setTimeout(() => card.style.opacity = '0.4', 0);
+    });
+    card.addEventListener('dragend', () => {
+      card.style.opacity = '';
+      _pqDragId = null;
+    });
+    card.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      card.style.borderTop = '2px solid var(--blue)';
+    });
+    card.addEventListener('dragleave', () => { card.style.borderTop = ''; });
+    card.addEventListener('drop', e => {
+      e.preventDefault();
+      card.style.borderTop = '';
+      if (!_pqDragId || _pqDragId === id) return;
+      const fi = priorityQueue.indexOf(_pqDragId);
+      const ti = priorityQueue.indexOf(id);
+      if (fi < 0 || ti < 0) return;
+      priorityQueue.splice(fi, 1);
+      priorityQueue.splice(ti, 0, _pqDragId);
+      renderPriorityQueue();
+    });
+
+    el.appendChild(card);
+  });
+}
+
+function resetPriorityQueue() {
+  priorityQueue = [];
+  document.getElementById('schedule-preview').innerHTML = '';
+  renderPriorityQueue();
+}
+
+function runAutoSchedule() {
+  const results = autoScheduleOrders();
+  showSchedulePreview(results);
+}
+
+function autoScheduleOrders() {
+  const active = orders.filter(o => !['Delivered','Dispatched','Cancelled'].includes(o.status));
+  const queue  = priorityQueue.map(id => active.find(o => o.id === id)).filter(Boolean);
+
+  const simKg = {};   // delivDateStr → kg committed
+  const simS1 = {};   // stage1DateStr → { reelSize → count }
+  const results = [];
+
+  const base = new Date(today);
+  base.setDate(base.getDate() + 1); // never schedule for today
+
+  for (const o of queue) {
+    const plyNum   = parseInt(o.ply) || 3;
+    const prodDays = typeof getLearnedProductionDays === 'function'
+      ? getLearnedProductionDays(plyNum, o.qty || 0)
+      : PRODUCTION_DAYS.calc(plyNum, o.qty || 0);
+    const earliest = new Date(base);
+    earliest.setDate(base.getDate() + prodDays - 1);
+
+    const orderKg = (parseInt(o.qty) || 0) * (parseFloat(o.weight) || 0) / 1000;
+    const rs      = String(o.reelSize || '');
+
+    let batchDate = null, freshDate = null;
+
+    for (let i = 0; i < 60; i++) {
+      const d     = new Date(earliest);
+      d.setDate(earliest.getDate() + i);
+      const ds    = d.toISOString().split('T')[0];
+      const s1d   = new Date(d); s1d.setDate(d.getDate() - 1);
+      const s1ds  = s1d.toISOString().split('T')[0];
+
+      if (orderKg && (simKg[ds] || 0) + orderKg > MAX_DAILY_KG) continue;
+      const s1slot   = simS1[s1ds] || {};
+      const total    = Object.values(s1slot).reduce((s, v) => s + v, 0);
+      if (total >= MAX_SIMULTANEOUS_ORDERS) continue;
+
+      const reelCnt = s1slot[rs] || 0;
+      if (!batchDate && rs && reelCnt > 0) batchDate = { ds, s1ds, i };
+      if (!freshDate)                       freshDate = { ds, s1ds, i };
+      if (batchDate && freshDate) break;
+    }
+
+    let pick = null;
+    if (batchDate && freshDate) {
+      pick = (batchDate.i - freshDate.i) <= 3 ? batchDate : freshDate;
+    } else {
+      pick = batchDate || freshDate;
+    }
+
+    if (pick) {
+      simKg[pick.ds]  = (simKg[pick.ds] || 0) + orderKg;
+      simS1[pick.s1ds] = simS1[pick.s1ds] || {};
+      simS1[pick.s1ds][rs] = (simS1[pick.s1ds][rs] || 0) + 1;
+      results.push({ order: o, newDate: pick.ds, changed: pick.ds !== o.date });
+    } else {
+      results.push({ order: o, newDate: o.date, changed: false, error: true });
+    }
+  }
+
+  return results;
+}
+
+function showSchedulePreview(results) {
+  const el = document.getElementById('schedule-preview');
+  if (!el) return;
+
+  const changedCount = results.filter(r => r.changed).length;
+  const errorCount   = results.filter(r => r.error).length;
+
+  const rows = results.map((r, i) => {
+    const o       = r.order;
+    const oldDisp = o.date ? new Date(o.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—';
+    const newDisp = r.newDate ? new Date(r.newDate + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—';
+    const changed = r.changed;
+    const err     = r.error;
+    return `<tr style="background:${changed ? '#F0FDF4' : 'transparent'}">
+      <td style="padding:6px 10px;font-size:11px;color:var(--muted)">#${i+1}</td>
+      <td style="padding:6px 10px;font-size:12px;font-weight:600">${o.customer}</td>
+      <td style="padding:6px 10px;font-size:11px">${o.product || o.size || o.id}</td>
+      <td style="padding:6px 10px;font-size:11px;text-decoration:${changed ? 'line-through' : 'none'};color:var(--muted)">${oldDisp}</td>
+      <td style="padding:6px 10px;font-size:12px;font-weight:700;color:${err ? 'var(--danger)' : changed ? 'var(--success)' : 'var(--text)'}">${err ? '⚠ No slot' : newDisp}</td>
+      <td style="padding:6px 10px">${changed ? '<span style="font-size:10px;background:#DCFCE7;color:#166534;padding:1px 7px;border-radius:8px">MOVED</span>' : ''}</td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:10px">
+      Proposed Schedule — ${changedCount} date${changedCount !== 1 ? 's' : ''} will change${errorCount ? ' · ⚠ ' + errorCount + ' order(s) could not be scheduled in 60 days' : ''}
+    </div>
+    <div style="overflow-x:auto;border-radius:8px;border:1px solid var(--border)">
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:var(--bg)">
+            <th style="padding:6px 10px;font-size:10px;text-align:left;font-weight:700;color:var(--muted)">#</th>
+            <th style="padding:6px 10px;font-size:10px;text-align:left;font-weight:700;color:var(--muted)">CUSTOMER</th>
+            <th style="padding:6px 10px;font-size:10px;text-align:left;font-weight:700;color:var(--muted)">PRODUCT</th>
+            <th style="padding:6px 10px;font-size:10px;text-align:left;font-weight:700;color:var(--muted)">CURRENT DATE</th>
+            <th style="padding:6px 10px;font-size:10px;text-align:left;font-weight:700;color:var(--muted)">NEW DATE</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    ${changedCount > 0 ? `<div style="margin-top:12px;display:flex;gap:10px">
+      <button class="btn-primary" onclick="applyAutoSchedule()" style="font-size:12px">✅ Apply All Changes</button>
+      <button class="btn-secondary" onclick="document.getElementById('schedule-preview').innerHTML=''" style="font-size:12px">Cancel</button>
+    </div>` : '<div style="margin-top:10px;font-size:12px;color:var(--muted)">No changes needed — schedule is already optimal.</div>'}
+  `;
+
+  // Store results for apply
+  el._results = results;
+}
+
+function applyAutoSchedule() {
+  const el      = document.getElementById('schedule-preview');
+  const results = el && el._results;
+  if (!results) return;
+
+  const toChange = results.filter(r => r.changed && !r.error);
+  if (!toChange.length) return;
+
+  toChange.forEach(r => {
+    const o   = r.order;
+    o.date    = r.newDate;
+    const d   = new Date(r.newDate + 'T00:00:00');
+    const fmt = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+    if (o.rowIndex && o.rowIndex !== 9999) {
+      fetch(APPS_SCRIPT_URL, {
+        method: 'POST', mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update', rowIndex: o.rowIndex,
+          id: o.id, customer: o.customer, product: o.product || '', size: o.size || '',
+          ply: o.ply || '', colour: o.colour || '', weight: o.weight || '',
+          qty: o.qty, rate: o.rate, date: fmt, status: o.status,
+          priority: o.priority || 'Normal', reelSize: o.reelSize || '',
+          reservedKg: o.reservedKg || 0, remarks: o.remarks || ''
+        })
+      }).catch(() => {});
+    }
+  });
+
+  el.innerHTML = `<div style="font-size:12px;color:var(--success);font-weight:600">✅ ${toChange.length} orders rescheduled and saved to Sheets.</div>`;
+  renderProductionPlan();
+  renderCalendar();
+  updateDashboardOrders();
+}
+
 // Returns map of { deliveryDayStr → totalKg } for all active orders
 function getDeliveryDayKg() {
   const kg = {};

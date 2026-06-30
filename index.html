@@ -263,8 +263,9 @@
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">Box Size <span style="color:var(--accent);font-size:10px;font-weight:400">✏️</span></label>
-            <input class="form-input" type="text" id="f-size" placeholder="e.g. 20×14×27">
+            <label class="form-label">Box Size (cm) <span style="color:var(--accent);font-size:10px;font-weight:400">✏️</span></label>
+            <input class="form-input" type="text" id="f-size" placeholder="e.g. 50×35×68 cm" oninput="convertSizeCmIn('f-size','f-size-in')">
+            <div id="f-size-in" style="font-size:10px;color:var(--muted);margin-top:3px;min-height:14px"></div>
           </div>
           <div class="form-group">
             <label class="form-label">Ply <span style="color:var(--accent);font-size:10px;font-weight:400">✏️</span></label>
@@ -581,7 +582,25 @@
     <div class="page" id="page-production">
       <div class="section-header">
         <div class="section-title">🏭 Production Plan</div>
-        <div style="font-size:12px;color:var(--muted)">Auto-planned from delivery dates</div>
+        <button class="btn-secondary" id="pq-toggle-btn" onclick="togglePriorityQueue()" style="font-size:12px">⚡ Priority Queue</button>
+      </div>
+
+      <!-- Priority Queue + Auto-Scheduler -->
+      <div id="priority-queue-section" style="display:none;margin-bottom:20px">
+        <div style="background:var(--card-bg);border:1.5px solid var(--blue);border-radius:12px;padding:18px 20px">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">
+            <div>
+              <div style="font-size:14px;font-weight:700;color:var(--navy)">Order Priority Queue</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">Drag to reorder · Click Auto-Schedule to assign optimal delivery dates</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn-primary" onclick="runAutoSchedule()" style="font-size:12px">🗓 Auto-Schedule All</button>
+              <button class="btn-secondary" onclick="resetPriorityQueue()" style="font-size:12px">↺ Reset</button>
+            </div>
+          </div>
+          <div id="priority-queue-list"></div>
+          <div id="schedule-preview" style="margin-top:16px"></div>
+        </div>
       </div>
 
       <!-- Staff + Learning Widget -->
@@ -750,8 +769,9 @@
         <input class="form-input" type="text" id="ef-product" placeholder="Product name">
       </div>
       <div class="form-group">
-        <label class="form-label">Box Size</label>
-        <input class="form-input" type="text" id="ef-size" placeholder="e.g. 20×14×27">
+        <label class="form-label">Box Size (cm)</label>
+        <input class="form-input" type="text" id="ef-size" placeholder="e.g. 50×35×68 cm" oninput="convertSizeCmIn('ef-size','ef-size-in')">
+        <div id="ef-size-in" style="font-size:10px;color:var(--muted);margin-top:3px;min-height:14px"></div>
       </div>
       <div class="form-group">
         <label class="form-label">Ply</label>
@@ -864,9 +884,11 @@
           onkeydown="if(event.key==='Escape')closeProductModal()">
       </div>
       <div class="form-group" style="grid-column:span 2">
-        <label class="form-label">Box Size <span style="color:var(--danger)">*</span></label>
-        <input class="form-input" type="text" id="pm-size" placeholder="e.g. 20×14×27"
-          onkeydown="if(event.key==='Escape')closeProductModal()">
+        <label class="form-label">Box Size (cm) <span style="color:var(--danger)">*</span></label>
+        <input class="form-input" type="text" id="pm-size" placeholder="e.g. 50×35×68 cm"
+          onkeydown="if(event.key==='Escape')closeProductModal()"
+          oninput="convertSizeCmIn('pm-size','pm-size-in')">
+        <div id="pm-size-in" style="font-size:10px;color:var(--muted);margin-top:3px;min-height:14px"></div>
       </div>
       <div class="form-group">
         <label class="form-label">Ply</label>

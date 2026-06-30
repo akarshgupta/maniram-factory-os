@@ -520,6 +520,7 @@ function openProductModal(ci, pi, callback) {
   document.getElementById('pm-reelsize').value = p ? p.reelSize : '';
   document.getElementById('product-modal-overlay').style.display = 'flex';
   updateGsmFields(p ? p.gsm : null);
+  if (typeof convertSizeCmIn === 'function') convertSizeCmIn('pm-size', 'pm-size-in');
   document.getElementById('pm-name').focus();
 }
 

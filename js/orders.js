@@ -358,6 +358,7 @@ function openEditModal(orderId) {
   document.getElementById('ef-date').value      = o.date;
   document.getElementById('ef-status').value    = o.status;
   document.getElementById('ef-priority').value  = o.priority;
+  if (typeof convertSizeCmIn === 'function') convertSizeCmIn('ef-size', 'ef-size-in');
 
   document.getElementById('edit-order-overlay').style.display = 'flex';
 }
