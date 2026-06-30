@@ -1,5 +1,14 @@
 // ══════════════════════════════════════════════════════════════
 // REELS.JS — Reel Stock Fetching & Rendering
+//
+// Criticality rules:
+//   35" + 35.5" are ONE pool (same machine) — combined plain-100-GSM
+//     count < 4 = critical, == 4 = low
+//   42" and 44" — plain 100 GSM count only, same threshold
+//   All other sizes → no criticality badge
+//   "GY" = coloured paper — appears in a 5th column (no header) in the
+//     reel sheet, NOT in the GSM column. Tracked separately, not counted
+//     toward the 100 GSM plain threshold.
 // ══════════════════════════════════════════════════════════════
 
 let reelData = [];
@@ -7,44 +16,63 @@ let reelData = [];
 // ── Fetch ──
 async function fetchReelStock() {
   setReelSyncStatus('loading', 'Fetching live reel data...');
-  const range = encodeURIComponent(`${REEL_TAB}!A1:F200`);
-  const url   = `https://sheets.googleapis.com/v4/spreadsheets/${REEL_SHEET_ID}/values/${range}?key=${API_KEY}`;
+  const range = encodeURIComponent(`${REEL_TAB}!A1:Z500`);
+  const url   = `https://sheets.googleapis.com/v4/spreadsheets/${REEL_SHEET_ID}/values/${range}?key=${API_KEY}&_=${Date.now()}`;
   try {
     const res  = await fetch(url);
     const json = await res.json();
     if (json.error) throw new Error(json.error.message);
     const rows = json.values || [];
 
-    let headerRow = -1, colSize = -1, colGSM = -1, colBF = -1, colWeight = -1;
+    let headerRow = -1, colSize = -1, colGSM = -1, colBF = -1, colWeight = -1, colQty = -1;
     for (let i = 0; i < rows.length; i++) {
       const r  = rows[i].map(c => c.toString().trim().toUpperCase());
-      const si = r.findIndex(c => c === 'SIZE');
+      const si = r.findIndex(c => c === 'SIZE' || c === 'REEL SIZE' || c === 'REEL_SIZE');
       if (si >= 0) {
         headerRow = i;
         colSize   = si;
         colGSM    = r.findIndex(c => c === 'GSM');
         colBF     = r.findIndex(c => c === 'BF');
-        colWeight = r.findIndex(c => c.includes('WEIGHT') || c === 'WT');
+        colWeight = r.findIndex(c => c.includes('WEIGHT') || c === 'WT' || c === 'NET WT' || c === 'GROSS WT' || c === 'KG');
+        colQty    = r.findIndex(c => c === 'QTY' || c === 'QUANTITY' || c === 'REELS' || c === 'COUNT' || c === 'NOS' || c === 'NO.');
         break;
       }
     }
-    if (headerRow < 0) throw new Error('Header not found in reel sheet');
+    if (headerRow < 0) throw new Error('Header not found in reel sheet — expected a SIZE column');
 
     const parsed = [];
     for (let i = headerRow + 1; i < rows.length; i++) {
       const r      = rows[i];
+      if (!r || !r[colSize]) continue;
       const size   = parseFloat(r[colSize]);
       const weight = parseFloat(colWeight >= 0 ? r[colWeight] : 0);
       if (!size || isNaN(size)) continue;
-      parsed.push({ size, gsm: colGSM >= 0 ? r[colGSM] : '—', bf: colBF >= 0 ? r[colBF] : '—', weight: isNaN(weight) ? 0 : weight });
+      const qty      = colQty >= 0 ? (parseInt(r[colQty]) || 1) : 1;
+      const gsmRaw   = colGSM >= 0 ? (r[colGSM] || '').toString().trim() : '';
+      // GY is in a separate 5th column (no header) — never in the GSM value
+      const isColoured = r.some((cell, ci) =>
+        ci !== colSize && ci !== colGSM && ci !== colBF && ci !== colWeight && ci !== colQty &&
+        (cell || '').toString().trim().toUpperCase() === 'GY'
+      );
+      const gsm100 = parseInt(gsmRaw) === 100 || gsmRaw === '100';
+      const is100Plain = gsm100 && !isColoured;
+      parsed.push({
+        size, gsm: gsmRaw || '—', bf: colBF >= 0 ? r[colBF] : '—',
+        weight: isNaN(weight) ? 0 : weight, qty, is100Plain, isColoured,
+      });
     }
 
     const grouped = {};
     parsed.forEach(r => {
       const k = r.size.toString();
-      if (!grouped[k]) grouped[k] = { size: r.size, count: 0, totalWeight: 0, gsm: r.gsm, bf: r.bf };
-      grouped[k].count++;
-      grouped[k].totalWeight += r.weight;
+      if (!grouped[k]) grouped[k] = {
+        size: r.size, count: 0, plain100Count: 0, colouredCount: 0,
+        totalWeight: 0, gsm: r.gsm, bf: r.bf, hasColoured: false,
+      };
+      grouped[k].count         += r.qty;
+      grouped[k].totalWeight   += r.weight * r.qty;
+      if (r.is100Plain) grouped[k].plain100Count += r.qty;
+      if (r.isColoured) { grouped[k].colouredCount += r.qty; grouped[k].hasColoured = true; }
     });
 
     reelData = Object.values(grouped).sort((a, b) => b.size - a.size);
@@ -60,7 +88,7 @@ async function fetchReelStock() {
   }
 }
 
-// ── Status ──
+// ── Status bar ──
 function setReelSyncStatus(type, msg) {
   ['reel-sync-dot', 'reel-sync-dot2'].forEach(id => {
     const el = document.getElementById(id);
@@ -72,30 +100,62 @@ function setReelSyncStatus(type, msg) {
   });
 }
 
-function getReelStatus(size, count) {
-  const isCrit = CRITICAL_SIZES.includes(size.toString()) || CRITICAL_SIZES.includes(Math.floor(size).toString());
-  if (isCrit && count < MIN_REELS)  return 'critical';
-  if (isCrit && count === MIN_REELS) return 'low';
-  return 'ok';
+// ── Criticality: new rules ──
+// r = one entry from reelData (has .plain100Count)
+function getReelStatus(r) {
+  const s = r.size.toString();
+
+  // 35 and 35.5 are a single pool — same machine, interchangeable
+  if (s === '35' || s === '35.5') {
+    const g35  = reelData.find(x => x.size.toString() === '35');
+    const g355 = reelData.find(x => x.size.toString() === '35.5');
+    const pool = ((g35 && g35.plain100Count) || 0) + ((g355 && g355.plain100Count) || 0);
+    if (pool < MIN_REELS)  return 'critical';
+    if (pool === MIN_REELS) return 'low';
+    return 'ok';
+  }
+
+  // 42 and 44: only 100 GSM plain count matters
+  if (s === '42' || s === '44') {
+    const cnt = r.plain100Count;
+    if (cnt < MIN_REELS)  return 'critical';
+    if (cnt === MIN_REELS) return 'low';
+    return 'ok';
+  }
+
+  return 'ok'; // all other sizes not tracked for criticality
 }
 
 // ── Render Critical (Dashboard card) ──
 function renderCriticalReels() {
   const list = document.getElementById('critical-reel-list');
   if (!list) return;
-  const critReels = reelData.filter(r => CRITICAL_SIZES.includes(r.size.toString()) || CRITICAL_SIZES.includes(Math.floor(r.size).toString()));
-  if (!critReels.length) { list.innerHTML = '<div class="empty-state">No critical size data.</div>'; return; }
-  const max = Math.max(...critReels.map(r => r.count), 1);
+
+  const g35  = reelData.find(r => r.size.toString() === '35');
+  const g355 = reelData.find(r => r.size.toString() === '35.5');
+  const g42  = reelData.find(r => r.size.toString() === '42');
+  const g44  = reelData.find(r => r.size.toString() === '44');
+
+  const pool35 = ((g35 && g35.plain100Count) || 0) + ((g355 && g355.plain100Count) || 0);
+
+  const entries = [
+    { label: '35 + 35.5"', count: pool35, note: '100 GSM pooled' },
+    { label: '42"',        count: g42 ? g42.plain100Count : 0, note: '100 GSM' },
+    { label: '44"',        count: g44 ? g44.plain100Count : 0, note: '100 GSM' },
+  ];
+
+  const max = Math.max(...entries.map(e => e.count), 1);
   list.innerHTML = '';
-  critReels.forEach(r => {
-    const status = getReelStatus(r.size, r.count);
-    const pct    = Math.round((r.count / max) * 100);
+  entries.forEach(e => {
+    const cnt    = e.count;
+    const status = cnt < MIN_REELS ? 'critical' : cnt === MIN_REELS ? 'low' : 'ok';
+    const pct    = Math.round((cnt / max) * 100);
     const item   = document.createElement('div');
     item.className = 'reel-item';
     item.innerHTML = `
-      <div class="reel-size">${r.size}"</div>
+      <div class="reel-size" style="font-size:12px;min-width:80px">${e.label}</div>
       <div class="reel-bar-wrap"><div class="reel-bar ${status}" style="width:${pct}%"></div></div>
-      <div class="reel-count ${status}">${r.count} reels</div>
+      <div class="reel-count ${status}">${cnt} reels</div>
       <div class="reel-badge ${status}">${status === 'ok' ? 'OK' : status === 'low' ? 'LOW' : '⚠ CRIT'}</div>
     `;
     list.appendChild(item);
@@ -109,18 +169,27 @@ function renderFullReels() {
   const max = Math.max(...reelData.map(r => r.count), 1);
   list.innerHTML = '';
   reelData.forEach(r => {
-    const status  = getReelStatus(r.size, r.count);
-    const pct     = Math.round((r.count / max) * 100);
-    const latRate = getLatestRate(r.size.toString());
-    const rateStr = latRate ? `· ₹${latRate}/kg` : '';
-    const item    = document.createElement('div');
+    const status     = getReelStatus(r);
+    const pct        = Math.round((r.count / max) * 100);
+    const latRate    = getLatestRate(r.size.toString());
+    const rateStr    = latRate ? `· ₹${latRate}/kg` : '';
+    const gyNote     = r.hasColoured
+      ? `<span style="color:#B45309;font-weight:600"> · ${r.colouredCount} coloured (gy)</span>`
+      : '';
+    const plainNote  = (r.size.toString() === '35' || r.size.toString() === '35.5')
+      ? ` · <span style="color:var(--muted)">${r.plain100Count} plain-100</span>`
+      : (r.size.toString() === '42' || r.size.toString() === '44')
+        ? ` · <span style="color:var(--muted)">${r.plain100Count} plain-100</span>`
+        : '';
+
+    const item = document.createElement('div');
     item.className = 'reel-item';
     item.innerHTML = `
       <div class="reel-size">${r.size}"</div>
       <div class="reel-bar-wrap"><div class="reel-bar ${status}" style="width:${pct}%"></div></div>
       <div style="flex:1;padding:0 12px">
-        <div style="font-size:13px;font-weight:600">${r.count} reels · ${r.totalWeight.toLocaleString('en-IN')} kg ${rateStr}</div>
-        <div style="font-size:11px;color:var(--muted)">GSM ${r.gsm} · BF ${r.bf}</div>
+        <div style="font-size:13px;font-weight:600">${r.count} reels · ${r.totalWeight.toLocaleString('en-IN')} kg ${rateStr}${plainNote}</div>
+        <div style="font-size:11px;color:var(--muted)">GSM ${r.gsm} · BF ${r.bf}${gyNote}</div>
       </div>
       <div class="reel-badge ${status}">${status === 'ok' ? 'OK' : status === 'low' ? 'LOW' : '⚠ CRITICAL'}</div>
     `;
@@ -130,15 +199,26 @@ function renderFullReels() {
 
 // ── Dashboard Stock Summary ──
 function updateDashboardStock() {
-  const crits = reelData.filter(r => getReelStatus(r.size, r.count) === 'critical');
-  const card  = document.getElementById('stock-status-card');
-  const val   = document.getElementById('stat-stock');
-  const sub   = document.getElementById('stat-stock-sub');
-  if (crits.length > 0) {
+  const g35  = reelData.find(r => r.size.toString() === '35');
+  const g355 = reelData.find(r => r.size.toString() === '35.5');
+  const g42  = reelData.find(r => r.size.toString() === '42');
+  const g44  = reelData.find(r => r.size.toString() === '44');
+
+  const pool35 = ((g35 && g35.plain100Count) || 0) + ((g355 && g355.plain100Count) || 0);
+  const critCount = [
+    pool35 < MIN_REELS,
+    (g42 ? g42.plain100Count : 0) < MIN_REELS,
+    (g44 ? g44.plain100Count : 0) < MIN_REELS,
+  ].filter(Boolean).length;
+
+  const card = document.getElementById('stock-status-card');
+  const val  = document.getElementById('stat-stock');
+  const sub  = document.getElementById('stat-stock-sub');
+  if (critCount > 0) {
     card.className  = 'stat-card alert';
     val.style.color = 'var(--danger)';
     val.textContent = '⚠';
-    sub.textContent = `${crits.length} size(s) critical`;
+    sub.textContent = `${critCount} size(s) critical`;
   } else {
     card.className  = 'stat-card good';
     val.style.color = 'var(--success)';

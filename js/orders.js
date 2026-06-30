@@ -358,6 +358,7 @@ function openEditModal(orderId) {
   document.getElementById('ef-date').value      = o.date;
   document.getElementById('ef-status').value    = o.status;
   document.getElementById('ef-priority').value  = o.priority;
+  if (typeof convertSizeCmIn === 'function') convertSizeCmIn('ef-size', 'ef-size-in');
 
   document.getElementById('edit-order-overlay').style.display = 'flex';
 }
@@ -417,8 +418,9 @@ async function saveEditedOrder() {
     if (activeOrderTab === 'grouped') renderGroupedOrders();
     updateDashboardOrders();
     renderCalendar();
+    if (typeof renderProductionPlan === 'function') renderProductionPlan();
     btn.textContent = '💾 Save Changes'; btn.disabled = false;
-    setTimeout(() => fetchOrders(), 2000); // sync from sheet
+    setTimeout(() => fetchOrders(), 2000);
   } catch(err) {
     alert('Save failed: ' + err.message);
     btn.textContent = '💾 Save Changes'; btn.disabled = false;

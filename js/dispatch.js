@@ -1,29 +1,42 @@
 // ══════════════════════════════════════════════════════════════
-// DISPATCH.JS — Partial delivery tracking (localStorage-backed)
+// DISPATCH.JS — Partial delivery tracking (Sheets-backed)
+// Tab: Dispatch  |  Columns: OrderID · DispatchedQty · LastUpdated
 // ══════════════════════════════════════════════════════════════
 
-const LS_DISPATCH = 'mi_dispatch_v1';
+let _dispatchCache = {}; // { orderId: qty } — loaded from Sheets at startup
 
-function loadDispatchLog() {
-  try { return JSON.parse(localStorage.getItem(LS_DISPATCH) || '{}'); } catch { return {}; }
+async function fetchDispatch() {
+  try {
+    const url  = `https://sheets.googleapis.com/v4/spreadsheets/${DISPATCH_SHEET_ID}/values/${encodeURIComponent(DISPATCH_TAB + '!A2:B2000')}?key=${API_KEY}`;
+    const json = await fetch(url).then(r => r.json());
+    _dispatchCache = {};
+    (json.values || []).forEach(r => {
+      if (r[0]) _dispatchCache[r[0]] = parseInt(r[1]) || 0;
+    });
+  } catch(e) { console.warn('fetchDispatch:', e); }
 }
 
 function getDispatchedQty(orderId) {
-  return loadDispatchLog()[orderId] || 0;
+  return _dispatchCache[orderId] || 0;
 }
 
 function addDispatchQty(orderId, qty) {
-  const log      = loadDispatchLog();
-  log[orderId]   = (log[orderId] || 0) + qty;
-  localStorage.setItem(LS_DISPATCH, JSON.stringify(log));
-  return log[orderId];
+  _dispatchCache[orderId] = (_dispatchCache[orderId] || 0) + qty;
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST', mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'saveDispatch', orderId, qty: _dispatchCache[orderId] }),
+  }).catch(() => {});
+  return _dispatchCache[orderId];
 }
 
-// Called when an order is fully delivered — clears the local counter
 function clearDispatch(orderId) {
-  const log = loadDispatchLog();
-  delete log[orderId];
-  localStorage.setItem(LS_DISPATCH, JSON.stringify(log));
+  delete _dispatchCache[orderId];
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST', mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'clearDispatch', orderId }),
+  }).catch(() => {});
 }
 
 // ── Modal ──
@@ -63,7 +76,6 @@ function confirmDispatch() {
   closeDispatchModal();
 
   if (dispatched >= total * 0.95) {
-    // Fully dispatched — mark Delivered in sheet
     o.status = 'Delivered';
     clearDispatch(orderId);
     if (typeof recordDeliveredOrder === 'function') recordDeliveredOrder(o);
