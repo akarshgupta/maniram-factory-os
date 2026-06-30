@@ -112,20 +112,12 @@ function updateGsmFields(existingGsm) {
 
 async function fetchClients() {
   try {
-    const cUrl    = `https://sheets.googleapis.com/v4/spreadsheets/${CUSTOMERS_SHEET_ID}/values/${encodeURIComponent(CUSTOMERS_TAB + '!A1:D500')}?key=${API_KEY}`;
-    const cUrlOld = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent('Customers!A1:D500')}?key=${API_KEY}`;
-    const pUrl    = `https://sheets.googleapis.com/v4/spreadsheets/${PRODUCTS_SHEET_ID}/values/${encodeURIComponent(PRODUCTS_TAB + '!A1:P2000')}?key=${API_KEY}`;
-    const pUrlOld = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent('Products!A1:P2000')}?key=${API_KEY}`;
+    // Clients and products live in the Orders spreadsheet (Customers + Products tabs)
+    const cUrl = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent('Customers!A1:D500')}?key=${API_KEY}`;
+    const pUrl = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent('Products!A1:P2000')}?key=${API_KEY}`;
 
-    let [cRes, pRes] = await Promise.all([fetch(cUrl), fetch(pUrl)]);
-    let [cJson, pJson] = await Promise.all([cRes.json(), pRes.json()]);
-
-    // Fall back to the old Customers/Products tabs in the Orders spreadsheet
-    if (cJson.error || !(cJson.values || []).slice(1).filter(r => r[0]).length) {
-      const [cResOld, pResOld] = await Promise.all([fetch(cUrlOld), fetch(pUrlOld)]);
-      const [cJsonOld, pJsonOld] = await Promise.all([cResOld.json(), pResOld.json()]);
-      if (!cJsonOld.error) { cJson = cJsonOld; pJson = pJsonOld; }
-    }
+    const [cRes, pRes]   = await Promise.all([fetch(cUrl), fetch(pUrl)]);
+    const [cJson, pJson] = await Promise.all([cRes.json(), pRes.json()]);
 
     if (cJson.error) return false;
 
@@ -502,12 +494,8 @@ function clearProductFields() {
 // ══════════════════════════════════════════════════════════════
 
 function renderClients() {
-  // Show migration banner if not yet migrated to new sheets
   const banner = document.getElementById('client-migration-banner');
-  if (banner) {
-    const alreadyMigrated = !!localStorage.getItem('mi_new_sheets_migrated');
-    banner.style.display = (!alreadyMigrated && CLIENTS.length > 0) ? 'block' : 'none';
-  }
+  if (banner) banner.style.display = 'none'; // no migration needed
 
   const list = document.getElementById('clients-list');
   list.innerHTML = '';

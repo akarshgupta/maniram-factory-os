@@ -89,22 +89,18 @@ function deleteOrder(data) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// CLIENTS  →  CUSTOMERS_SHEET_ID / "Sheet1"
+// CLIENTS  →  ORDERS_SHEET_ID / "Customers" tab
 // ══════════════════════════════════════════════════════════════
 
 function saveClient(data) {
-  var ss    = SpreadsheetApp.openById(CUSTOMERS_SHEET_ID);
-  var sheet = ss.getSheetByName('Sheet1');
-  if (!sheet) sheet = ss.getSheets()[0];
-
-  if (sheet.getLastRow() === 0) {
-    sheet.appendRow(['Name', 'Contact', 'Phone', 'City']);
-  }
+  var ss    = SpreadsheetApp.openById(ORDERS_SHEET_ID);
+  var sheet = ss.getSheetByName('Customers');
+  if (!sheet) { sheet = ss.insertSheet('Customers'); sheet.appendRow(['Name','Contact','Phone','City']); }
 
   var rows       = sheet.getDataRange().getValues();
   var searchName = data.originalName || data.name;
   for (var i = 1; i < rows.length; i++) {
-    if (rows[i][0] === searchName) {
+    if ((rows[i][0] || '').toString().trim() === searchName.trim()) {
       sheet.getRange(i + 1, 1, 1, 4).setValues([[data.name, data.contact || '', data.phone || '', data.city || '']]);
       return;
     }
@@ -113,15 +109,14 @@ function saveClient(data) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// PRODUCTS  →  PRODUCTS_SHEET_ID / "Sheet1"
+// PRODUCTS  →  ORDERS_SHEET_ID / "Products" tab
 // ══════════════════════════════════════════════════════════════
 
 function saveProduct(data) {
-  var ss    = SpreadsheetApp.openById(PRODUCTS_SHEET_ID);
-  var sheet = ss.getSheetByName('Sheet1');
-  if (!sheet) sheet = ss.getSheets()[0];
-
-  if (sheet.getLastRow() === 0) {
+  var ss    = SpreadsheetApp.openById(ORDERS_SHEET_ID);
+  var sheet = ss.getSheetByName('Products');
+  if (!sheet) {
+    sheet = ss.insertSheet('Products');
     sheet.appendRow(['ClientName','Product','Size','Ply','Colour','Weight','ReelSize',
                      'GSM1','GSM2','GSM3','GSM4','GSM5','GSM6','GSM7','GSM8','GSM9']);
   }
@@ -134,10 +129,10 @@ function saveProduct(data) {
     gsm[5]||'', gsm[6]||'', gsm[7]||'', gsm[8]||''
   ];
 
-  var rows        = sheet.getDataRange().getValues();
-  var searchProd  = data.originalName || data.name;
+  var rows       = sheet.getDataRange().getValues();
+  var searchProd = data.originalName || data.name;
   for (var i = 1; i < rows.length; i++) {
-    if (rows[i][0] === data.clientName && rows[i][1] === searchProd) {
+    if ((rows[i][0]||'').trim() === data.clientName.trim() && (rows[i][1]||'').trim() === searchProd.trim()) {
       sheet.getRange(i + 1, 1, 1, 16).setValues([row]);
       return;
     }
@@ -146,12 +141,12 @@ function saveProduct(data) {
 }
 
 function deleteProduct(data) {
-  var ss    = SpreadsheetApp.openById(PRODUCTS_SHEET_ID);
-  var sheet = ss.getSheetByName('Sheet1');
-  if (!sheet) sheet = ss.getSheets()[0];
+  var ss    = SpreadsheetApp.openById(ORDERS_SHEET_ID);
+  var sheet = ss.getSheetByName('Products');
+  if (!sheet) return;
   var rows = sheet.getDataRange().getValues();
   for (var i = rows.length - 1; i >= 1; i--) {
-    if (rows[i][0] === data.clientName && rows[i][1] === data.productName) {
+    if ((rows[i][0]||'').trim() === data.clientName.trim() && (rows[i][1]||'').trim() === data.productName.trim()) {
       sheet.deleteRow(i + 1);
       return;
     }
