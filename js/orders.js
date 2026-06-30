@@ -718,6 +718,14 @@ function renderReelProductMap() {
 // SMART DELIVERY SUGGESTION
 // ══════════════════════════════════════════════════════════════
 
+// Returns a human-readable note about why a slot was chosen
+function slotNote(slot, reelSize) {
+  if (!slot) return '';
+  if (slot.reason === 'batch') return ` Batched with existing ${reelSize}" production run — same Stage-1 day.`;
+  if (slot.pushedBy > 0)       return ` Floor full for ${reelSize}" reel — pushed ${slot.pushedBy} day(s) forward.`;
+  return '';
+}
+
 function getSuggestedDeliveryDate() {
   const ply      = parseInt(document.getElementById('f-ply').value)    || 3;
   const qty      = parseInt(document.getElementById('f-qty').value)    || 0;
@@ -727,16 +735,18 @@ function getSuggestedDeliveryDate() {
   if (!qty)  { alert('Please enter a Quantity first.');  return; }
   if (!size) { alert('Please enter a Box Size first.');  return; }
 
-  const prodDays = PRODUCTION_DAYS.calc(ply, qty);
+  const prodDays = typeof getLearnedProductionDays === 'function'
+    ? getLearnedProductionDays(ply, qty)
+    : PRODUCTION_DAYS.calc(ply, qty);
   let suggestion = null, reason = '';
 
   if (reelSize) {
     const reelCheck = checkReelAvailability(reelSize);
     if (reelCheck.available) {
       const earliest  = addBusinessDays(todayStr, prodDays);
-      const slot      = typeof getNextAvailableDispatchDate === 'function' ? getNextAvailableDispatchDate(earliest, reelSize) : { date: earliest, pushedBy: 0 };
+      const slot      = typeof getNextAvailableDispatchDate === 'function' ? getNextAvailableDispatchDate(earliest, reelSize) : { date: earliest, pushedBy: 0, reason: 'fresh' };
       const finalDate = slot ? slot.date : earliest;
-      const pushed    = slot && slot.pushedBy > 0 ? ` Floor full — pushed ${slot.pushedBy} day(s) forward.` : '';
+      const pushed    = slot ? slotNote(slot, reelSize) : '';
       suggestion = { date: finalDate, type: 'stock', reelSize, prodDays };
       reason = `✅ ${reelSize}" reel in stock (${reelCheck.count} reels). Production can begin today.${pushed}`;
     } else {
@@ -744,9 +754,9 @@ function getSuggestedDeliveryDate() {
       if (pending.length > 0) {
         const earliest  = pending[0];
         const baseDate  = addBusinessDays(earliest.expectedDelivery, prodDays);
-        const slot      = typeof getNextAvailableDispatchDate === 'function' ? getNextAvailableDispatchDate(baseDate, reelSize) : { date: baseDate, pushedBy: 0 };
+        const slot      = typeof getNextAvailableDispatchDate === 'function' ? getNextAvailableDispatchDate(baseDate, reelSize) : { date: baseDate, pushedBy: 0, reason: 'fresh' };
         const finalDate = slot ? slot.date : baseDate;
-        const pushed    = slot && slot.pushedBy > 0 ? ` Floor full — pushed ${slot.pushedBy} day(s) forward.` : '';
+        const pushed    = slot ? slotNote(slot, reelSize) : '';
         suggestion = { date: finalDate, type: 'pending', reelSize, prodDays, reelArrival: earliest.expectedDelivery, supplier: earliest.supplier };
         reason = `⏳ ${reelSize}" reel not in stock. Delivery from ${earliest.supplier} expected ${formatDate(earliest.expectedDelivery)}.${pushed}`;
       } else {

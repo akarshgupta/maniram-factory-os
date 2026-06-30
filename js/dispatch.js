@@ -66,6 +66,7 @@ function confirmDispatch() {
     // Fully dispatched — mark Delivered in sheet
     o.status = 'Delivered';
     clearDispatch(orderId);
+    if (typeof recordDeliveredOrder === 'function') recordDeliveredOrder(o);
     if (o.rowIndex && o.rowIndex !== 9999) {
       const d   = new Date(o.date + 'T00:00:00');
       const fmt = isNaN(d) ? o.date

@@ -186,6 +186,7 @@
     <!-- ══ DASHBOARD ══ -->
     <div class="page active" id="page-dashboard">
       <div class="alert-banner" id="urgent-banner" style="display:none"></div>
+      <div class="alert-banner" id="dashboard-merge-banner" style="display:none;background:#FFFBEB;border-color:#F59E0B;color:#78350F"></div>
       <div class="reminder-alert-banner" id="dashboard-reminder-banner">
         <div class="reminder-alert-title">🔔 Repeat Order Reminders Due</div>
         <div id="dashboard-reminder-list"></div>
@@ -206,6 +207,13 @@
           <div class="sync-bar" style="padding:8px 20px 0"><div class="sync-dot loading" id="reel-sync-dot"></div><span id="reel-sync-label">Fetching live data...</span></div>
           <div class="card-body" id="critical-reel-list"><div class="empty-state">Loading...</div></div>
         </div>
+      </div>
+      <div class="card" style="margin-top:20px">
+        <div class="card-header">
+          <div class="card-title">📋 Active Pipeline</div>
+          <button class="btn-secondary" onclick="showPage('orders')" style="font-size:11px;padding:5px 12px">All Orders →</button>
+        </div>
+        <div id="dashboard-pipeline-list"><div class="empty-state">Loading...</div></div>
       </div>
     </div>
 
@@ -244,7 +252,7 @@
             <input class="form-input" type="text" id="f-id" readonly placeholder="Auto-generated">
           </div>
           <div class="form-group" id="customer-group">
-            <label class="form-label">Customer</label>
+            <label class="form-label">Customer <button class="add-inline-btn" onclick="openClientModal(-1, function(n){ selectCustomer(n); })">+ New Client</button></label>
             <input class="form-input" type="text" id="f-customer" placeholder="Type to search..." autocomplete="off" oninput="onCustomerInput()" onkeydown="onCustomerKey(event)">
             <div class="autocomplete-list" id="customer-dropdown" style="display:none"></div>
           </div>
@@ -572,6 +580,22 @@
         <div class="section-title">🏭 Production Plan</div>
         <div style="font-size:12px;color:var(--muted)">Auto-planned from delivery dates</div>
       </div>
+
+      <!-- Staff + Learning Widget -->
+      <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap">
+        <div style="flex-shrink:0">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:6px">Today's Shift</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="number" id="prod-staff-input" min="1" max="30" placeholder="0"
+              style="width:60px;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:18px;font-weight:700;text-align:center;font-family:monospace;outline:none"
+              onkeydown="if(event.key==='Enter')logTodayStaff()">
+            <span style="font-size:13px;color:var(--muted)">staff</span>
+            <button class="btn-secondary" onclick="logTodayStaff()" style="font-size:11px;padding:5px 10px">✓ Log</button>
+          </div>
+        </div>
+        <div id="prod-perf-widget" style="flex:1;min-width:200px;padding-top:2px"></div>
+      </div>
+
       <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px">
         <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)">
           <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#F59E0B"></span> Stage 1 — Corrugation · Printing · Pasting (day before delivery)
@@ -935,6 +959,7 @@
 <script src="js/whatsapp-import.js"></script>
 <script src="js/tally-sync.js"></script>
 <script src="js/dispatch.js"></script>
+<script src="js/prod-learning.js"></script>
 <script src="js/production-plan.js"></script>
 <script src="js/app.js"></script>
 
