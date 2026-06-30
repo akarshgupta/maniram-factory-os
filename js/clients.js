@@ -112,11 +112,20 @@ function updateGsmFields(existingGsm) {
 
 async function fetchClients() {
   try {
-    const cUrl = `https://sheets.googleapis.com/v4/spreadsheets/${CUSTOMERS_SHEET_ID}/values/${encodeURIComponent(CUSTOMERS_TAB + '!A1:D500')}?key=${API_KEY}`;
-    const pUrl = `https://sheets.googleapis.com/v4/spreadsheets/${PRODUCTS_SHEET_ID}/values/${encodeURIComponent(PRODUCTS_TAB + '!A1:N2000')}?key=${API_KEY}`;
+    const cUrl    = `https://sheets.googleapis.com/v4/spreadsheets/${CUSTOMERS_SHEET_ID}/values/${encodeURIComponent(CUSTOMERS_TAB + '!A1:D500')}?key=${API_KEY}`;
+    const cUrlOld = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent(CLIENTS_TAB + '!A1:D500')}?key=${API_KEY}`;
+    const pUrl    = `https://sheets.googleapis.com/v4/spreadsheets/${PRODUCTS_SHEET_ID}/values/${encodeURIComponent(PRODUCTS_TAB + '!A1:P2000')}?key=${API_KEY}`;
+    const pUrlOld = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent('ClientProducts!A1:P2000')}?key=${API_KEY}`;
 
-    const [cRes, pRes]   = await Promise.all([fetch(cUrl), fetch(pUrl)]);
-    const [cJson, pJson] = await Promise.all([cRes.json(), pRes.json()]);
+    let [cRes, pRes] = await Promise.all([fetch(cUrl), fetch(pUrl)]);
+    let [cJson, pJson] = await Promise.all([cRes.json(), pRes.json()]);
+
+    // Fall back to the old Customers/ClientProducts tabs in the Orders spreadsheet
+    if (cJson.error || !(cJson.values || []).slice(1).filter(r => r[0]).length) {
+      const [cResOld, pResOld] = await Promise.all([fetch(cUrlOld), fetch(pUrlOld)]);
+      const [cJsonOld, pJsonOld] = await Promise.all([cResOld.json(), pResOld.json()]);
+      if (!cJsonOld.error) { cJson = cJsonOld; pJson = pJsonOld; }
+    }
 
     if (cJson.error) return false;
 
