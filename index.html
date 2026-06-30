@@ -141,6 +141,7 @@
     <div class="nav-item" onclick="showPage('calendar')"><span class="nav-icon">📅</span> Calendar</div>
     <div class="nav-item" onclick="showPage('orders')"><span class="nav-icon">📦</span> Orders</div>
     <div class="nav-section">Factory</div>
+    <div class="nav-item" onclick="showPage('production')"><span class="nav-icon">🏭</span> Production Plan</div>
     <div class="nav-item" onclick="showPage('reels')"><span class="nav-icon">🧻</span> Reel Stock</div>
     <div class="nav-item" onclick="showPage('purchase')"><span class="nav-icon">🛒</span> Purchase Register</div>
     <div class="nav-item" onclick="showPage('clients')"><span class="nav-icon">🤝</span> Clients</div>
@@ -565,6 +566,23 @@
       <div id="receivables-list"><div class="empty-state">Loading...</div></div>
     </div>
 
+    <!-- ══ PRODUCTION PLAN ══ -->
+    <div class="page" id="page-production">
+      <div class="section-header">
+        <div class="section-title">🏭 Production Plan</div>
+        <div style="font-size:12px;color:var(--muted)">Auto-planned from delivery dates</div>
+      </div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px">
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)">
+          <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#F59E0B"></span> Stage 1 — Corrugation · Printing · Pasting (day before delivery)
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)">
+          <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#3B82F6"></span> Stage 2 — Rotary · RS4 · Stitching · Packing · Dispatch (delivery day)
+        </div>
+      </div>
+      <div id="production-plan-body"><div class="empty-state">Loading production plan...</div></div>
+    </div>
+
     <!-- ══ TALLY SYNC ══ -->
     <div class="page" id="page-tally">
       <div class="section-header">
@@ -893,6 +911,7 @@
 <script src="js/receivables.js"></script>
 <script src="js/whatsapp-import.js"></script>
 <script src="js/tally-sync.js"></script>
+<script src="js/production-plan.js"></script>
 <script src="js/app.js"></script>
 
 </body>
