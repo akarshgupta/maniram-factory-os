@@ -872,6 +872,29 @@
   </div>
 </div>
 
+<!-- DISPATCH MODAL -->
+<div class="popup-overlay" id="dispatch-overlay" style="display:none" onclick="closeDispatchModal()">
+  <div class="popup-box" style="width:min(420px,95vw);padding:24px" onclick="event.stopPropagation()">
+    <div class="popup-title">🚚 Record Dispatch</div>
+    <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:2px" id="dm-order-label"></div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:4px" id="dm-customer-label"></div>
+    <div style="font-size:12px;color:var(--blue);font-weight:600;margin-bottom:16px" id="dm-progress-label"></div>
+    <div class="form-group">
+      <label class="form-label">Boxes Dispatched Now</label>
+      <input class="form-input" type="number" id="dm-qty-input" min="1"
+        onkeydown="if(event.key==='Enter')confirmDispatch();if(event.key==='Escape')closeDispatchModal()">
+    </div>
+    <input type="hidden" id="dm-order-id">
+    <div style="font-size:11px;color:var(--muted);margin-top:6px">
+      95% of total quantity counts as fully delivered.
+    </div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn-primary" onclick="confirmDispatch()">✅ Confirm Dispatch</button>
+      <button class="btn-secondary" onclick="closeDispatchModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- WHATSAPP IMPORT MODAL -->
 <div class="popup-overlay" id="wa-import-overlay" style="display:none" onclick="if(event.target===this)closeWhatsAppImport()">
   <div class="popup-box" style="width:min(620px,96vw);max-height:92vh;overflow-y:auto;padding:28px" onclick="event.stopPropagation()">
@@ -911,6 +934,7 @@
 <script src="js/receivables.js"></script>
 <script src="js/whatsapp-import.js"></script>
 <script src="js/tally-sync.js"></script>
+<script src="js/dispatch.js"></script>
 <script src="js/production-plan.js"></script>
 <script src="js/app.js"></script>
 

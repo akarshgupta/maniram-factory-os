@@ -4,34 +4,43 @@
 // Stage 2 (D):   Rotary · RS4 · Stitching · Packing · Dispatch
 // ══════════════════════════════════════════════════════════════
 
-// Returns map of { stage1DayStr → count } for all active orders
+// Returns map of { stage1DayStr → { reelSize → count } } for all active orders
 function getStage1Load() {
   const load = {};
   orders
     .filter(o => !['Delivered','Dispatched','Cancelled'].includes(o.status) && o.date)
     .forEach(o => {
-      const d    = new Date(o.date + 'T00:00:00');
+      const d = new Date(o.date + 'T00:00:00');
       if (isNaN(d)) return;
       d.setDate(d.getDate() - 1); // day before delivery = Stage 1 day
-      const key  = d.toISOString().split('T')[0];
-      load[key]  = (load[key] || 0) + 1;
+      const key = d.toISOString().split('T')[0];
+      const rs  = String(o.reelSize || '');
+      if (!load[key]) load[key] = {};
+      load[key][rs] = (load[key][rs] || 0) + 1;
     });
   return load;
 }
 
-// Given the earliest possible delivery date, return the first date on or after
-// it where the production floor (Stage 1 the day before) has capacity.
-function getNextAvailableDispatchDate(earliestDeliveryStr) {
-  const load = getStage1Load();
+// Given the earliest possible delivery date (and optional reel size), return the first date
+// on or after it where the production floor (Stage 1 the day before) has capacity.
+// When reelSize is provided, capacity is checked per reel size (max 3 orders of same reel).
+// Without reelSize, checks total load across all reel sizes (banner / generic use).
+function getNextAvailableDispatchDate(earliestDeliveryStr, reelSize) {
+  const load  = getStage1Load();
   const start = new Date(earliestDeliveryStr + 'T00:00:00');
+  const rs    = String(reelSize || '');
   for (let i = 0; i < 60; i++) {
-    const tryDeliv = new Date(start);
+    const tryDeliv     = new Date(start);
     tryDeliv.setDate(start.getDate() + i);
     const tryDelivStr  = tryDeliv.toISOString().split('T')[0];
     const tryStage1    = new Date(tryDeliv);
     tryStage1.setDate(tryDeliv.getDate() - 1);
     const tryStage1Str = tryStage1.toISOString().split('T')[0];
-    if ((load[tryStage1Str] || 0) < MAX_SIMULTANEOUS_ORDERS) {
+    const dayLoad      = load[tryStage1Str] || {};
+    const count        = rs
+      ? (dayLoad[rs] || 0)
+      : Object.values(dayLoad).reduce((s, v) => s + v, 0);
+    if (count < MAX_SIMULTANEOUS_ORDERS) {
       return { date: tryDelivStr, pushedBy: i };
     }
   }

@@ -151,6 +151,9 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .chip-label { flex: 1; font-weight: 500; display: flex; flex-direction: column; gap: 1px; }
 .chip-product { font-weight: 600; }
 .chip-customer { font-size: 9px; opacity: 0.75; }
+.chip-progress { font-size: 8px; opacity: 0.85; font-weight: 600; margin-top: 1px; }
+.chip-dispatch-btn { font-size: 11px; cursor: pointer; opacity: 0.65; flex-shrink: 0; line-height: 1; padding: 1px 2px; border-radius: 3px; transition: opacity 0.15s, background 0.15s; }
+.chip-dispatch-btn:hover { opacity: 1; background: rgba(0,0,0,0.1); }
 .chip-blue   { background: #DBEAFE; color: #1D4ED8; }
 .chip-green  { background: #DCFCE7; color: #15803D; }
 .chip-orange { background: #FEF3C7; color: #92400E; }

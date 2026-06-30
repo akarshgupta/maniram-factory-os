@@ -29,6 +29,8 @@ function calToggleDelivered(orderId) {
   const nowDelivered = o.status !== 'Delivered';
   const newStatus    = nowDelivered ? 'Delivered' : 'Ready';
   o.status = newStatus;
+  // clear dispatch log when manually reverting to un-delivered
+  if (!nowDelivered && typeof clearDispatch === 'function') clearDispatch(orderId);
 
   // Push status update to sheet
   if (o.rowIndex && o.rowIndex !== 9999) {
@@ -88,8 +90,14 @@ function renderCalendar() {
     }
 
     dayOrders.forEach(order => {
-      const isDone = order.status === 'Delivered';
-      const chip   = document.createElement('div');
+      const isDone     = order.status === 'Delivered';
+      const dispatched = typeof getDispatchedQty === 'function' ? getDispatchedQty(order.id) : 0;
+      const total      = parseInt(order.qty) || 0;
+      const remaining  = Math.max(0, total - dispatched);
+      const progressLine = dispatched > 0 && !isDone
+        ? `<span class="chip-progress">${dispatched.toLocaleString('en-IN')}/${total.toLocaleString('en-IN')} out · ${remaining.toLocaleString('en-IN')} left</span>`
+        : '';
+      const chip = document.createElement('div');
       chip.className = `cal-order-chip ${getCustomerColor(order.customer)}${isDone ? ' done' : ''}`;
       chip.innerHTML = `
         <span class="chip-check${isDone ? ' checked' : ''}" onclick="event.stopPropagation();calToggleDelivered('${order.id}')">
@@ -98,7 +106,9 @@ function renderCalendar() {
         <span class="chip-label">
           <span class="chip-product">${order.product || order.size || 'Order'}</span>
           <span class="chip-customer">${order.customer.split(' ')[0]}</span>
-        </span>`;
+          ${progressLine}
+        </span>
+        ${!isDone ? `<span class="chip-dispatch-btn" title="Record dispatch" onclick="event.stopPropagation();openDispatchModal('${escStr(order.id)}')">🚚</span>` : ''}`;
       cell.appendChild(chip);
     });
 
