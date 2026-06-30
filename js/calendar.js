@@ -83,11 +83,21 @@ function renderCalendar() {
     cell.appendChild(dateLabel);
 
     const active = dayOrders.filter(o => o.status !== 'Delivered');
-    if (active.length > 3) {
-      const notice      = document.createElement('div');
-      notice.className  = 'overload-notice';
-      notice.textContent = `⚠ ${active.length} orders`;
+    const dayKg  = active.reduce((s, o) => s + (parseInt(o.qty) || 0) * (parseFloat(o.weight) || 0) / 1000, 0);
+    const kgOver = dayKg > MAX_DAILY_KG;
+
+    if (active.length > 3 || kgOver) {
+      const notice     = document.createElement('div');
+      notice.className = 'overload-notice' + (kgOver ? ' overload-kg' : '');
+      notice.textContent = kgOver
+        ? `⚠ ${Math.round(dayKg)} kg — over limit`
+        : `⚠ ${active.length} orders · ${Math.round(dayKg)} kg`;
       cell.appendChild(notice);
+    } else if (dayKg >= 500) {
+      const kgEl     = document.createElement('div');
+      kgEl.className = 'cal-kg-info';
+      kgEl.textContent = `${Math.round(dayKg)} kg`;
+      cell.appendChild(kgEl);
     }
 
     dayOrders.forEach(order => {

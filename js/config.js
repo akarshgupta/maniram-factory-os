@@ -17,7 +17,10 @@ const PRODUCTS_TAB      = 'ClientProducts';
 const PURCHASES_TAB     = 'Purchases';
 const TALLY_SYNC_TAB    = 'TallySync';
 
+const NOTION_CLIENTS_DB = '5be5433513b64fc9a14fa539ca06c475'; // Maniram Clients database
+
 const KATRA_BUFFER_KG  = 5000;
+const MAX_DAILY_KG     = 1500;  // max box weight (kg) ready per day
 const CRITICAL_SIZES   = ['35.5', '44', '42', '35'];
 const MIN_REELS        = 4;
 

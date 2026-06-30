@@ -4,6 +4,18 @@
 // Stage 2 (D):   Rotary · RS4 · Stitching · Packing · Dispatch
 // ══════════════════════════════════════════════════════════════
 
+// Returns map of { deliveryDayStr → totalKg } for all active orders
+function getDeliveryDayKg() {
+  const kg = {};
+  orders
+    .filter(o => !['Delivered','Dispatched','Cancelled'].includes(o.status) && o.date)
+    .forEach(o => {
+      const w = (parseInt(o.qty) || 0) * (parseFloat(o.weight) || 0) / 1000;
+      if (w > 0) kg[o.date] = (kg[o.date] || 0) + w;
+    });
+  return kg;
+}
+
 // Returns map of { stage1DayStr → { reelSize → count } } for all active orders
 function getStage1Load() {
   const load = {};
@@ -32,13 +44,20 @@ function getStage1Load() {
 //      the fresh slot instead (too long to wait for batching).
 //
 // Without reelSize (banner / generic): plain first-available by total load.
-function getNextAvailableDispatchDate(earliestDeliveryStr, reelSize) {
-  const load  = getStage1Load();
-  const start = new Date(earliestDeliveryStr + 'T00:00:00');
-  const rs    = String(reelSize || '');
+function getNextAvailableDispatchDate(earliestDeliveryStr, reelSize, orderKg) {
+  const load   = getStage1Load();
+  const kgMap  = getDeliveryDayKg();
+  const start  = new Date(earliestDeliveryStr + 'T00:00:00');
+  const rs     = String(reelSize || '');
+  const reqKg  = parseFloat(orderKg) || 0;
+
+  function kgOk(dayStr) {
+    if (!reqKg) return true;
+    return (kgMap[dayStr] || 0) + reqKg <= MAX_DAILY_KG;
+  }
 
   if (!rs) {
-    // Generic / banner: first slot where total Stage-1 load < max
+    // Generic / banner: first slot where total Stage-1 load < max AND kg fits
     for (let i = 0; i < 60; i++) {
       const tryDeliv     = new Date(start);
       tryDeliv.setDate(start.getDate() + i);
@@ -47,13 +66,15 @@ function getNextAvailableDispatchDate(earliestDeliveryStr, reelSize) {
       tryStage1.setDate(tryDeliv.getDate() - 1);
       const tryStage1Str = tryStage1.toISOString().split('T')[0];
       const total = Object.values(load[tryStage1Str] || {}).reduce((s, v) => s + v, 0);
-      if (total < MAX_SIMULTANEOUS_ORDERS) return { date: tryDelivStr, pushedBy: i, reason: 'fresh' };
+      if (total < MAX_SIMULTANEOUS_ORDERS && kgOk(tryDelivStr)) {
+        return { date: tryDelivStr, pushedBy: i, reason: 'fresh' };
+      }
     }
     return null;
   }
 
-  let batchDate = null; // earliest date where same reel already running + has capacity
-  let freshDate = null; // earliest date where no orders exist for this reel
+  let batchDate = null;
+  let freshDate = null;
 
   for (let i = 0; i < 60; i++) {
     const tryDeliv     = new Date(start);
@@ -63,21 +84,19 @@ function getNextAvailableDispatchDate(earliestDeliveryStr, reelSize) {
     tryStage1.setDate(tryDeliv.getDate() - 1);
     const tryStage1Str = tryStage1.toISOString().split('T')[0];
     const count        = (load[tryStage1Str] || {})[rs] || 0;
+    const fits         = kgOk(tryDelivStr);
 
-    if (!batchDate && count > 0 && count < MAX_SIMULTANEOUS_ORDERS) {
+    if (!batchDate && count > 0 && count < MAX_SIMULTANEOUS_ORDERS && fits) {
       batchDate = { date: tryDelivStr, pushedBy: i, reason: 'batch' };
     }
-    if (!freshDate && count === 0) {
+    if (!freshDate && count === 0 && fits) {
       freshDate = { date: tryDelivStr, pushedBy: i, reason: 'fresh' };
     }
     if (batchDate && freshDate) break;
   }
 
   if (batchDate && freshDate) {
-    const batchMs = new Date(batchDate.date + 'T00:00:00');
-    const freshMs = new Date(freshDate.date + 'T00:00:00');
-    const diffDays = Math.round((batchMs - freshMs) / 86400000);
-    // Prefer batching if it's within 3 days of the fresh slot
+    const diffDays = Math.round((new Date(batchDate.date) - new Date(freshDate.date)) / 86400000);
     return diffDays <= 3 ? batchDate : freshDate;
   }
 

@@ -730,7 +730,9 @@ function getSuggestedDeliveryDate() {
   const ply      = parseInt(document.getElementById('f-ply').value)    || 3;
   const qty      = parseInt(document.getElementById('f-qty').value)    || 0;
   const size     = (document.getElementById('f-size').value || '').trim();
+  const weight   = parseFloat(document.getElementById('f-weight').value) || 0;
   const reelSize = document.getElementById('f-reel-size').value.trim() || guessReelSize(size);
+  const orderKg  = qty * weight / 1000;
 
   if (!qty)  { alert('Please enter a Quantity first.');  return; }
   if (!size) { alert('Please enter a Box Size first.');  return; }
@@ -744,7 +746,7 @@ function getSuggestedDeliveryDate() {
     const reelCheck = checkReelAvailability(reelSize);
     if (reelCheck.available) {
       const earliest  = addBusinessDays(todayStr, prodDays);
-      const slot      = typeof getNextAvailableDispatchDate === 'function' ? getNextAvailableDispatchDate(earliest, reelSize) : { date: earliest, pushedBy: 0, reason: 'fresh' };
+      const slot      = typeof getNextAvailableDispatchDate === 'function' ? getNextAvailableDispatchDate(earliest, reelSize, orderKg) : { date: earliest, pushedBy: 0, reason: 'fresh' };
       const finalDate = slot ? slot.date : earliest;
       const pushed    = slot ? slotNote(slot, reelSize) : '';
       suggestion = { date: finalDate, type: 'stock', reelSize, prodDays };
@@ -754,7 +756,7 @@ function getSuggestedDeliveryDate() {
       if (pending.length > 0) {
         const earliest  = pending[0];
         const baseDate  = addBusinessDays(earliest.expectedDelivery, prodDays);
-        const slot      = typeof getNextAvailableDispatchDate === 'function' ? getNextAvailableDispatchDate(baseDate, reelSize) : { date: baseDate, pushedBy: 0, reason: 'fresh' };
+        const slot      = typeof getNextAvailableDispatchDate === 'function' ? getNextAvailableDispatchDate(baseDate, reelSize, orderKg) : { date: baseDate, pushedBy: 0, reason: 'fresh' };
         const finalDate = slot ? slot.date : baseDate;
         const pushed    = slot ? slotNote(slot, reelSize) : '';
         suggestion = { date: finalDate, type: 'pending', reelSize, prodDays, reelArrival: earliest.expectedDelivery, supplier: earliest.supplier };
@@ -766,7 +768,7 @@ function getSuggestedDeliveryDate() {
     }
   } else {
     const earliest  = addBusinessDays(todayStr, prodDays);
-    const slot      = typeof getNextAvailableDispatchDate === 'function' ? getNextAvailableDispatchDate(earliest) : { date: earliest, pushedBy: 0 };
+    const slot      = typeof getNextAvailableDispatchDate === 'function' ? getNextAvailableDispatchDate(earliest, '', orderKg) : { date: earliest, pushedBy: 0 };
     const finalDate = slot ? slot.date : earliest;
     const pushed    = slot && slot.pushedBy > 0 ? ` Floor full — pushed ${slot.pushedBy} day(s) forward.` : '';
     suggestion = { date: finalDate, type: 'generic', prodDays };
