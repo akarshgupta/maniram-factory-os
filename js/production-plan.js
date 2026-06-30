@@ -339,6 +339,37 @@ function applySuggestedDate(dateStr) {
   }, 80);
 }
 
+function quickUpdateStatus(orderId, newStatus) {
+  const o = orders.find(x => x.id === orderId);
+  if (!o || o.status === newStatus) return;
+
+  if (newStatus === 'Delivered' && typeof recordDeliveredOrder === 'function') {
+    recordDeliveredOrder(o);
+  }
+  o.status = newStatus;
+
+  if (o.rowIndex && o.rowIndex !== 9999) {
+    const d   = new Date(o.date + 'T00:00:00');
+    const fmt = isNaN(d) ? o.date : `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+    fetch(APPS_SCRIPT_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'update', rowIndex: o.rowIndex,
+        id: o.id, customer: o.customer, product: o.product || '', size: o.size || '',
+        ply: o.ply || '', colour: o.colour || '', weight: o.weight || '',
+        qty: o.qty, rate: o.rate, date: fmt, status: newStatus,
+        priority: o.priority || 'Normal', reelSize: o.reelSize || '',
+        reservedKg: o.reservedKg || 0, remarks: o.remarks || ''
+      })
+    }).catch(() => {});
+  }
+
+  renderProductionPlan();
+  updateDashboardOrders();
+  renderCalendar();
+}
+
 function prodOrderRow(o, stage) {
   const reelBadge = o.reelSize
     ? `<span class="prod-reel-tag">${o.reelSize}"</span>`
@@ -346,6 +377,15 @@ function prodOrderRow(o, stage) {
   const qty  = o.qty  ? o.qty.toLocaleString('en-IN') + ' pcs' : '';
   const ply  = o.ply  ? o.ply + ' ply'                         : '';
   const size = o.size ? o.size                                  : '';
+  const eid  = escStr(o.id);
+
+  const statusOpts = ['New','In Production','Ready','Dispatched','Delivered'].map(s =>
+    `<option value="${s}"${o.status === s ? ' selected' : ''}>${s}</option>`
+  ).join('');
+
+  const dispatchBtn = stage === 2
+    ? `<button class="btn-sm" style="white-space:nowrap;font-size:11px" onclick="event.stopPropagation();openDispatchModal('${eid}')">📦 Dispatch</button>`
+    : '';
 
   return `
     <div class="prod-order-row">
@@ -353,6 +393,13 @@ function prodOrderRow(o, stage) {
       <div class="prod-order-info">
         <div class="prod-product-name">${o.product || size || 'Order'}</div>
         <div class="prod-order-meta">${o.customer}${qty ? ' · ' + qty : ''}${ply ? ' · ' + ply : ''}${size && stage === 2 ? ' · ' + size : ''}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0">
+        <select class="prod-status-select" onchange="quickUpdateStatus('${eid}',this.value)" onclick="event.stopPropagation()" title="Change status">
+          ${statusOpts}
+        </select>
+        ${dispatchBtn}
+        <button class="btn-sm" onclick="openEditModal('${eid}')" title="Edit order">✏️</button>
       </div>
       <div class="prod-order-id">${o.id}</div>
     </div>`;

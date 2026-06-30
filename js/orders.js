@@ -417,8 +417,9 @@ async function saveEditedOrder() {
     if (activeOrderTab === 'grouped') renderGroupedOrders();
     updateDashboardOrders();
     renderCalendar();
+    if (typeof renderProductionPlan === 'function') renderProductionPlan();
     btn.textContent = '💾 Save Changes'; btn.disabled = false;
-    setTimeout(() => fetchOrders(), 2000); // sync from sheet
+    setTimeout(() => fetchOrders(), 2000);
   } catch(err) {
     alert('Save failed: ' + err.message);
     btn.textContent = '💾 Save Changes'; btn.disabled = false;

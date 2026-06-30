@@ -445,7 +445,10 @@
 
     <!-- ══ REELS ══ -->
     <div class="page" id="page-reels">
-      <div class="section-header"><div class="section-title">Reel Stock — Live Inventory</div></div>
+      <div class="section-header">
+        <div class="section-title">Reel Stock — Live Inventory</div>
+        <button class="btn-secondary" style="font-size:12px" onclick="fetchReelStock()">⟳ Refresh</button>
+      </div>
       <div class="sync-bar"><div class="sync-dot loading" id="reel-sync-dot2"></div><span id="reel-sync-label2">Fetching from Google Sheets...</span></div>
       <div class="card">
         <div class="card-header"><div class="card-title">All Sizes</div><span style="font-size:12px;color:var(--muted)">+5,000 kg katra buffer included</span></div>

@@ -7,44 +7,48 @@ let reelData = [];
 // ── Fetch ──
 async function fetchReelStock() {
   setReelSyncStatus('loading', 'Fetching live reel data...');
-  const range = encodeURIComponent(`${REEL_TAB}!A1:F200`);
-  const url   = `https://sheets.googleapis.com/v4/spreadsheets/${REEL_SHEET_ID}/values/${range}?key=${API_KEY}`;
+  const range = encodeURIComponent(`${REEL_TAB}!A1:Z500`);
+  const url   = `https://sheets.googleapis.com/v4/spreadsheets/${REEL_SHEET_ID}/values/${range}?key=${API_KEY}&_=${Date.now()}`;
   try {
     const res  = await fetch(url);
     const json = await res.json();
     if (json.error) throw new Error(json.error.message);
     const rows = json.values || [];
 
-    let headerRow = -1, colSize = -1, colGSM = -1, colBF = -1, colWeight = -1;
+    let headerRow = -1, colSize = -1, colGSM = -1, colBF = -1, colWeight = -1, colQty = -1;
     for (let i = 0; i < rows.length; i++) {
       const r  = rows[i].map(c => c.toString().trim().toUpperCase());
-      const si = r.findIndex(c => c === 'SIZE');
+      const si = r.findIndex(c => c === 'SIZE' || c === 'REEL SIZE' || c === 'REEL_SIZE');
       if (si >= 0) {
         headerRow = i;
         colSize   = si;
         colGSM    = r.findIndex(c => c === 'GSM');
         colBF     = r.findIndex(c => c === 'BF');
-        colWeight = r.findIndex(c => c.includes('WEIGHT') || c === 'WT');
+        colWeight = r.findIndex(c => c.includes('WEIGHT') || c === 'WT' || c === 'NET WT' || c === 'GROSS WT' || c === 'KG');
+        colQty    = r.findIndex(c => c === 'QTY' || c === 'QUANTITY' || c === 'REELS' || c === 'COUNT' || c === 'NOS' || c === 'NO.');
         break;
       }
     }
-    if (headerRow < 0) throw new Error('Header not found in reel sheet');
+    if (headerRow < 0) throw new Error('Header not found in reel sheet — expected a SIZE column');
 
     const parsed = [];
     for (let i = headerRow + 1; i < rows.length; i++) {
       const r      = rows[i];
+      if (!r || !r[colSize]) continue;
       const size   = parseFloat(r[colSize]);
       const weight = parseFloat(colWeight >= 0 ? r[colWeight] : 0);
       if (!size || isNaN(size)) continue;
-      parsed.push({ size, gsm: colGSM >= 0 ? r[colGSM] : '—', bf: colBF >= 0 ? r[colBF] : '—', weight: isNaN(weight) ? 0 : weight });
+      // If a QTY column exists, each row represents multiple reels
+      const qty    = colQty >= 0 ? (parseInt(r[colQty]) || 1) : 1;
+      parsed.push({ size, gsm: colGSM >= 0 ? r[colGSM] : '—', bf: colBF >= 0 ? r[colBF] : '—', weight: isNaN(weight) ? 0 : weight, qty });
     }
 
     const grouped = {};
     parsed.forEach(r => {
       const k = r.size.toString();
       if (!grouped[k]) grouped[k] = { size: r.size, count: 0, totalWeight: 0, gsm: r.gsm, bf: r.bf };
-      grouped[k].count++;
-      grouped[k].totalWeight += r.weight;
+      grouped[k].count       += r.qty;
+      grouped[k].totalWeight += r.weight * r.qty;
     });
 
     reelData = Object.values(grouped).sort((a, b) => b.size - a.size);
