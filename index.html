@@ -191,13 +191,44 @@
         <div class="reminder-alert-title">🔔 Repeat Order Reminders Due</div>
         <div id="dashboard-reminder-list"></div>
       </div>
+
+      <!-- Row 1: Daily status -->
       <div class="grid-4">
         <div class="stat-card alert"><div class="stat-label">Due Today</div><div class="stat-value" id="stat-today" style="color:var(--danger)">—</div><div class="stat-sub">Orders to dispatch</div></div>
         <div class="stat-card warn"><div class="stat-label">Due Tomorrow</div><div class="stat-value" id="stat-tomorrow" style="color:#B45309">—</div><div class="stat-sub">Plan production now</div></div>
+        <div class="stat-card" id="stat-overdue-card"><div class="stat-label">Overdue</div><div class="stat-value" id="stat-overdue" style="color:var(--danger)">—</div><div class="stat-sub" id="stat-overdue-sub">Past delivery date</div></div>
+        <div class="stat-card" id="stat-ready-card"><div class="stat-label">Ready · Not Dispatched</div><div class="stat-value" id="stat-ready" style="color:#059669">—</div><div class="stat-sub">Awaiting dispatch</div></div>
+      </div>
+
+      <!-- Row 2: Business metrics -->
+      <div class="grid-4" style="margin-top:14px">
+        <div class="stat-card good"><div class="stat-label">Revenue This Month</div><div class="stat-value" id="stat-revenue" style="color:var(--success);font-size:20px">—</div><div class="stat-sub" id="stat-revenue-sub">Dispatched + Delivered</div></div>
+        <div class="stat-card info"><div class="stat-label">Boxes This Month</div><div class="stat-value" id="stat-boxes-month">—</div><div class="stat-sub" id="stat-boxes-sub">Dispatched + Delivered</div></div>
         <div class="stat-card info"><div class="stat-label">Active Orders</div><div class="stat-value" id="stat-active">—</div><div class="stat-sub">In pipeline</div></div>
         <div class="stat-card" id="stock-status-card"><div class="stat-label">Stock Status</div><div class="stat-value" id="stat-stock">—</div><div class="stat-sub" id="stat-stock-sub">Loading...</div></div>
       </div>
-      <div class="grid-2">
+
+      <!-- Row 3: Production load + Week view + Order funnel -->
+      <div class="grid-2" style="margin-top:14px">
+        <div class="card">
+          <div class="card-header"><div class="card-title">📅 Due This Week</div><span style="font-size:11px;color:var(--muted)" id="week-range-label"></span></div>
+          <div class="card-body" id="dashboard-week-view"><div class="empty-state">Loading...</div></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">⚡ Order Funnel</div></div>
+          <div class="card-body" id="dashboard-funnel"><div class="empty-state">Loading...</div></div>
+          <div style="padding:0 20px 14px">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--muted);margin-bottom:6px">Today's Production Load</div>
+            <div id="prod-load-bar-wrap" style="background:var(--border);border-radius:6px;height:10px;overflow:hidden">
+              <div id="prod-load-bar" style="height:100%;border-radius:6px;transition:width 0.4s;background:var(--blue);width:0%"></div>
+            </div>
+            <div id="prod-load-label" style="font-size:11px;color:var(--muted);margin-top:4px">— kg / 1,500 kg capacity</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 4: Urgent + Reel stock -->
+      <div class="grid-2" style="margin-top:14px">
         <div class="card">
           <div class="card-header"><div class="card-title">🔴 Urgent — Next 2 Days</div></div>
           <div class="card-body" id="urgent-orders-list"><div class="empty-state">Loading orders...</div></div>
@@ -208,7 +239,21 @@
           <div class="card-body" id="critical-reel-list"><div class="empty-state">Loading...</div></div>
         </div>
       </div>
-      <div class="card" style="margin-top:20px">
+
+      <!-- Row 5: Top clients + Pending receivables -->
+      <div class="grid-2" style="margin-top:14px">
+        <div class="card">
+          <div class="card-header"><div class="card-title">🏆 Top Clients This Month</div><span style="font-size:11px;color:var(--muted)">By boxes</span></div>
+          <div class="card-body" id="dashboard-top-clients"><div class="empty-state">Loading...</div></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">💰 Pending Receivables</div><div id="stat-outstanding-total" style="font-size:13px;font-weight:700;color:var(--danger)"></div></div>
+          <div class="card-body" id="dashboard-receivables"><div class="empty-state">Loading...</div></div>
+        </div>
+      </div>
+
+      <!-- Row 6: Active pipeline -->
+      <div class="card" style="margin-top:14px">
         <div class="card-header">
           <div class="card-title">📋 Active Pipeline</div>
           <button class="btn-secondary" onclick="showPage('orders')" style="font-size:11px;padding:5px 12px">All Orders →</button>
@@ -281,7 +326,8 @@
           </div>
           <div class="form-group">
             <label class="form-label">Reel Size (inch) <span style="color:var(--accent);font-size:10px;font-weight:400">✏️</span></label>
-            <input class="form-input" type="number" id="f-reel-size" placeholder="e.g. 35.5" step="0.5" oninput="checkStockForCurrentOrder()">
+            <input class="form-input" type="number" id="f-reel-size" placeholder="e.g. 35.5" step="0.5" oninput="checkStockForCurrentOrder();showReelHint(this.value,'f-reel-hint')">
+            <div id="f-reel-hint" style="font-size:11px;color:var(--muted);margin-top:6px;background:var(--bg);border-radius:8px;padding:6px 8px;display:contents"></div>
           </div>
           <div class="form-group">
             <label class="form-label">Quantity (pcs)</label>
@@ -293,7 +339,10 @@
           </div>
           <div class="form-group">
             <label class="form-label">Delivery Date</label>
-            <input class="form-input" type="date" id="f-date">
+            <input class="form-input" type="date" id="f-date"
+              onfocus="showDateCalendar('f-date')"
+              onchange="showDateLoadHint('f-date');hideDateCalendar()">
+            <div id="f-date-load-hint" style="margin-top:6px"></div>
           </div>
           <div class="form-group">
             <label class="form-label">Status</label>
@@ -783,7 +832,8 @@
       </div>
       <div class="form-group">
         <label class="form-label">Reel Size (inch)</label>
-        <input class="form-input" type="number" id="ef-reel-size" placeholder="e.g. 35.5" step="0.5">
+        <input class="form-input" type="number" id="ef-reel-size" placeholder="e.g. 35.5" step="0.5" oninput="showReelHint(this.value,'ef-reel-hint')">
+        <div id="ef-reel-hint" style="font-size:11px;color:var(--muted);margin-top:6px;background:var(--bg);border-radius:8px;padding:6px 8px;display:contents"></div>
       </div>
       <div class="form-group">
         <label class="form-label">Weight (gm)</label>
@@ -799,7 +849,10 @@
       </div>
       <div class="form-group">
         <label class="form-label">Delivery Date</label>
-        <input class="form-input" type="date" id="ef-date">
+        <input class="form-input" type="date" id="ef-date"
+          onfocus="showDateCalendar('ef-date')"
+          onchange="showDateLoadHint('ef-date');hideDateCalendar()">
+        <div id="ef-date-load-hint" style="margin-top:6px"></div>
       </div>
       <div class="form-group">
         <label class="form-label">Status</label>
@@ -896,6 +949,7 @@
           <option value="3">3 Ply</option>
           <option value="5">5 Ply</option>
           <option value="7">7 Ply</option>
+          <option value="9">9 Ply</option>
         </select>
       </div>
       <div class="form-group">
@@ -941,8 +995,12 @@
     <div style="font-size:11px;color:var(--muted);margin-top:6px">
       95% of total quantity counts as fully delivered.
     </div>
-    <div style="display:flex;gap:10px;margin-top:16px">
+    <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
       <button class="btn-primary" onclick="confirmDispatch()">✅ Confirm Dispatch</button>
+      <button class="btn-secondary" style="background:var(--success);color:#fff;border-color:var(--success)"
+        onclick="generateDispatchPDF(document.getElementById('dm-order-id').value, parseInt(document.getElementById('dm-qty-input').value)||undefined)">
+        📄 PDF Slip
+      </button>
       <button class="btn-secondary" onclick="closeDispatchModal()">Cancel</button>
     </div>
   </div>
@@ -973,6 +1031,9 @@
 
 </div><!-- /app-shell -->
 
+<!-- jsPDF — client-side PDF generation -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
 <!-- JS MODULES — order matters -->
 <!-- config.js + auth.js already loaded in <head> -->
 <script src="js/clients.js"></script>
@@ -988,6 +1049,8 @@
 <script src="js/whatsapp-import.js"></script>
 <script src="js/tally-sync.js"></script>
 <script src="js/dispatch.js"></script>
+<script src="js/dispatch-pdf.js"></script>
+<script src="js/date-picker.js"></script>
 <script src="js/prod-learning.js"></script>
 <script src="js/production-plan.js"></script>
 <script src="js/app.js"></script>
