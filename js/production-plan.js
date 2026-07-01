@@ -587,6 +587,7 @@ function renderProductionPlan() {
         <div class="prod-stage-title">
           <span class="prod-stage-dot s1"></span>
           Stage 1 — Corrugation &nbsp;·&nbsp; Printing &nbsp;·&nbsp; Pasting
+          <span style="font-size:10px;font-weight:400;color:var(--muted);margin-left:8px">(Make the corrugated sheets — must be done the day before delivery)</span>
         </div>
         ${reelGroups.map(([rs, reelOrders]) => `
           <div class="prod-reel-group">
@@ -603,7 +604,8 @@ function renderProductionPlan() {
       html += `<div class="prod-stage prod-stage2">
         <div class="prod-stage-title">
           <span class="prod-stage-dot s2"></span>
-          Stage 2 — Rotary &nbsp;·&nbsp; RS4 &nbsp;·&nbsp; Stitching &nbsp;·&nbsp; Packing &nbsp;·&nbsp; <strong>Dispatch</strong>
+          Stage 2 — Rotary Die Cut &nbsp;·&nbsp; Slotting (RS4) &nbsp;·&nbsp; Stitching &nbsp;·&nbsp; Packing &nbsp;·&nbsp; <strong>Dispatch</strong>
+          <span style="font-size:10px;font-weight:400;color:var(--muted);margin-left:8px">(Cut, fold, stitch &amp; pack the boxes — delivery day)</span>
         </div>
         <div class="prod-orders">
           ${data.stage2.map(o => prodOrderRow(o, 2)).join('')}
@@ -677,7 +679,7 @@ function prodOrderRow(o, stage) {
   const sheetsReady = isSheetsReady(o.id);
   const sheetsBtn = `<button class="btn-sm sheets-ready-btn${sheetsReady ? ' active' : ''}"
     onclick="event.stopPropagation();toggleSheetsReady('${eid}')"
-    title="${sheetsReady ? 'Sheets marked as pre-made — tap to unmark' : 'Mark corrugated sheets as already cut & ready'}">
+    title="${sheetsReady ? 'Corrugated sheets are pre-cut & ready — tap to unmark' : 'Mark corrugated sheets as already cut & ready (skip Stage 1 for this order)'}">
     ${sheetsReady ? '✅ Sheets' : '📋 Sheets'}
   </button>`;
 

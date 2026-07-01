@@ -316,6 +316,7 @@
           <div class="form-group">
             <label class="form-label">Ply <span style="color:var(--accent);font-size:10px;font-weight:400">✏️</span></label>
             <input class="form-input" type="text" id="f-ply" placeholder="e.g. 3">
+            <div class="field-hint">Number of paper layers in the box wall — 3 ply = single-wall, 5 ply = double-wall (stronger)</div>
           </div>
           <div class="form-group">
             <label class="form-label">Colour <span style="color:var(--accent);font-size:10px;font-weight:400">✏️</span></label>
@@ -324,18 +325,20 @@
           <div class="form-group">
             <label class="form-label">Weight (gm) <span style="color:var(--accent);font-size:10px;font-weight:400">✏️</span></label>
             <input class="form-input" type="number" id="f-weight" placeholder="e.g. 648" step="0.1">
+            <div class="field-hint">Weight of one empty box in grams — used to calculate paper usage</div>
           </div>
           <div class="form-group">
             <label class="form-label">Reel Size (inch) <span style="color:var(--accent);font-size:10px;font-weight:400">✏️</span></label>
             <input class="form-input" type="number" id="f-reel-size" placeholder="e.g. 35.5" step="0.5" oninput="checkStockForCurrentOrder();showReelHint(this.value,'f-reel-hint')">
             <div id="f-reel-hint" style="font-size:11px;color:var(--muted);margin-top:6px;background:var(--bg);border-radius:8px;padding:6px 8px;display:contents"></div>
+            <div class="field-hint">Width of the paper roll loaded into the machine — ask supervisor if unsure</div>
           </div>
           <div class="form-group">
             <label class="form-label">Quantity (pcs)</label>
             <input class="form-input" type="number" id="f-qty" placeholder="1000" oninput="hideSuggestion(); checkStockForCurrentOrder()">
           </div>
           <div class="form-group">
-            <label class="form-label">Rate (₹)</label>
+            <label class="form-label">Rate (₹ per piece)</label>
             <input class="form-input" type="number" id="f-rate" placeholder="31.50">
           </div>
           <div class="form-group">
@@ -1100,6 +1103,7 @@
           <option value="7">7 Ply</option>
           <option value="9">9 Ply</option>
         </select>
+        <div class="field-hint">Layers in box wall — 3 = single-wall, 5 = double-wall (stronger &amp; heavier)</div>
       </div>
       <div class="form-group">
         <label class="form-label">Print Colour</label>
@@ -1110,14 +1114,17 @@
         <label class="form-label">Weight (gm)</label>
         <input class="form-input" type="number" id="pm-weight" placeholder="e.g. 648" step="0.1"
           onkeydown="if(event.key==='Escape')closeProductModal()">
+        <div class="field-hint">Weight of one empty box in grams — used to estimate paper usage</div>
       </div>
       <div class="form-group">
         <label class="form-label">Reel Size (inch)</label>
         <input class="form-input" type="number" id="pm-reelsize" placeholder="e.g. 35.5" step="0.5"
           onkeydown="if(event.key==='Escape')closeProductModal()">
+        <div class="field-hint">Width of paper roll used on the machine — check with supervisor</div>
       </div>
       <div class="form-group" style="grid-column:span 2">
-        <label class="form-label" style="margin-bottom:8px">Paper GSM — each layer, top to bottom</label>
+        <label class="form-label" style="margin-bottom:2px">Paper GSM — each layer, top to bottom</label>
+        <div class="field-hint" style="margin-bottom:8px">GSM = grams per square metre, the paper thickness/density. Higher GSM = heavier paper. Ask purchasing for the GSM of each paper grade used.</div>
         <div id="pm-gsm-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px"></div>
       </div>
     </div>
