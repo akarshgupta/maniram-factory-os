@@ -149,6 +149,7 @@
     <div class="nav-item" onclick="showPage('receivables')"><span class="nav-icon">💰</span> Receivables</div>
     <div class="nav-item" onclick="showPage('tally')"><span class="nav-icon">📊</span> Tally Sync</div>
     <div class="nav-section">Tools</div>
+    <div class="nav-item" onclick="showPage('analytics')"><span class="nav-icon">📊</span> Analytics</div>
     <div class="nav-item" onclick="showPage('reminders')" id="nav-reminders">
       <span class="nav-icon">🔔</span> Reminders
       <span class="reminder-badge" id="sidebar-reminder-badge">0</span>
@@ -708,6 +709,138 @@
       <div id="tally-sync-list"><div class="empty-state">Click Refresh to load Tally data.</div></div>
     </div>
 
+    <!-- ══ ANALYTICS ══ -->
+    <div class="page" id="page-analytics">
+
+      <!-- Period selector + refresh -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px;flex-wrap:wrap">
+        <span style="font-size:12px;font-weight:600;color:var(--muted)">Show last:</span>
+        <button class="an-period-btn active" onclick="setAnPeriod(3,this)">3 Months</button>
+        <button class="an-period-btn" onclick="setAnPeriod(6,this)">6 Months</button>
+        <button class="an-period-btn" onclick="setAnPeriod(12,this)">12 Months</button>
+        <button class="btn-secondary" onclick="renderAnalytics()" style="margin-left:auto;font-size:12px;padding:6px 14px">🔄 Refresh</button>
+      </div>
+
+      <!-- KPI Row -->
+      <div class="grid-4" style="margin-bottom:18px">
+        <div class="stat-card info" id="an-kpi-revenue-card">
+          <div class="stat-label">This Month Revenue</div>
+          <div class="stat-value" id="an-kpi-revenue" style="color:var(--success);font-size:20px">—</div>
+          <div class="stat-sub" id="an-kpi-revenue-sub"></div>
+        </div>
+        <div class="stat-card info">
+          <div class="stat-label">Boxes This Month</div>
+          <div class="stat-value" id="an-kpi-boxes">—</div>
+          <div class="stat-sub" id="an-kpi-boxes-sub"></div>
+        </div>
+        <div class="stat-card warn">
+          <div class="stat-label">Pipeline Value</div>
+          <div class="stat-value" id="an-kpi-pipeline" style="color:#B45309;font-size:20px">—</div>
+          <div class="stat-sub" id="an-kpi-pipeline-sub"></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Active Customers</div>
+          <div class="stat-value" id="an-kpi-customers">—</div>
+          <div class="stat-sub" id="an-kpi-customers-sub"></div>
+        </div>
+      </div>
+
+      <!-- Revenue & Boxes Trend — full width -->
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-header">
+          <div class="card-title">📈 Revenue &amp; Boxes Trend</div>
+          <span style="font-size:11px;color:var(--muted)">Dispatched + Delivered orders, grouped by delivery month</span>
+        </div>
+        <div class="card-body">
+          <div class="an-chart-wrap" style="height:280px">
+            <canvas id="an-chart-revenue"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 2: Top Customers + Status Donut -->
+      <div class="grid-2" style="margin-bottom:18px">
+        <div class="card">
+          <div class="card-header"><div class="card-title">🏆 Top Customers by Revenue</div></div>
+          <div class="card-body">
+            <div class="an-chart-wrap" style="height:280px">
+              <canvas id="an-chart-customers"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">🔵 Order Status Mix</div></div>
+          <div class="card-body" style="display:flex;align-items:center;justify-content:center">
+            <div class="an-chart-wrap" style="height:260px;width:100%">
+              <canvas id="an-chart-status"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 3: Volume + Product Mix -->
+      <div class="grid-2" style="margin-bottom:18px">
+        <div class="card">
+          <div class="card-header"><div class="card-title">📊 Monthly Order Volume</div></div>
+          <div class="card-body">
+            <div class="an-chart-wrap" style="height:260px">
+              <canvas id="an-chart-volume"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">📦 Top Products by Boxes Delivered</div></div>
+          <div class="card-body">
+            <div class="an-chart-wrap" style="height:260px">
+              <canvas id="an-chart-products"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Customer Detail Table -->
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-header"><div class="card-title">👥 Customer Analysis</div></div>
+        <div class="card-body" style="padding:0">
+          <div id="an-customer-table"><div class="empty-state">Loading...</div></div>
+        </div>
+      </div>
+
+      <!-- ── P&L SECTION ── -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-size:17px;font-weight:700;color:var(--navy)">📊 Profit &amp; Loss</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">Revenue − Material Cost − Monthly Expenses = Net Profit</div>
+        </div>
+        <button class="btn-primary" onclick="openOverheadModal()" style="font-size:12px;padding:8px 18px">➕ Add Monthly Expenses</button>
+      </div>
+
+      <!-- P&L Chart -->
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-header">
+          <div class="card-title">📈 Revenue vs Cost vs Profit</div>
+          <span style="font-size:11px;color:var(--muted)">Net Profit line appears once expenses are entered</span>
+        </div>
+        <div class="card-body">
+          <div class="an-chart-wrap" style="height:280px">
+            <canvas id="an-chart-pl"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- P&L Table -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📋 Monthly P&amp;L Statement</div>
+          <span style="font-size:11px;color:var(--muted)">Last 12 months — click ➕ on any row to enter that month's expenses</span>
+        </div>
+        <div class="card-body" style="padding:0">
+          <div id="an-pl-table"><div class="empty-state">Loading...</div></div>
+        </div>
+      </div>
+
+    </div><!-- /page-analytics -->
+
   </div>
 </div>
 
@@ -1044,6 +1177,95 @@
 
 </div><!-- /app-shell -->
 
+<!-- MONTHLY EXPENSES / OVERHEAD MODAL -->
+<div class="popup-overlay" id="ov-overlay" style="display:none" onclick="if(event.target===this)closeOverheadModal()">
+  <div class="popup-box" style="width:min(500px,95vw);padding:24px" onclick="event.stopPropagation()">
+    <div class="popup-title">💸 Monthly Expenses</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:16px">Enter all costs for this month. Used to calculate net profit.</div>
+
+    <div class="form-group" style="margin-bottom:14px">
+      <label class="form-label">Month <span style="color:var(--danger)">*</span></label>
+      <input class="form-input" type="month" id="ov-month">
+    </div>
+
+    <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      <div class="form-group">
+        <label class="form-label">⚡ Electricity (₹)</label>
+        <input class="form-input" type="number" id="ov-electricity" placeholder="0" min="0" oninput="_updateOvTotal()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">👷 Labour / Salaries (₹)</label>
+        <input class="form-input" type="number" id="ov-labour" placeholder="0" min="0" oninput="_updateOvTotal()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">🏢 Rent (₹)</label>
+        <input class="form-input" type="number" id="ov-rent" placeholder="0" min="0" oninput="_updateOvTotal()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">🚛 Transport (₹)</label>
+        <input class="form-input" type="number" id="ov-transport" placeholder="0" min="0" oninput="_updateOvTotal()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">🔧 Maintenance (₹)</label>
+        <input class="form-input" type="number" id="ov-maintenance" placeholder="0" min="0" oninput="_updateOvTotal()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">📦 Other Expenses (₹)</label>
+        <input class="form-input" type="number" id="ov-other" placeholder="0" min="0" oninput="_updateOvTotal()">
+      </div>
+      <div class="form-group" style="grid-column:span 2">
+        <label class="form-label">Notes</label>
+        <input class="form-input" type="text" id="ov-notes" placeholder="Optional notes for this month">
+      </div>
+    </div>
+
+    <!-- Total preview -->
+    <div style="background:var(--bg);border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:13px;font-weight:600;color:var(--navy)">Total Overheads</span>
+      <span id="ov-total" style="font-size:18px;font-weight:800;color:var(--danger)">₹0</span>
+    </div>
+
+    <div style="display:flex;gap:10px">
+      <button class="btn-primary" id="ov-save-btn" onclick="saveOverheadEntry()" style="flex:1">💾 Save</button>
+      <button class="btn-secondary" onclick="closeOverheadModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- WHATSAPP ORDER CONFIRMATION MODAL -->
+<div class="popup-overlay" id="wa-confirm-overlay" style="display:none" onclick="if(event.target===this)closeWaModal()">
+  <div class="popup-box" style="width:min(480px,95vw);padding:24px" onclick="event.stopPropagation()">
+    <div class="popup-title">📱 Send WhatsApp Confirmation</div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label class="form-label">Customer Phone</label>
+      <input class="form-input" type="tel" id="wa-phone" placeholder="10-digit mobile number"
+        onkeydown="if(event.key==='Escape')closeWaModal()">
+    </div>
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Add to message:</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <label class="wa-chip"><input type="checkbox" id="wa-opt-deliveryDate" onchange="refreshWaMessage()"> <span>Delivery Date</span></label>
+        <label class="wa-chip"><input type="checkbox" id="wa-opt-weight" onchange="refreshWaMessage()"> <span>Weight</span></label>
+        <label class="wa-chip"><input type="checkbox" id="wa-opt-colour" onchange="refreshWaMessage()"> <span>Colour</span></label>
+        <label class="wa-chip"><input type="checkbox" id="wa-opt-ply" onchange="refreshWaMessage()"> <span>Ply</span></label>
+        <label class="wa-chip"><input type="checkbox" id="wa-opt-orderId" onchange="refreshWaMessage()"> <span>Order ID</span></label>
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:16px">
+      <label class="form-label">Message Preview <span style="font-size:11px;color:var(--muted);font-weight:400">(editable)</span></label>
+      <textarea id="wa-message" class="form-input" rows="11"
+        style="font-family:monospace;font-size:12px;line-height:1.65;resize:vertical"></textarea>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn-primary" style="background:#25D366;border-color:#25D366;flex:1" onclick="sendWhatsAppNow()">📱 Open WhatsApp</button>
+      <button class="btn-secondary" onclick="closeWaModal()">Skip</button>
+    </div>
+  </div>
+</div>
+
+<!-- Chart.js — analytics charts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
 <!-- jsPDF — client-side PDF generation -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
@@ -1066,6 +1288,7 @@
 <script src="js/date-picker.js"></script>
 <script src="js/prod-learning.js"></script>
 <script src="js/production-plan.js"></script>
+<script src="js/analytics.js"></script>
 <script src="js/app.js"></script>
 
 </body>

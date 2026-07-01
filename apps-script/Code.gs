@@ -27,6 +27,7 @@ function doPost(e) {
     else if (action === 'saveStaffLog')      saveStaffLog(data);
     else if (action === 'saveProdPerf')      saveProdPerf(data);
     else if (action === 'savePurchase')      savePurchase(data);
+    else if (action === 'saveOverhead')      saveOverhead(data);
     else if (action === 'createNotionPage')  { /* handled separately if needed */ }
 
     return ContentService.createTextOutput('ok');
@@ -218,4 +219,39 @@ function savePurchase(data) {
   sheet.appendRow([data.date || '', data.supplier || '', data.item || '',
                    data.qty || '', data.unit || '', data.rate || '',
                    data.total || '', data.notes || '']);
+}
+
+// ══════════════════════════════════════════════════════════════
+// OVERHEADS  →  ORDERS_SHEET_ID / "Overheads" tab
+// Columns: Month | Electricity | Labour | Rent | Transport | Maintenance | Other | Notes
+// ══════════════════════════════════════════════════════════════
+
+function saveOverhead(data) {
+  var ss    = SpreadsheetApp.openById(ORDERS_SHEET_ID);
+  var sheet = ss.getSheetByName('Overheads');
+  if (!sheet) {
+    sheet = ss.insertSheet('Overheads');
+    sheet.appendRow(['Month','Electricity','Labour','Rent','Transport','Maintenance','Other','Notes']);
+  }
+
+  var row = [
+    data.month        || '',
+    data.electricity  || 0,
+    data.labour       || 0,
+    data.rent         || 0,
+    data.transport    || 0,
+    data.maintenance  || 0,
+    data.other        || 0,
+    data.notes        || '',
+  ];
+
+  // Upsert by month
+  var rows = sheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (rows[i][0] === data.month) {
+      sheet.getRange(i + 1, 1, 1, 8).setValues([row]);
+      return;
+    }
+  }
+  sheet.appendRow(row);
 }

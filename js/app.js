@@ -24,6 +24,7 @@ const pageTitles = {
   purchase:    '🛒 Purchase Register',
   receivables: '💰 Receivables',
   tally:       '📊 Tally Sync',
+  analytics:   '📊 Analytics',
 };
 
 function showPage(id) {
@@ -44,6 +45,7 @@ function showPage(id) {
   if (id === 'purchase')    { renderPurchaseList(); renderRateHistory(); initPurchaseForm(); }
   if (id === 'receivables') renderReceivables();
   if (id === 'tally')       fetchTallySync();
+  if (id === 'analytics')   renderAnalytics();
 }
 
 // ── Topbar Date ──
