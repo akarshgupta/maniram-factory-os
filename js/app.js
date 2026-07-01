@@ -39,7 +39,7 @@ function showPage(id) {
   if (id === 'calendar')    renderCalendar();
   if (id === 'orders')      { renderOrders(); refreshOrderId(); }
   if (id === 'production')  renderProductionPlan();
-  if (id === 'reels')       fetchReelStock();
+  if (id === 'reels')       { fetchReelStock(); renderReelDateTabs(); }
   if (id === 'clients')     renderClients();
   if (id === 'reminders')   computeReminders();
   if (id === 'purchase')    { renderPurchaseList(); renderRateHistory(); initPurchaseForm(); }

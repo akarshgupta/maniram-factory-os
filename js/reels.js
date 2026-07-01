@@ -13,6 +13,29 @@
 
 let reelData = [];
 
+// ── Daily snapshot storage ──
+const LS_REEL_SNAPS = 'mi_reel_snapshots_v2';
+const SNAP_KEEP_DAYS = 30;
+
+function _saveReelSnapshot(data) {
+  const key = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  let snaps = {};
+  try { snaps = JSON.parse(localStorage.getItem(LS_REEL_SNAPS) || '{}'); } catch {}
+  snaps[key] = { ts: Date.now(), data };
+
+  // Prune old entries
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - SNAP_KEEP_DAYS);
+  Object.keys(snaps).forEach(k => { if (k < cutoff.toISOString().split('T')[0]) delete snaps[k]; });
+
+  localStorage.setItem(LS_REEL_SNAPS, JSON.stringify(snaps));
+  renderReelDateTabs();
+}
+
+function _getReelSnaps() {
+  try { return JSON.parse(localStorage.getItem(LS_REEL_SNAPS) || '{}'); } catch { return {}; }
+}
+
 // ── Fetch ──
 async function fetchReelStock() {
   setReelSyncStatus('loading', 'Fetching live reel data...');
@@ -80,12 +103,138 @@ async function fetchReelStock() {
     const now     = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
     setReelSyncStatus('ok', `Live · ${now} · Total ${totalKg.toLocaleString('en-IN')} kg`);
 
+    _saveReelSnapshot(reelData);
     renderCriticalReels();
     renderFullReels();
     updateDashboardStock();
   } catch (err) {
     setReelSyncStatus('error', `Error: ${err.message}`);
   }
+}
+
+// ── Date tabs + history view ──
+function renderReelDateTabs() {
+  const tabs = document.getElementById('reel-date-tabs');
+  if (!tabs) return;
+
+  const snaps   = _getReelSnaps();
+  const dates   = Object.keys(snaps).sort((a, b) => b.localeCompare(a)).slice(0, 7); // last 7 days
+  const todayKey = new Date().toISOString().split('T')[0];
+
+  const active  = tabs.dataset.active || 'live';
+
+  tabs.innerHTML = '';
+
+  // Live tab
+  const liveBtn = document.createElement('button');
+  liveBtn.textContent = 'Live';
+  liveBtn.className   = `btn-secondary${active === 'live' ? ' active' : ''}`;
+  liveBtn.style.cssText = 'font-size:12px';
+  liveBtn.onclick = () => { tabs.dataset.active = 'live'; renderReelDateTabs(); showReelLiveView(); };
+  tabs.appendChild(liveBtn);
+
+  dates.forEach(d => {
+    const snap = snaps[d];
+    const isPrev = d < todayKey;
+    const label = d === todayKey
+      ? `Today (${new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})`
+      : isPrev
+        ? (d === _yesterday() ? 'Yesterday' : new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }))
+        : new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+
+    const btn = document.createElement('button');
+    btn.textContent = label;
+    btn.className   = `btn-secondary${active === d ? ' active' : ''}`;
+    btn.style.cssText = 'font-size:12px';
+    btn.onclick = () => { tabs.dataset.active = d; renderReelDateTabs(); showReelHistoryView(d, snap); };
+    tabs.appendChild(btn);
+  });
+}
+
+function _yesterday() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().split('T')[0];
+}
+
+function showReelLiveView() {
+  const live = document.getElementById('reel-view-live');
+  const hist = document.getElementById('reel-view-history');
+  if (live) live.style.display = '';
+  if (hist) hist.style.display = 'none';
+}
+
+function showReelHistoryView(dateKey, snap) {
+  const live = document.getElementById('reel-view-live');
+  const hist = document.getElementById('reel-view-history');
+  if (live) live.style.display = 'none';
+  if (hist) hist.style.display = '';
+
+  const titleEl = document.getElementById('reel-hist-title');
+  const timeEl  = document.getElementById('reel-hist-time');
+  const listEl  = document.getElementById('reel-hist-list');
+  if (!listEl) return;
+
+  const dateLabel = dateKey === _yesterday()
+    ? 'Yesterday\'s Closing Stock'
+    : 'Closing Stock — ' + new Date(dateKey + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+  if (titleEl) titleEl.textContent = dateLabel;
+  if (timeEl && snap.ts) {
+    timeEl.textContent = 'Snapshot: ' + new Date(snap.ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  if (!snap.data || !snap.data.length) {
+    listEl.innerHTML = '<div class="empty-state">No data for this date.</div>';
+    return;
+  }
+
+  const histData = snap.data;
+  const max = Math.max(...histData.map(r => r.count), 1);
+  listEl.innerHTML = '';
+  histData.forEach(r => {
+    const status    = getReelStatusFromData(r, histData);
+    const pct       = Math.round((r.count / max) * 100);
+    const gyNote    = r.hasColoured
+      ? `<span style="color:#B45309;font-weight:600"> · ${r.colouredCount} coloured (gy)</span>`
+      : '';
+    const s = r.size.toString();
+    const plainNote = (s === '35' || s === '35.5' || s === '42' || s === '44')
+      ? ` · <span style="color:var(--muted)">${r.plain100Count} plain-100</span>`
+      : '';
+
+    const item = document.createElement('div');
+    item.className = 'reel-item';
+    item.innerHTML = `
+      <div class="reel-size">${r.size}"</div>
+      <div class="reel-bar-wrap"><div class="reel-bar ${status}" style="width:${pct}%"></div></div>
+      <div style="flex:1;padding:0 12px">
+        <div style="font-size:13px;font-weight:600">${r.count} reels · ${(r.totalWeight || 0).toLocaleString('en-IN')} kg${plainNote}</div>
+        <div style="font-size:11px;color:var(--muted)">GSM ${r.gsm} · BF ${r.bf}${gyNote}</div>
+      </div>
+      <div class="reel-badge ${status}">${status === 'ok' ? 'OK' : status === 'low' ? 'LOW' : '⚠ CRITICAL'}</div>
+    `;
+    listEl.appendChild(item);
+  });
+}
+
+// Same criticality logic as getReelStatus but works on any snapshot array
+function getReelStatusFromData(r, data) {
+  const s = r.size.toString();
+  if (s === '35' || s === '35.5') {
+    const g35  = data.find(x => x.size.toString() === '35');
+    const g355 = data.find(x => x.size.toString() === '35.5');
+    const pool = ((g35 && g35.plain100Count) || 0) + ((g355 && g355.plain100Count) || 0);
+    if (pool < MIN_REELS)  return 'critical';
+    if (pool === MIN_REELS) return 'low';
+    return 'ok';
+  }
+  if (s === '42' || s === '44') {
+    const cnt = r.plain100Count;
+    if (cnt < MIN_REELS)  return 'critical';
+    if (cnt === MIN_REELS) return 'low';
+    return 'ok';
+  }
+  return 'ok';
 }
 
 // ── Status bar ──
