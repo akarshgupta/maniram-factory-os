@@ -308,8 +308,9 @@ async function saveOrderToSheet() {
     const btn = document.querySelector('button.btn-primary[onclick="saveOrderToSheet()"]');
     if (btn) { btn.textContent = '⏳ Saving...'; btn.disabled = true; }
     await fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const savedOrder = { id, customer, product, size, ply, colour, weight, qty: parseInt(qty)||0, rate: parseFloat(rate)||0, date };
     // Optimistic update so generateOrderId() increments correctly on next save
-    orders.push({ id, customer, product, size, ply, colour, weight, qty: parseInt(qty)||0, rate: parseFloat(rate)||0, date, status, priority, reelSize, reservedKg, remarks: '', rowIndex: 9999 });
+    orders.push({ ...savedOrder, status, priority, reelSize, reservedKg, remarks: '', rowIndex: 9999 });
     pendingOrderIds.add(id);
     clearOrderForm();
     refreshOrderId();
@@ -317,6 +318,7 @@ async function saveOrderToSheet() {
     if (btn) btn.textContent = '✅ Saved!';
     setTimeout(() => { if (btn) { btn.textContent = '💾 Save Order'; btn.disabled = false; } }, 2000);
     setTimeout(() => fetchOrders(), 4000);
+    openWaModal(savedOrder);
   } catch (err) {
     alert(`Save failed: ${err.message}`);
     const btn = document.querySelector('button.btn-primary[onclick="saveOrderToSheet()"]');
@@ -816,4 +818,79 @@ function acceptSuggestion(dateStr) {
 function hideSuggestion() {
   const box = document.getElementById('delivery-suggestion-box');
   if (box) box.style.display = 'none';
+}
+
+// ══════════════════════════════════════════════════════════════
+// WHATSAPP ORDER CONFIRMATION
+// ══════════════════════════════════════════════════════════════
+
+let waCurrentOrder = null;
+
+const WA_OPT_FIELDS = ['deliveryDate', 'weight', 'colour', 'ply', 'orderId'];
+
+function buildWaMessage(order, opts) {
+  const lines = [
+    `Dear ${order.customer},`,
+    '',
+    'Your order has been confirmed:',
+    '',
+    `• Product : ${order.product || '—'}`,
+    `• Size    : ${order.size || '—'}`,
+    `• Qty     : ${order.qty ? order.qty.toLocaleString('en-IN') : '—'} pcs`,
+    `• Rate    : ₹${order.rate || '—'}/pc`,
+  ];
+  if (order.rate && order.qty)
+    lines.push(`• Total   : ₹${(order.qty * order.rate).toLocaleString('en-IN')}`);
+  if (opts.deliveryDate && order.date) {
+    const d = new Date(order.date);
+    lines.push(`• Delivery: ${d.toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })}`);
+  }
+  if (opts.weight && order.weight) lines.push(`• Weight  : ${order.weight} gm/pc`);
+  if (opts.colour && order.colour) lines.push(`• Colour  : ${order.colour}`);
+  if (opts.ply    && order.ply)    lines.push(`• Ply     : ${order.ply} Ply`);
+  if (opts.orderId)                lines.push(`• Order ID: ${order.id}`);
+  lines.push('', 'Thank you for your order!', '— Maniram Industries');
+  return lines.join('\n');
+}
+
+function openWaModal(order) {
+  waCurrentOrder = order;
+  const client  = (typeof CLIENTS !== 'undefined' ? CLIENTS : []).find(c => c.name === order.customer);
+  const phoneEl = document.getElementById('wa-phone');
+  if (phoneEl) phoneEl.value = client?.phone || '';
+  WA_OPT_FIELDS.forEach(k => {
+    const cb = document.getElementById(`wa-opt-${k}`);
+    if (cb) cb.checked = false;
+  });
+  refreshWaMessage();
+  const overlay = document.getElementById('wa-confirm-overlay');
+  if (overlay) overlay.style.display = 'flex';
+}
+
+function refreshWaMessage() {
+  if (!waCurrentOrder) return;
+  const opts = {};
+  WA_OPT_FIELDS.forEach(k => {
+    const cb = document.getElementById(`wa-opt-${k}`);
+    opts[k] = cb?.checked || false;
+  });
+  const msgEl = document.getElementById('wa-message');
+  if (msgEl) msgEl.value = buildWaMessage(waCurrentOrder, opts);
+}
+
+function sendWhatsAppNow() {
+  const raw  = (document.getElementById('wa-phone')?.value || '').replace(/\D/g, '');
+  const msg  = document.getElementById('wa-message')?.value || '';
+  const num  = raw.length === 10 ? '91' + raw : raw;
+  const url  = num
+    ? `https://wa.me/${num}?text=${encodeURIComponent(msg)}`
+    : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  window.open(url, '_blank');
+  closeWaModal();
+}
+
+function closeWaModal() {
+  const overlay = document.getElementById('wa-confirm-overlay');
+  if (overlay) overlay.style.display = 'none';
+  waCurrentOrder = null;
 }

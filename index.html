@@ -1044,6 +1044,37 @@
 
 </div><!-- /app-shell -->
 
+<!-- WHATSAPP ORDER CONFIRMATION MODAL -->
+<div class="popup-overlay" id="wa-confirm-overlay" style="display:none" onclick="if(event.target===this)closeWaModal()">
+  <div class="popup-box" style="width:min(480px,95vw);padding:24px" onclick="event.stopPropagation()">
+    <div class="popup-title">📱 Send WhatsApp Confirmation</div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label class="form-label">Customer Phone</label>
+      <input class="form-input" type="tel" id="wa-phone" placeholder="10-digit mobile number"
+        onkeydown="if(event.key==='Escape')closeWaModal()">
+    </div>
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Add to message:</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <label class="wa-chip"><input type="checkbox" id="wa-opt-deliveryDate" onchange="refreshWaMessage()"> <span>Delivery Date</span></label>
+        <label class="wa-chip"><input type="checkbox" id="wa-opt-weight" onchange="refreshWaMessage()"> <span>Weight</span></label>
+        <label class="wa-chip"><input type="checkbox" id="wa-opt-colour" onchange="refreshWaMessage()"> <span>Colour</span></label>
+        <label class="wa-chip"><input type="checkbox" id="wa-opt-ply" onchange="refreshWaMessage()"> <span>Ply</span></label>
+        <label class="wa-chip"><input type="checkbox" id="wa-opt-orderId" onchange="refreshWaMessage()"> <span>Order ID</span></label>
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:16px">
+      <label class="form-label">Message Preview <span style="font-size:11px;color:var(--muted);font-weight:400">(editable)</span></label>
+      <textarea id="wa-message" class="form-input" rows="11"
+        style="font-family:monospace;font-size:12px;line-height:1.65;resize:vertical"></textarea>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn-primary" style="background:#25D366;border-color:#25D366;flex:1" onclick="sendWhatsAppNow()">📱 Open WhatsApp</button>
+      <button class="btn-secondary" onclick="closeWaModal()">Skip</button>
+    </div>
+  </div>
+</div>
+
 <!-- jsPDF — client-side PDF generation -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
