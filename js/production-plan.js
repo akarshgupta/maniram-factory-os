@@ -699,3 +699,172 @@ function prodOrderRow(o, stage) {
       <div class="prod-order-id">${o.id}</div>
     </div>`;
 }
+
+// ══════════════════════════════════════════════════════════════
+// PRINTABLE DAILY PRODUCTION SHEET
+// ══════════════════════════════════════════════════════════════
+function printDailySheet() {
+  const dateLabel = today.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  const active = orders
+    .filter(o => !['Delivered', 'Dispatched', 'Cancelled'].includes(o.status))
+    .sort((a, b) => {
+      if (a.date && b.date) return a.date.localeCompare(b.date);
+      if (a.date) return -1;
+      if (b.date) return 1;
+      return 0;
+    });
+
+  const rows = active.map((o, i) => {
+    const delivLabel = o.date
+      ? new Date(o.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+      : '—';
+    return `<tr>
+      <td class="c-num">${i + 1}</td>
+      <td class="c-id">${o.id}</td>
+      <td>${o.customer || ''}</td>
+      <td>${o.product || o.size || ''}</td>
+      <td class="c-sm">${o.size || ''}</td>
+      <td class="c-sm">${o.ply || ''}</td>
+      <td class="c-sm">${(o.qty || 0).toLocaleString('en-IN')}</td>
+      <td class="c-deliv">${delivLabel}</td>
+      <td class="c-write"></td>
+      <td class="c-write"></td>
+      <td class="c-write"></td>
+      <td class="c-remarks"></td>
+    </tr>`;
+  }).join('');
+
+  const totalPlanned = active.reduce((s, o) => s + (parseInt(o.qty) || 0), 0);
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Daily Production Sheet — ${dateLabel}</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #000; background: #fff; }
+  .header { text-align:center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 10px; }
+  .header h1 { font-size: 18px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
+  .header h2 { font-size: 13px; font-weight: 600; margin-top: 2px; }
+  .meta { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 10px; gap: 16px; }
+  .meta-block { flex: 1; }
+  .meta-label { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:#555; margin-bottom:3px; }
+  .meta-value { font-size:13px; font-weight:700; border-bottom:1px solid #000; padding-bottom:2px; min-width:140px; }
+  .shift-row { display:flex; gap:20px; align-items:center; }
+  .shift-box { display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; }
+  .shift-box .sq { width:14px; height:14px; border:1.5px solid #000; display:inline-block; }
+  table { width:100%; border-collapse:collapse; margin-top:4px; }
+  th { background:#111; color:#fff; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; padding:5px 6px; text-align:left; border:1px solid #000; }
+  td { border:1px solid #bbb; padding:5px 6px; vertical-align:middle; font-size:10px; }
+  tr:nth-child(even) td { background:#f7f7f7; }
+  .c-num  { width:28px; text-align:center; font-weight:700; color:#555; }
+  .c-id   { width:90px; font-family:monospace; font-size:9px; font-weight:700; }
+  .c-sm   { width:52px; text-align:center; }
+  .c-deliv { width:62px; text-align:center; font-weight:600; }
+  .c-write { width:72px; background:#fffbe6 !important; }
+  .c-remarks { width:120px; background:#fffbe6 !important; }
+  .totals-row td { background:#e8e8e8 !important; font-weight:700; font-size:11px; }
+  .footer { margin-top:14px; display:flex; justify-content:space-between; gap:20px; }
+  .sign-block { flex:1; }
+  .sign-line { border-bottom:1px solid #000; margin-top:24px; }
+  .sign-label { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:#555; margin-top:3px; }
+  .note-box { background:#fffbe6; border:1px solid #ccc; padding:8px 10px; margin-top:10px; font-size:10px; }
+  .note-box strong { display:block; font-size:9px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; }
+  @media print {
+    @page { margin: 12mm 10mm; size: A4 landscape; }
+    body { font-size: 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Maniram Industries</h1>
+  <h2>Daily Production Sheet</h2>
+</div>
+
+<div class="meta">
+  <div class="meta-block">
+    <div class="meta-label">Date</div>
+    <div class="meta-value">${dateLabel}</div>
+  </div>
+  <div class="meta-block">
+    <div class="meta-label">Shift</div>
+    <div class="shift-row">
+      <div class="shift-box"><span class="sq"></span> Morning</div>
+      <div class="shift-box"><span class="sq"></span> Evening</div>
+    </div>
+  </div>
+  <div class="meta-block">
+    <div class="meta-label">Supervisor Name</div>
+    <div class="meta-value" style="min-width:180px">&nbsp;</div>
+  </div>
+  <div class="meta-block">
+    <div class="meta-label">Staff Count Today</div>
+    <div class="meta-value" style="min-width:80px">&nbsp;</div>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Order ID</th>
+      <th>Customer</th>
+      <th>Product</th>
+      <th>Size</th>
+      <th>Ply</th>
+      <th>Planned Qty (pcs)</th>
+      <th>Delivery Date</th>
+      <th>Actual Qty Made ✎</th>
+      <th>Defects / Rejected ✎</th>
+      <th>Done By (Name) ✎</th>
+      <th>Remarks ✎</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${rows || '<tr><td colspan="12" style="text-align:center;padding:20px;color:#666">No active orders</td></tr>'}
+    <tr class="totals-row">
+      <td colspan="6" style="text-align:right">TOTAL PLANNED →</td>
+      <td>${totalPlanned.toLocaleString('en-IN')} pcs</td>
+      <td></td>
+      <td style="border-bottom:2px solid #000"></td>
+      <td></td>
+      <td></td>
+      <td></td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="note-box">
+  <strong>Instructions for workers</strong>
+  Fill columns marked ✎ at end of shift. Write actual pieces made, any defective/rejected pieces, your name, and any problems faced.
+  Hand this sheet to supervisor before leaving.
+</div>
+
+<div class="footer">
+  <div class="sign-block">
+    <div class="sign-line"></div>
+    <div class="sign-label">Supervisor Signature &amp; Date</div>
+  </div>
+  <div class="sign-block">
+    <div class="sign-line"></div>
+    <div class="sign-label">Quality Check Sign</div>
+  </div>
+  <div class="sign-block">
+    <div class="sign-line"></div>
+    <div class="sign-label">Manager Approval</div>
+  </div>
+</div>
+
+<script>window.onload = function(){ window.print(); };<\/script>
+</body>
+</html>`;
+
+  const w = window.open('', '_blank', 'width=1100,height=750');
+  if (w) {
+    w.document.write(html);
+    w.document.close();
+  }
+}

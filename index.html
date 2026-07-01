@@ -645,7 +645,10 @@
     <div class="page" id="page-production">
       <div class="section-header">
         <div class="section-title">🏭 Production Plan</div>
-        <button class="btn-secondary" id="pq-toggle-btn" onclick="togglePriorityQueue()" style="font-size:12px">⚡ Priority Queue</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-secondary" onclick="printDailySheet()" style="font-size:12px">📋 Print Daily Sheet</button>
+          <button class="btn-secondary" id="pq-toggle-btn" onclick="togglePriorityQueue()" style="font-size:12px">⚡ Priority Queue</button>
+        </div>
       </div>
 
       <!-- Priority Queue + Auto-Scheduler -->
