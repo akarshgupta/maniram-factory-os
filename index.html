@@ -799,10 +799,43 @@
       </div>
 
       <!-- Customer Detail Table -->
-      <div class="card">
+      <div class="card" style="margin-bottom:18px">
         <div class="card-header"><div class="card-title">👥 Customer Analysis</div></div>
         <div class="card-body" style="padding:0">
           <div id="an-customer-table"><div class="empty-state">Loading...</div></div>
+        </div>
+      </div>
+
+      <!-- ── P&L SECTION ── -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-size:17px;font-weight:700;color:var(--navy)">📊 Profit &amp; Loss</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">Revenue − Material Cost − Monthly Expenses = Net Profit</div>
+        </div>
+        <button class="btn-primary" onclick="openOverheadModal()" style="font-size:12px;padding:8px 18px">➕ Add Monthly Expenses</button>
+      </div>
+
+      <!-- P&L Chart -->
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-header">
+          <div class="card-title">📈 Revenue vs Cost vs Profit</div>
+          <span style="font-size:11px;color:var(--muted)">Net Profit line appears once expenses are entered</span>
+        </div>
+        <div class="card-body">
+          <div class="an-chart-wrap" style="height:280px">
+            <canvas id="an-chart-pl"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- P&L Table -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📋 Monthly P&amp;L Statement</div>
+          <span style="font-size:11px;color:var(--muted)">Last 12 months — click ➕ on any row to enter that month's expenses</span>
+        </div>
+        <div class="card-body" style="padding:0">
+          <div id="an-pl-table"><div class="empty-state">Loading...</div></div>
         </div>
       </div>
 
@@ -1143,6 +1176,61 @@
 </div>
 
 </div><!-- /app-shell -->
+
+<!-- MONTHLY EXPENSES / OVERHEAD MODAL -->
+<div class="popup-overlay" id="ov-overlay" style="display:none" onclick="if(event.target===this)closeOverheadModal()">
+  <div class="popup-box" style="width:min(500px,95vw);padding:24px" onclick="event.stopPropagation()">
+    <div class="popup-title">💸 Monthly Expenses</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:16px">Enter all costs for this month. Used to calculate net profit.</div>
+
+    <div class="form-group" style="margin-bottom:14px">
+      <label class="form-label">Month <span style="color:var(--danger)">*</span></label>
+      <input class="form-input" type="month" id="ov-month">
+    </div>
+
+    <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      <div class="form-group">
+        <label class="form-label">⚡ Electricity (₹)</label>
+        <input class="form-input" type="number" id="ov-electricity" placeholder="0" min="0" oninput="_updateOvTotal()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">👷 Labour / Salaries (₹)</label>
+        <input class="form-input" type="number" id="ov-labour" placeholder="0" min="0" oninput="_updateOvTotal()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">🏢 Rent (₹)</label>
+        <input class="form-input" type="number" id="ov-rent" placeholder="0" min="0" oninput="_updateOvTotal()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">🚛 Transport (₹)</label>
+        <input class="form-input" type="number" id="ov-transport" placeholder="0" min="0" oninput="_updateOvTotal()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">🔧 Maintenance (₹)</label>
+        <input class="form-input" type="number" id="ov-maintenance" placeholder="0" min="0" oninput="_updateOvTotal()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">📦 Other Expenses (₹)</label>
+        <input class="form-input" type="number" id="ov-other" placeholder="0" min="0" oninput="_updateOvTotal()">
+      </div>
+      <div class="form-group" style="grid-column:span 2">
+        <label class="form-label">Notes</label>
+        <input class="form-input" type="text" id="ov-notes" placeholder="Optional notes for this month">
+      </div>
+    </div>
+
+    <!-- Total preview -->
+    <div style="background:var(--bg);border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:13px;font-weight:600;color:var(--navy)">Total Overheads</span>
+      <span id="ov-total" style="font-size:18px;font-weight:800;color:var(--danger)">₹0</span>
+    </div>
+
+    <div style="display:flex;gap:10px">
+      <button class="btn-primary" id="ov-save-btn" onclick="saveOverheadEntry()" style="flex:1">💾 Save</button>
+      <button class="btn-secondary" onclick="closeOverheadModal()">Cancel</button>
+    </div>
+  </div>
+</div>
 
 <!-- WHATSAPP ORDER CONFIRMATION MODAL -->
 <div class="popup-overlay" id="wa-confirm-overlay" style="display:none" onclick="if(event.target===this)closeWaModal()">
