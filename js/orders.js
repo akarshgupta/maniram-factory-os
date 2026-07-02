@@ -515,9 +515,11 @@ function renderOrders() {
       <div style="font-size:12px">${o.weight ? o.weight + 'gm' : '—'}</div>
       <div style="font-size:12px;font-weight:500">${dateDisp}</div>
       <div><span class="status-badge ${STATUS_CLASS[o.status] || 'status-new'}">${o.status}</span></div>
-      <div style="display:flex;align-items:center;gap:8px">
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         <span style="font-size:13px;font-weight:600">${o.qty ? o.qty.toLocaleString('en-IN') : '—'}</span>
-        ${o.rate ? `<button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();openInvoice('${o.id}')">🧾</button>` : ''}
+        ${o.rate ? `<button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();openInvoice('${o.id}')" title="Invoice">🧾</button>` : ''}
+        <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();printDeliveryChallan('${o.id}')" title="Delivery Challan">🚚</button>
+        <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();openPrintSpecModal('${o.id}')" title="Print Spec / Job Card">📋</button>
       </div>
     `;
     list.appendChild(row);
