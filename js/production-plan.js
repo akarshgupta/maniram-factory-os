@@ -683,12 +683,24 @@ function prodOrderRow(o, stage) {
     ${sheetsReady ? '✅ Sheets' : '📋 Sheets'}
   </button>`;
 
+  const dispatched = typeof getDispatchedQty === 'function' ? getDispatchedQty(o.id) : 0;
+  const remaining  = Math.max(0, (o.qty || 0) - dispatched);
+  const dispPct    = o.qty > 0 && dispatched > 0 ? Math.min(100, Math.round(dispatched / o.qty * 100)) : 0;
+  const dispBar    = dispPct > 0 ? `
+    <div style="margin-top:3px">
+      <div style="background:#e5e7eb;border-radius:3px;height:4px;width:100%">
+        <div style="background:${remaining===0?'var(--success)':'var(--blue)'};height:4px;border-radius:3px;width:${dispPct}%"></div>
+      </div>
+      <div style="font-size:9px;color:var(--muted);margin-top:1px">${dispatched.toLocaleString('en-IN')} dispatched · ${remaining.toLocaleString('en-IN')} left</div>
+    </div>` : '';
+
   return `
     <div class="prod-order-row${sheetsReady ? ' sheets-ready-row' : ''}">
       ${reelBadge}
       <div class="prod-order-info">
         <div class="prod-product-name">${o.product || size || 'Order'}</div>
         <div class="prod-order-meta">${o.customer}${qty ? ' · ' + qty : ''}${ply ? ' · ' + ply : ''}${size && stage === 2 ? ' · ' + size : ''}</div>
+        ${dispBar}
       </div>
       <div style="display:flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0">
         <select class="prod-status-select" onchange="quickUpdateStatus('${eid}',this.value)" onclick="event.stopPropagation()" title="Change status">
@@ -697,7 +709,7 @@ function prodOrderRow(o, stage) {
         ${sheetsBtn}
         ${dispatchBtn}
         <button class="btn-sm" onclick="event.stopPropagation();openPrintSpecModal('${eid}')" title="Job Card / Print Spec">📋</button>
-        <button class="btn-sm" onclick="event.stopPropagation();printDeliveryChallan('${eid}')" title="Delivery Challan">🚚</button>
+        <button class="btn-sm" onclick="event.stopPropagation();openChallanModal('${eid}')" title="Delivery Challan">🚚</button>
         <button class="btn-sm" onclick="openEditModal('${eid}')" title="Edit order">✏️</button>
       </div>
       <div class="prod-order-id">${o.id}</div>

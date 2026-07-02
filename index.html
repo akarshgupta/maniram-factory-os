@@ -398,6 +398,7 @@
         <button class="tab-btn" onclick="switchOrderTab('reelmap', event)">🧻 Reel → Products</button>
         <button class="tab-btn" onclick="switchOrderTab('ratecalc', event)">📐 Rate Calc</button>
         <button class="tab-btn" onclick="switchOrderTab('quotations', event)">📄 Quotations</button>
+        <button class="tab-btn" onclick="switchOrderTab('challans', event)">🚚 Challans</button>
       </div>
 
       <div class="sync-bar"><div class="sync-dot loading" id="order-sync-dot"></div><span id="order-sync-label">Loading from Google Sheets...</span></div>
@@ -486,6 +487,11 @@
           <button class="btn-secondary" onclick="switchOrderTab('ratecalc', event)" style="font-size:12px">+ New via Rate Calc</button>
         </div>
         <div id="quotations-list"><div class="empty-state">No quotations yet. Create one from the Rate Calculator.</div></div>
+      </div>
+
+      <!-- ── Challans Tab ── -->
+      <div id="tab-challans" style="display:none">
+        <div id="challans-list"><div class="empty-state">Loading...</div></div>
       </div>
 
       <!-- ── History Tab ── -->
@@ -1295,6 +1301,33 @@
     <div style="display:flex;gap:10px">
       <button class="btn-primary" style="background:#25D366;border-color:#25D366;flex:1" onclick="sendWhatsAppNow()">📱 Open WhatsApp</button>
       <button class="btn-secondary" onclick="closeWaModal()">Skip</button>
+    </div>
+  </div>
+</div>
+
+<!-- Challan Modal -->
+<div class="popup-overlay" id="challan-modal-overlay" style="display:none" onclick="if(event.target===this)closeChallanModal()">
+  <div class="popup-box" style="width:min(460px,95vw);padding:24px" onclick="event.stopPropagation()">
+    <div class="popup-title">🚚 Issue Delivery Challan</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:6px" id="ch-order-info"></div>
+    <div id="ch-dispatched-info" style="display:none;font-size:11px;background:#FEF3C7;color:#92400E;padding:7px 10px;border-radius:6px;margin-bottom:12px"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Qty to Dispatch (pcs)</label>
+        <input class="form-input" type="number" id="ch-qty" min="1" placeholder="e.g. 500" style="font-size:16px;font-weight:700">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Challan Date</label>
+        <input class="form-input" type="date" id="ch-date">
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:18px">
+      <label class="form-label">Remarks <span style="font-size:11px;color:var(--muted);font-weight:400">(optional — printed on challan)</span></label>
+      <input class="form-input" type="text" id="ch-note" placeholder="e.g. Partial delivery, balance next week">
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn-primary" style="flex:1" onclick="saveAndPrintChallan()">🖨️ Create &amp; Print Challan</button>
+      <button class="btn-secondary" onclick="closeChallanModal()">Cancel</button>
     </div>
   </div>
 </div>

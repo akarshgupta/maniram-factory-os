@@ -75,6 +75,7 @@ async function init() {
   initInvoices();
   initPayments();
   initQuotations();
+  initChallans();
 
   // Safe to render now — CLIENTS and purchases arrays are populated
   renderClients();
