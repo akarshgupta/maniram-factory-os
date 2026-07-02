@@ -46,14 +46,14 @@ function saveOrder(data) {
   if (!sheet) return;
 
   if (sheet.getLastRow() < 1 || sheet.getRange(1,1).getValue() === '') {
-    sheet.appendRow(['ID','Customer','Product','Size','Ply','Colour','Weight','ReelSize','Qty','Date','Status','Notes','Price']);
+    sheet.appendRow(['ID','Customer','Product','Size','Ply','Colour','Weight','ReelSize','Qty','Date','Status','Notes','Price','OrderDate']);
   }
 
   var rows   = sheet.getDataRange().getValues();
   var row    = [
     data.id, data.customer, data.product, data.size, data.ply,
     data.colour, data.weight, data.reelSize, data.qty, data.date,
-    data.status || 'New', data.notes || '', data.price || ''
+    data.status || 'New', data.notes || '', data.price || '', data.orderDate || ''
   ];
 
   for (var i = 1; i < rows.length; i++) {
