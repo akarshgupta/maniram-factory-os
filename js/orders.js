@@ -66,12 +66,14 @@ function generateOrderId() {
 
 function refreshOrderId() {
   document.getElementById('f-id').value = generateOrderId();
+  const od = document.getElementById('f-order-date');
+  if (od && !od.value) od.value = new Date().toISOString().split('T')[0];
 }
 
 // ── Fetch Orders ──
 async function fetchOrders() {
   setOrderSyncStatus('loading', 'Fetching orders...');
-  const range = encodeURIComponent(`${ORDERS_TAB}!A1:N500`);
+  const range = encodeURIComponent(`${ORDERS_TAB}!A1:P500`);
   const url   = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${range}?key=${API_KEY}`;
   try {
     const res  = await fetch(url);
@@ -103,9 +105,10 @@ async function fetchOrders() {
       date:     header.findIndex(h => h.includes('delivery')),
       status:   header.findIndex(h => h === 'status'),
       priority: header.findIndex(h => h.includes('priority')),
-      reelSize: header.findIndex(h => h.includes('reel size') || h === 'reel_size' || h === 'reelsize'),
-      resvKg:   header.findIndex(h => h.includes('reserved kg') || h === 'reserved_kg'),
-    } : { id:0, customer:1, product:2, spec:3, ply:4, colour:5, weight:6, qty:7, rate:8, date:9, status:10, priority:11, reelSize:12, resvKg:13 };
+      reelSize:  header.findIndex(h => h.includes('reel size') || h === 'reel_size' || h === 'reelsize'),
+      resvKg:    header.findIndex(h => h.includes('reserved kg') || h === 'reserved_kg'),
+      orderDate: header.findIndex(h => h === 'orderdate' || h.includes('order date') || h === 'order_date'),
+    } : { id:0, customer:1, product:2, spec:3, ply:4, colour:5, weight:6, qty:7, rate:8, date:9, status:10, priority:11, reelSize:12, resvKg:13, orderDate:14 };
 
     // Snapshot pending local orders before we overwrite
     const stillPending = orders.filter(o => pendingOrderIds.has(o.id));
@@ -114,7 +117,8 @@ async function fetchOrders() {
     for (let i = hasHeaders ? 1 : 0; i < rows.length; i++) {
       const r = rows[i];
       if (!r || !r[col.customer]) continue;
-      const rawDate = col.date >= 0 ? (r[col.date] || '') : '';
+      const rawDate      = col.date      >= 0 ? (r[col.date]      || '') : '';
+      const rawOrderDate = col.orderDate >= 0 ? (r[col.orderDate] || '') : '';
       const fetchedId = col.id >= 0 ? (r[col.id] || `MIORD${String(i).padStart(3,'0')}`) : `MIORD${String(i).padStart(3,'0')}`;
       pendingOrderIds.delete(fetchedId); // confirmed in sheet
       orders.push({
@@ -128,6 +132,7 @@ async function fetchOrders() {
         qty:        col.qty      >= 0 ? parseInt(r[col.qty]) || 0 : 0,
         rate:       col.rate     >= 0 ? parseFloat(r[col.rate]) || 0 : 0,
         date:       parseSheetDate(rawDate),
+        orderDate:  parseSheetDate(rawOrderDate),
         status:     col.status   >= 0 ? (r[col.status]   || 'New') : 'New',
         priority:   col.priority >= 0 ? (r[col.priority] || 'Normal') : 'Normal',
         reelSize:   col.reelSize >= 0 ? (r[col.reelSize] || '') : '',
@@ -291,24 +296,27 @@ async function saveOrderToSheet() {
   const colour   = document.getElementById('f-colour').value.trim();
   const weight   = document.getElementById('f-weight').value.trim();
   const qty      = document.getElementById('f-qty').value;
-  const rate     = document.getElementById('f-rate').value;
-  const date     = document.getElementById('f-date').value;
-  const status   = document.getElementById('f-status').value;
-  const priority = document.getElementById('f-priority').value;
-  const reelSize = document.getElementById('f-reel-size').value.trim();
+  const rate      = document.getElementById('f-rate').value;
+  const date      = document.getElementById('f-date').value;
+  const orderDate = document.getElementById('f-order-date').value || new Date().toISOString().split('T')[0];
+  const status    = document.getElementById('f-status').value;
+  const priority  = document.getElementById('f-priority').value;
+  const reelSize  = document.getElementById('f-reel-size').value.trim();
 
   if (!customer || !date) { alert('Customer and Delivery Date are required.'); return; }
 
   const reservedKg = calcOrderKg(weight, qty);
   const d          = new Date(date);
   const formatted  = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
-  const payload    = { id, customer, product, size, ply, colour, weight, qty, rate, date: formatted, status, priority, reelSize, reservedKg, remarks: '' };
+  const od         = new Date(orderDate);
+  const fmtOd      = `${String(od.getDate()).padStart(2,'0')}/${String(od.getMonth()+1).padStart(2,'0')}/${od.getFullYear()}`;
+  const payload    = { id, customer, product, size, ply, colour, weight, qty, rate, date: formatted, orderDate: fmtOd, status, priority, reelSize, reservedKg, remarks: '' };
 
   try {
     const btn = document.querySelector('button.btn-primary[onclick="saveOrderToSheet()"]');
     if (btn) { btn.textContent = '⏳ Saving...'; btn.disabled = true; }
     await fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    const savedOrder = { id, customer, product, size, ply, colour, weight, qty: parseInt(qty)||0, rate: parseFloat(rate)||0, date };
+    const savedOrder = { id, customer, product, size, ply, colour, weight, qty: parseInt(qty)||0, rate: parseFloat(rate)||0, date, orderDate };
     // Optimistic update so generateOrderId() increments correctly on next save
     orders.push({ ...savedOrder, status, priority, reelSize, reservedKg, remarks: '', rowIndex: 9999 });
     pendingOrderIds.add(id);
@@ -328,6 +336,8 @@ async function saveOrderToSheet() {
 
 function clearOrderForm() {
   ['f-id','f-customer','f-qty','f-rate','f-date','f-reel-size'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const od = document.getElementById('f-order-date');
+  if (od) od.value = new Date().toISOString().split('T')[0];
   document.getElementById('f-product').innerHTML = '<option value="">— Select Customer First —</option>';
   clearProductFields();
   document.getElementById('f-status').value   = 'New';
@@ -356,8 +366,9 @@ function openEditModal(orderId) {
   document.getElementById('ef-reel-size').value = o.reelSize || '';
   document.getElementById('ef-weight').value    = o.weight;
   document.getElementById('ef-qty').value       = o.qty;
-  document.getElementById('ef-rate').value      = o.rate;
-  document.getElementById('ef-date').value      = o.date;
+  document.getElementById('ef-rate').value       = o.rate;
+  document.getElementById('ef-order-date').value = o.orderDate || new Date().toISOString().split('T')[0];
+  document.getElementById('ef-date').value       = o.date;
   document.getElementById('ef-status').value    = o.status;
   document.getElementById('ef-priority').value  = o.priority;
   if (typeof convertSizeCmIn === 'function') convertSizeCmIn('ef-size', 'ef-size-in');
@@ -384,15 +395,18 @@ async function saveEditedOrder() {
   const reelSize = document.getElementById('ef-reel-size').value.trim();
   const weight   = document.getElementById('ef-weight').value.trim();
   const qty      = document.getElementById('ef-qty').value;
-  const rate     = document.getElementById('ef-rate').value;
-  const dateVal  = document.getElementById('ef-date').value;
-  const status   = document.getElementById('ef-status').value;
-  const priority = document.getElementById('ef-priority').value;
+  const rate      = document.getElementById('ef-rate').value;
+  const dateVal   = document.getElementById('ef-date').value;
+  const orderDateVal = document.getElementById('ef-order-date').value || new Date().toISOString().split('T')[0];
+  const status    = document.getElementById('ef-status').value;
+  const priority  = document.getElementById('ef-priority').value;
 
   if (!dateVal) { alert('Delivery Date is required.'); return; }
 
   const d          = new Date(dateVal);
   const formatted  = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+  const od         = new Date(orderDateVal);
+  const fmtOd      = `${String(od.getDate()).padStart(2,'0')}/${String(od.getMonth()+1).padStart(2,'0')}/${od.getFullYear()}`;
   const reservedKg = calcOrderKg(weight, qty);
 
   const payload = {
@@ -401,7 +415,7 @@ async function saveEditedOrder() {
     id: editingOrderId,
     customer: o.customer,
     product, size, ply, colour, weight, qty, rate,
-    date: formatted, status, priority, reelSize, reservedKg, remarks: ''
+    date: formatted, orderDate: fmtOd, status, priority, reelSize, reservedKg, remarks: ''
   };
 
   const btn = document.getElementById('edit-save-btn');
@@ -412,7 +426,7 @@ async function saveEditedOrder() {
     // Optimistic update in memory
     const idx = orders.findIndex(x => x.id === editingOrderId);
     if (idx >= 0) {
-      orders[idx] = { ...orders[idx], product, size, ply, colour, reelSize, weight, qty: parseInt(qty)||0, rate: parseFloat(rate)||0, date: dateVal, status, priority, reservedKg };
+      orders[idx] = { ...orders[idx], product, size, ply, colour, reelSize, weight, qty: parseInt(qty)||0, rate: parseFloat(rate)||0, date: dateVal, orderDate: orderDateVal, status, priority, reservedKg };
     }
     document.getElementById('edit-order-overlay').style.display = 'none';
     editingOrderId = null;
@@ -493,7 +507,7 @@ function renderOrders() {
       <div style="font-family:monospace;font-size:11px;color:var(--muted)">${o.id}</div>
       <div>
         <div style="font-weight:600;font-size:13px">${o.customer}${o.priority === 'Urgent' ? '<span class="priority-urgent">URG</span>' : ''}</div>
-        <div style="font-size:11px;color:var(--muted)">${o.product || '—'}</div>
+        <div style="font-size:11px;color:var(--muted)">${o.product || '—'}${o.orderDate ? ' · <span style="color:var(--muted);font-size:10px">Ordered: ' + new Date(o.orderDate).toLocaleDateString('en-IN',{day:'numeric',month:'short'}) + '</span>' : ''}</div>
         ${stockBadgeHtml(o)}
       </div>
       <div style="font-size:12px;font-family:monospace">${o.size || '—'}</div>
