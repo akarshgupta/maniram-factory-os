@@ -466,11 +466,13 @@ function switchOrderTab(tab, e) {
   document.getElementById('tab-reelmap').style.display    = tab === 'reelmap'    ? 'block' : 'none';
   document.getElementById('tab-ratecalc').style.display   = tab === 'ratecalc'   ? 'block' : 'none';
   document.getElementById('tab-quotations').style.display = tab === 'quotations' ? 'block' : 'none';
+  document.getElementById('tab-challans').style.display   = tab === 'challans'   ? 'block' : 'none';
   document.getElementById('tab-history').style.display    = tab === 'history'    ? 'block' : 'none';
   if (tab === 'grouped')    renderGroupedOrders();
   if (tab === 'reelmap')    renderReelProductMap();
   if (tab === 'ratecalc')   { onPlyChange(); }
   if (tab === 'quotations') renderQuotationsList();
+  if (tab === 'challans')   renderChallansTab();
   if (tab === 'history')    renderOrderHistory();
   // Show/hide search bar only for filterable tabs
   const searchBar = document.getElementById('order-search-bar');
@@ -497,7 +499,18 @@ function renderOrders() {
   }
   list.innerHTML = '';
   activeOrders.forEach(o => {
-    const dateDisp = o.date ? new Date(o.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—';
+    const dateDisp    = o.date ? new Date(o.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—';
+    const dispatched  = typeof getDispatchedQty === 'function' ? getDispatchedQty(o.id) : 0;
+    const remaining   = Math.max(0, (o.qty || 0) - dispatched);
+    const dispPct     = o.qty > 0 ? Math.min(100, Math.round((dispatched / o.qty) * 100)) : 0;
+    const dispBar     = o.qty > 0 && dispatched > 0 ? `
+      <div style="margin-top:4px">
+        <div style="background:#e5e7eb;border-radius:3px;height:5px;width:100%">
+          <div style="background:${remaining === 0 ? 'var(--success)' : 'var(--blue)'};height:5px;border-radius:3px;width:${dispPct}%;transition:width 0.3s"></div>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">${dispatched.toLocaleString('en-IN')} dispatched · <strong style="color:${remaining>0?'var(--danger)':'var(--success)'}">${remaining.toLocaleString('en-IN')} remaining</strong></div>
+      </div>` : '';
+
     const row      = document.createElement('div');
     row.className  = 'table-row';
     row.style.cursor = 'pointer';
@@ -509,6 +522,7 @@ function renderOrders() {
         <div style="font-weight:600;font-size:13px">${o.customer}${o.priority === 'Urgent' ? '<span class="priority-urgent">URG</span>' : ''}</div>
         <div style="font-size:11px;color:var(--muted)">${o.product || '—'}${o.orderDate ? ' · <span style="color:var(--muted);font-size:10px">Ordered: ' + new Date(o.orderDate).toLocaleDateString('en-IN',{day:'numeric',month:'short'}) + '</span>' : ''}</div>
         ${stockBadgeHtml(o)}
+        ${dispBar}
       </div>
       <div style="font-size:12px;font-family:monospace">${o.size || '—'}</div>
       <div style="font-size:12px">${colourDot(o.colour)}${o.colour || '—'}</div>
@@ -517,8 +531,7 @@ function renderOrders() {
       <div><span class="status-badge ${STATUS_CLASS[o.status] || 'status-new'}">${o.status}</span></div>
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         <span style="font-size:13px;font-weight:600">${o.qty ? o.qty.toLocaleString('en-IN') : '—'}</span>
-        ${o.rate ? `<button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();openInvoice('${o.id}')" title="Invoice">🧾</button>` : ''}
-        <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();printDeliveryChallan('${o.id}')" title="Delivery Challan">🚚</button>
+        <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();openChallanModal('${o.id}')" title="Issue Delivery Challan">🚚</button>
         <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();openPrintSpecModal('${o.id}')" title="Print Spec / Job Card">📋</button>
       </div>
     `;
