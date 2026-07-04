@@ -993,7 +993,17 @@
         <label class="form-label">Invoice Date</label>
         <input class="form-input" type="date" id="ci-date">
       </div>
-      <!-- Product search — auto-finds matching order -->
+      <div class="form-group">
+        <label class="form-label">GST %</label>
+        <select class="form-select" id="ci-gst" onchange="recalcInvoiceTotals()">
+          <option value="0">0% (Exempt / Composition)</option>
+          <option value="5" selected>5% (Corrugated boxes)</option>
+          <option value="12">12%</option>
+          <option value="18">18%</option>
+        </select>
+      </div>
+      <div></div>
+      <!-- Product search — auto-finds matching order — placed last so its dropdown doesn't overlap native selects above -->
       <div class="form-group" style="position:relative;grid-column:span 2" id="ci-product-group">
         <label class="form-label">Product / Description <span style="font-size:10px;color:var(--muted)">— type to search orders, or enter freely</span></label>
         <input class="form-input" type="text" id="ci-product" placeholder="e.g. Corrugated Box 20×14×28 5 Ply..." autocomplete="off" oninput="onInvoiceProductInput()">
@@ -1002,15 +1012,6 @@
     </div>
     <!-- Matched order chip — appears when an order is auto-selected -->
     <div id="ci-order-matched" style="display:none;margin-bottom:12px;padding:9px 14px;background:#F0FDF4;border:1px solid #86EFAC;border-radius:8px;font-size:12px;color:#15803D"></div>
-    <div style="margin-bottom:12px">
-      <label class="form-label">GST %</label>
-      <select class="form-select" id="ci-gst" onchange="recalcInvoiceTotals()" style="max-width:260px">
-        <option value="0">0% (Exempt / Composition)</option>
-        <option value="5" selected>5% (Corrugated boxes)</option>
-        <option value="12">12%</option>
-        <option value="18">18%</option>
-      </select>
-    </div>
 
     <!-- Items -->
     <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:8px">Items</div>
