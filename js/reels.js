@@ -157,6 +157,50 @@ function _yesterday() {
   return d.toISOString().split('T')[0];
 }
 
+// Total stock kg for a snapshot's data (matches the live total incl. katra buffer)
+function _snapTotalKg(data) {
+  if (!data || !data.length) return 0;
+  return data.reduce((s, r) => s + (r.totalWeight || 0), 0) + KATRA_BUFFER_KG;
+}
+
+// The snapshot immediately before a given date (its opening basis = prior close)
+function _prevSnap(dateKey) {
+  const snaps = _getReelSnaps();
+  const prior = Object.keys(snaps).filter(k => k < dateKey).sort();
+  const pk    = prior[prior.length - 1];
+  return pk ? { date: pk, snap: snaps[pk] } : null;
+}
+
+// Opening vs closing summary card for a given day
+function _openCloseSummaryHtml(dateKey, snap) {
+  const closingKg = _snapTotalKg(snap.data);
+  const prev      = _prevSnap(dateKey);
+  const openingKg = prev ? _snapTotalKg(prev.snap.data) : closingKg;
+  const delta     = closingKg - openingKg;
+  const deltaCol  = delta > 0 ? 'var(--success)' : delta < 0 ? 'var(--danger)' : 'var(--muted)';
+  const deltaTxt  = delta === 0 ? 'No change'
+    : `${delta > 0 ? '▲ +' : '▼ '}${Math.abs(delta).toLocaleString('en-IN')} kg ${delta > 0 ? 'added' : 'consumed'}`;
+  const openLabel = prev
+    ? `Opening (close of ${new Date(prev.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})`
+    : 'Opening';
+
+  return `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
+      <div class="stat-card" style="padding:12px 14px">
+        <div class="stat-label">${openLabel}</div>
+        <div class="stat-value" style="font-size:17px">${Math.round(openingKg).toLocaleString('en-IN')} <span style="font-size:12px;color:var(--muted)">kg</span></div>
+      </div>
+      <div class="stat-card" style="padding:12px 14px">
+        <div class="stat-label">Closing (this day)</div>
+        <div class="stat-value" style="font-size:17px">${Math.round(closingKg).toLocaleString('en-IN')} <span style="font-size:12px;color:var(--muted)">kg</span></div>
+      </div>
+      <div class="stat-card" style="padding:12px 14px">
+        <div class="stat-label">Net Change</div>
+        <div class="stat-value" style="font-size:15px;color:${deltaCol}">${deltaTxt}</div>
+      </div>
+    </div>`;
+}
+
 function showReelLiveView() {
   const live = document.getElementById('reel-view-live');
   const hist = document.getElementById('reel-view-history');
@@ -190,7 +234,11 @@ function showReelHistoryView(dateKey, snap) {
 
   const histData = snap.data;
   const max = Math.max(...histData.map(r => r.count), 1);
+  // Opening vs closing stock summary for the day
+  const summary = document.createElement('div');
+  summary.innerHTML = _openCloseSummaryHtml(dateKey, snap);
   listEl.innerHTML = '';
+  listEl.appendChild(summary);
   histData.forEach(r => {
     const status    = getReelStatusFromData(r, histData);
     const pct       = Math.round((r.count / max) * 100);

@@ -3,23 +3,27 @@
 // Static shell: cache-first with background refresh.
 // Google APIs / Apps Script: network-only (live data must be live).
 // ══════════════════════════════════════════════════════════════
-const CACHE = 'mi-factory-os-v3';
+const CACHE = 'mi-factory-os-v4';
 const SHELL = [
   './', './index.html', './staff.html', './css/style.css', './manifest.json',
-  './js/config.js', './js/auth.js', './js/app.js', './js/premium.js',
+  './js/config.js', './js/auth.js', './js/app.js',
   './js/orders.js', './js/reels.js', './js/clients.js', './js/calendar.js',
   './js/quotations.js', './js/reminders.js', './js/dashboard.js',
   './js/purchase.js', './js/receivables.js', './js/invoices.js',
   './js/production-plan.js', './js/analytics.js', './js/dispatch.js',
   './js/dispatch-pdf.js', './js/challan.js', './js/job-card.js',
   './js/whatsapp-import.js', './js/tally-sync.js', './js/prod-learning.js',
-  './js/date-picker.js', './js/staff-app.js',
-  './js/deckle.js', './js/job-costing.js', './js/pipeline-board.js',
+  './js/delivery-learning.js', './js/date-picker.js', './js/staff-app.js',
   './icons/icon-192.png', './icons/icon-512.png'
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // Cache each shell file individually so one missing file can't abort the whole install
+  e.waitUntil(
+    caches.open(CACHE)
+      .then(c => Promise.all(SHELL.map(u => c.add(u).catch(() => {}))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', e => {

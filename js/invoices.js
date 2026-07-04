@@ -18,16 +18,29 @@ function generateInvoiceId() {
   return 'INV' + String(max + 1).padStart(3, '0');
 }
 
-// Sum of all qty items invoiced against a specific order
+// Sum of all qty invoiced against a specific order (per-item orderId links, with
+// legacy fallback to the old whole-invoice orderId field)
 function getInvoicedQty(orderId) {
-  return invoiceList
-    .filter(inv => inv.orderId === orderId)
-    .reduce((sum, inv) => sum + (inv.items || []).reduce((s, item) => s + (item.qty || 0), 0), 0);
+  return invoiceList.reduce((sum, inv) => {
+    return sum + (inv.items || []).reduce((s, item) => {
+      const itemOrder = item.orderId || (inv.orderId || null);
+      return s + (itemOrder === orderId ? (item.qty || 0) : 0);
+    }, 0);
+  }, 0);
+}
+
+// How many units of an order are still available to invoice
+function orderRemainingToInvoice(o) {
+  if (!o) return 0;
+  const dispatched = typeof getDispatchedQty === 'function' ? getDispatchedQty(o.id) : (o.qty || 0);
+  const base       = dispatched > 0 ? dispatched : (o.qty || 0); // fall back to ordered qty if nothing dispatched yet
+  return Math.max(0, base - getInvoicedQty(o.id));
 }
 
 // ── Create Invoice Modal ──
-let _ciItems   = [];
-let _ciOrderId = null; // auto-matched order ID
+// Each item row: { desc, qty, rate, orderId }  — orderId links the row to an order
+let _ciItems     = [];
+let _ciEditingId = null; // set when editing an existing invoice
 
 // Backward-compat: called from order history rows
 function openInvoice(orderId) {
@@ -35,20 +48,17 @@ function openInvoice(orderId) {
 }
 
 function openCreateInvoiceForm(orderId) {
-  _ciItems   = [];
-  _ciOrderId = null;
+  _ciItems = [];
+  _ciEditingId = null;
   const overlay = document.getElementById('create-invoice-overlay');
   if (!overlay) return;
 
-  // Clear form fields
-  const partyEl   = document.getElementById('ci-party');
-  const productEl = document.getElementById('ci-product');
-  const matchedEl = document.getElementById('ci-order-matched');
-  if (partyEl)   partyEl.value   = '';
-  if (productEl) productEl.value = '';
-  if (matchedEl) { matchedEl.style.display = 'none'; matchedEl.innerHTML = ''; }
+  const titleEl = document.querySelector('#create-invoice-overlay .popup-title');
+  if (titleEl) titleEl.textContent = '🧾 New Invoice';
 
-  // Today's date
+  const partyEl = document.getElementById('ci-party');
+  if (partyEl) partyEl.value = '';
+
   const dateEl = document.getElementById('ci-date');
   if (dateEl) dateEl.value = new Date().toISOString().slice(0, 10);
 
@@ -60,36 +70,52 @@ function openCreateInvoiceForm(orderId) {
 
   overlay.style.display = 'flex';
 
+  _ciItems = [{ desc: '', qty: '', rate: '', orderId: null }];
   if (orderId) {
-    selectInvoiceOrder(orderId);
-  } else {
-    _ciItems = [{ desc: '', qty: '', rate: '' }];
-    renderInvoiceItemRows();
-    recalcInvoiceTotals();
+    const o = typeof orders !== 'undefined' ? orders.find(x => x.id === orderId) : null;
+    if (o && partyEl && !partyEl.value) partyEl.value = o.customer || '';
+    if (o) _applyOrderToItem(0, o);
   }
+  renderInvoiceItemRows();
+  recalcInvoiceTotals();
 }
 
 function closeCreateInvoice() {
   const overlay = document.getElementById('create-invoice-overlay');
   if (overlay) overlay.style.display = 'none';
-  document.getElementById('ci-product-dropdown').style.display = 'none';
+  _hideAllItemDropdowns();
 }
 
-// ── Product search — fires on every keystroke in ci-product ──
 function onInvoicePartyChange() {
-  // Reset matched order when party changes
-  _ciOrderId = null;
-  const matchedEl = document.getElementById('ci-order-matched');
-  if (matchedEl) { matchedEl.style.display = 'none'; matchedEl.innerHTML = ''; }
-  _ciItems = [{ desc: '', qty: '', rate: '' }];
+  // Party changed — order matches may differ; clear any linked rows so nothing stale sticks
+  _ciItems.forEach(it => { if (it.orderId) { it.orderId = null; } });
   renderInvoiceItemRows();
   recalcInvoiceTotals();
 }
 
-function onInvoiceProductInput() {
-  const party    = (document.getElementById('ci-party')?.value    || '').toLowerCase().trim();
-  const product  = (document.getElementById('ci-product')?.value  || '').toLowerCase().trim();
-  const dropdown = document.getElementById('ci-product-dropdown');
+function _hideAllItemDropdowns() {
+  document.querySelectorAll('.ci-item-dd').forEach(dd => { dd.style.display = 'none'; });
+}
+
+// Fill item i from an order object
+function _applyOrderToItem(i, o) {
+  if (!_ciItems[i]) return;
+  const remaining = orderRemainingToInvoice(o);
+  _ciItems[i].desc    = [o.product || 'Corrugated Box', o.size, o.ply ? o.ply + ' Ply' : '', o.colour].filter(Boolean).join(' · ');
+  _ciItems[i].qty     = remaining > 0 ? remaining : '';
+  _ciItems[i].rate    = o.rate || '';
+  _ciItems[i].orderId = o.id;
+}
+
+// ── Per-row product search — fires on every keystroke in a row's product input ──
+function onInvoiceItemProductInput(i, val) {
+  if (!_ciItems[i]) return;
+  _ciItems[i].desc    = val;
+  _ciItems[i].orderId = null; // typing unlinks any previous match until re-picked
+
+  const party    = (document.getElementById('ci-party')?.value || '').toLowerCase().trim();
+  const product  = (val || '').toLowerCase().trim();
+  const dropdown = document.getElementById('ci-item-dd-' + i);
   if (!dropdown) return;
 
   if (!product) { dropdown.style.display = 'none'; return; }
@@ -104,63 +130,31 @@ function onInvoiceProductInput() {
 
   dropdown.style.display = 'block';
   dropdown.innerHTML = matches.map(o => {
-    const dispatched  = typeof getDispatchedQty === 'function' ? getDispatchedQty(o.id) : (o.qty || 0);
-    const invoiced    = getInvoicedQty(o.id);
-    const toInvoice   = Math.max(0, dispatched - invoiced);
-    const fullyDone   = toInvoice === 0;
+    const remaining = orderRemainingToInvoice(o);
+    const fullyDone = remaining === 0;
     return `
-    <div onclick="selectInvoiceOrder('${o.id}')"
-      style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);${fullyDone ? 'opacity:0.5' : ''}"
+    <div onclick="selectInvoiceItemOrder(${i}, '${o.id}')"
+      style="padding:9px 11px;cursor:pointer;border-bottom:1px solid var(--border);${fullyDone ? 'opacity:0.5' : ''}"
       onmouseover="this.style.background='var(--hover-bg,#f5f7fa)'" onmouseout="this.style.background=''">
       <div style="font-size:12px;font-weight:700">${o.customer} — ${o.product || '—'}</div>
-      <div style="font-size:11px;color:var(--muted)">${o.id} · ${[o.size, o.ply ? o.ply+' Ply':''].filter(Boolean).join(' · ')} · ${dispatched.toLocaleString('en-IN')} dispatched · <strong style="color:${toInvoice>0?'#B45309':'var(--success)'}">${toInvoice.toLocaleString('en-IN')} to invoice</strong></div>
+      <div style="font-size:11px;color:var(--muted)">${o.id} · ${[o.size, o.ply ? o.ply+' Ply':''].filter(Boolean).join(' · ')} · <strong style="color:${remaining>0?'#B45309':'var(--success)'}">${remaining.toLocaleString('en-IN')} to invoice</strong></div>
     </div>`;
   }).join('');
 }
 
-function selectInvoiceOrder(orderId) {
+function selectInvoiceItemOrder(i, orderId) {
   const o = typeof orders !== 'undefined' ? orders.find(x => x.id === orderId) : null;
   if (!o) return;
-
-  _ciOrderId = orderId;
-
-  // Hide dropdown
-  document.getElementById('ci-product-dropdown').style.display = 'none';
 
   // Pre-fill party if empty
   const partyEl = document.getElementById('ci-party');
   if (partyEl && !partyEl.value) partyEl.value = o.customer || '';
 
-  // Show matched chip
-  const dispatched = typeof getDispatchedQty === 'function' ? getDispatchedQty(o.id) : (o.qty || 0);
-  const invoiced   = getInvoicedQty(orderId);
-  const toInvoice  = Math.max(0, dispatched - invoiced);
-  const matchedEl  = document.getElementById('ci-order-matched');
-  if (matchedEl) {
-    matchedEl.style.display = 'flex';
-    matchedEl.style.alignItems = 'center';
-    matchedEl.style.justifyContent = 'space-between';
-    matchedEl.style.gap = '8px';
-    matchedEl.innerHTML = `
-      <span>✅ Order <strong>${o.id}</strong> · ${o.customer} · ${dispatched.toLocaleString('en-IN')} dispatched · <strong>${toInvoice.toLocaleString('en-IN')} to invoice</strong></span>
-      <button onclick="_ciOrderId=null;const m=document.getElementById('ci-order-matched');m.style.display='none';m.innerHTML='';"
-        style="background:none;border:none;cursor:pointer;font-size:16px;color:#15803D;flex-shrink:0">×</button>`;
-  }
-
-  // Add item row — replace only if the first row is blank, otherwise append
-  const desc = [o.product || 'Corrugated Box', o.size, o.ply ? o.ply + ' Ply' : '', o.colour].filter(Boolean).join(' · ');
-  const newRow = { desc, qty: toInvoice, rate: o.rate || '' };
-  if (_ciItems.length === 1 && !_ciItems[0].desc && !_ciItems[0].qty) {
-    _ciItems = [newRow];
-  } else {
-    _ciItems.push(newRow);
-  }
+  _applyOrderToItem(i, o);
+  const dd = document.getElementById('ci-item-dd-' + i);
+  if (dd) dd.style.display = 'none';
   renderInvoiceItemRows();
   recalcInvoiceTotals();
-
-  // Clear product field so user can search again for another item
-  const productEl = document.getElementById('ci-product');
-  if (productEl) { productEl.value = ''; productEl.focus(); }
 }
 
 function renderInvoiceItemRows() {
@@ -168,26 +162,39 @@ function renderInvoiceItemRows() {
   if (!container) return;
 
   container.innerHTML = `
-    <div style="display:grid;grid-template-columns:2fr 80px 90px 90px 28px;gap:6px;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px;padding:0 2px">
-      <div>Description</div><div>Qty</div><div>Rate (₹)</div><div>Amount</div><div></div>
+    <div style="display:grid;grid-template-columns:2fr 80px 90px 88px 24px;gap:6px;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px;padding:0 2px">
+      <div>Product / Description</div><div>Qty</div><div>Rate (₹)</div><div>Amount</div><div></div>
     </div>` +
-    _ciItems.map((item, i) => `
-    <div style="display:grid;grid-template-columns:2fr 80px 90px 90px 28px;gap:6px;margin-bottom:6px;align-items:center">
-      <input class="form-input" type="text" placeholder="e.g. Corrugated Box 20×14×28" value="${(item.desc || '').replace(/"/g,'&quot;')}"
-        style="font-size:12px;padding:6px 8px" oninput="_ciItems[${i}].desc=this.value">
+    _ciItems.map((item, i) => {
+      const linked = item.orderId
+        ? `<div style="font-size:10px;color:#15803D;margin-top:3px;display:flex;align-items:center;gap:4px;white-space:nowrap">
+             ✅ <strong>${item.orderId}</strong> · deducts + marks Delivered
+             <button onclick="_ciItems[${i}].orderId=null;renderInvoiceItemRows()" title="Unlink" style="background:none;border:none;cursor:pointer;color:#15803D;font-size:13px;line-height:1">×</button>
+           </div>`
+        : '';
+      return `
+    <div style="display:grid;grid-template-columns:2fr 80px 90px 88px 24px;gap:6px;margin-bottom:8px;align-items:start">
+      <div style="position:relative">
+        <input class="form-input" type="text" placeholder="Type product to find order…" value="${(item.desc || '').replace(/"/g,'&quot;')}"
+          autocomplete="off" style="font-size:12px;padding:6px 8px;${item.orderId ? 'border-color:#86EFAC;background:#F0FDF4' : ''}"
+          oninput="onInvoiceItemProductInput(${i}, this.value)">
+        <div id="ci-item-dd-${i}" class="ci-item-dd" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;max-height:200px;overflow-y:auto;z-index:${200 - i};box-shadow:0 6px 20px rgba(0,0,0,0.15)"></div>
+        ${linked}
+      </div>
       <input class="form-input" type="number" placeholder="0" value="${item.qty !== '' ? item.qty : ''}"
         style="font-size:12px;padding:6px 8px" oninput="_ciItems[${i}].qty=+this.value||0;recalcInvoiceTotals()">
       <input class="form-input" type="number" placeholder="0.00" step="0.01" value="${item.rate !== '' ? item.rate : ''}"
         style="font-size:12px;padding:6px 8px" oninput="_ciItems[${i}].rate=+this.value||0;recalcInvoiceTotals()">
       <div style="font-size:12px;font-weight:700;padding:6px 0;text-align:right">₹${(+(item.qty||0) * +(item.rate||0)).toFixed(2)}</div>
       ${_ciItems.length > 1
-        ? `<button onclick="removeInvoiceItem(${i})" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--danger);line-height:1">×</button>`
+        ? `<button onclick="removeInvoiceItem(${i})" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--danger);line-height:1;padding:4px 0">×</button>`
         : '<div></div>'}
-    </div>`).join('');
+    </div>`;
+    }).join('');
 }
 
 function addInvoiceItemRow() {
-  _ciItems.push({ desc: '', qty: '', rate: '' });
+  _ciItems.push({ desc: '', qty: '', rate: '', orderId: null });
   renderInvoiceItemRows();
   recalcInvoiceTotals();
 }
@@ -199,77 +206,143 @@ function removeInvoiceItem(i) {
 }
 
 function recalcInvoiceTotals() {
-  const subtotal = _ciItems.reduce((s, item) => s + +(item.qty || 0) * +(item.rate || 0), 0);
-  const gstPct   = parseFloat(document.getElementById('ci-gst')?.value) || 0;
-  const gstAmt   = subtotal * gstPct / 100;
-  const total    = subtotal + gstAmt;
-  const fmt2     = n => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-  const sub = document.getElementById('ci-subtotal');
-  const gl  = document.getElementById('ci-gst-label');
-  const ga  = document.getElementById('ci-gst-amt');
-  const tot = document.getElementById('ci-total');
-  if (sub) sub.textContent = '₹' + fmt2(subtotal);
-  if (gl)  gl.textContent  = `GST (${gstPct}%)`;
-  if (ga)  ga.textContent  = '₹' + fmt2(gstAmt);
+  const total = _ciItems.reduce((s, item) => s + +(item.qty || 0) * +(item.rate || 0), 0);
+  const fmt2  = n => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const tot   = document.getElementById('ci-total');
   if (tot) tot.textContent = '₹' + fmt2(total);
 }
 
 function _buildInvoiceRecord() {
   const party   = (document.getElementById('ci-party')?.value || '').trim();
   const dateVal = document.getElementById('ci-date')?.value || new Date().toISOString().slice(0, 10);
-  const orderId = _ciOrderId || null;
-  const gstPct  = parseFloat(document.getElementById('ci-gst')?.value) || 0;
-  // If user typed in product field but items row is blank, use product field as desc
-  const productVal = (document.getElementById('ci-product')?.value || '').trim();
-  if (productVal && _ciItems.length === 1 && !_ciItems[0].desc) {
-    _ciItems[0].desc = productVal;
-    renderInvoiceItemRows();
-  }
 
-  const items   = _ciItems.filter(item => item.desc && +(item.qty || 0) > 0);
+  const items = _ciItems.filter(item => item.desc && +(item.qty || 0) > 0);
 
   if (!party)        { alert('Please enter party name.'); return null; }
-  if (!items.length) { alert('Please add at least one item with a description and qty > 0.'); return null; }
+  if (!items.length) { alert('Please add at least one item with a product name and qty > 0.'); return null; }
 
-  const subtotal = items.reduce((s, i) => s + +(i.qty) * +(i.rate || 0), 0);
-  const gstAmt   = subtotal * gstPct / 100;
-  const total    = subtotal + gstAmt;
+  const total = items.reduce((s, i) => s + +(i.qty) * +(i.rate || 0), 0);
+
+  // Primary orderId = first linked row (kept for backward-compat display in list/print)
+  const firstLinked = items.find(i => i.orderId);
 
   return {
     id:        generateInvoiceId(),
     party,
     date:      dateVal,
-    orderId:   orderId || null,
-    items:     items.map(i => ({ desc: i.desc, qty: +i.qty, rate: +(i.rate || 0), amount: +i.qty * +(i.rate || 0) })),
-    subtotal,
-    gstPct,
-    gstAmt,
+    orderId:   firstLinked ? firstLinked.orderId : null,
+    items:     items.map(i => ({ desc: i.desc, qty: +i.qty, rate: +(i.rate || 0), amount: +i.qty * +(i.rate || 0), orderId: i.orderId || null })),
+    subtotal:  total,
+    gstPct:    0,
+    gstAmt:    0,
     total,
     createdAt: new Date().toISOString(),
   };
 }
 
-function saveInvoiceOnly() {
+// Persist the built record — creating new or updating the one being edited.
+// Returns the saved invoice, or null on validation failure.
+function _persistInvoice() {
   const inv = _buildInvoiceRecord();
-  if (!inv) return;
-  invoiceList.unshift(inv);
+  if (!inv) return null;
+
+  if (_ciEditingId) {
+    const idx = invoiceList.findIndex(x => x.id === _ciEditingId);
+    if (idx >= 0) {
+      inv.id = _ciEditingId;                       // keep the original number
+      inv.createdAt = invoiceList[idx].createdAt;  // keep original timestamp
+      invoiceList[idx] = inv;
+    } else {
+      invoiceList.unshift(inv);
+    }
+  } else {
+    invoiceList.unshift(inv);
+  }
   saveInvoiceList();
+  _markInvoicedOrdersDelivered(inv);
+  return inv;
+}
+
+// Any order linked from this invoice's items is considered fully billed → Delivered.
+function _markInvoicedOrdersDelivered(inv) {
+  if (typeof orders === 'undefined') return;
+  const orderIds = [...new Set((inv.items || []).map(i => i.orderId).filter(Boolean))];
+  orderIds.forEach(oid => {
+    const o = orders.find(x => x.id === oid);
+    if (o && o.status !== 'Delivered' && o.status !== 'Cancelled') {
+      markOrderDelivered(o);
+    }
+  });
+}
+
+// Flip an order to Delivered — optimistic local update + push to the sheet.
+function markOrderDelivered(o) {
+  o.status = 'Delivered';
+  if (typeof recordDeliveredOrder === 'function') recordDeliveredOrder(o);
+  if (typeof recordDeliveryLead   === 'function') recordDeliveryLead(o);
+  try {
+    const d   = o.date ? new Date(o.date) : new Date();
+    const fmt = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+    const od  = o.orderDate ? new Date(o.orderDate) : d;
+    const fod = `${String(od.getDate()).padStart(2,'0')}/${String(od.getMonth()+1).padStart(2,'0')}/${od.getFullYear()}`;
+    fetch(APPS_SCRIPT_URL, {
+      method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'update', rowIndex: o.rowIndex, id: o.id, customer: o.customer,
+        product: o.product, size: o.size, ply: o.ply, colour: o.colour, weight: o.weight,
+        qty: o.qty, rate: o.rate, date: fmt, orderDate: fod, status: 'Delivered',
+        priority: o.priority, reelSize: o.reelSize, reservedKg: o.reservedKg || 0, remarks: '',
+      }),
+    }).catch(() => {});
+  } catch (e) { /* non-fatal */ }
+}
+
+function saveInvoiceOnly() {
+  const inv = _persistInvoice();
+  if (!inv) return;
+  const wasEditing = !!_ciEditingId;
   closeCreateInvoice();
   renderInvoicingPage();
   if (typeof renderOrders === 'function') renderOrders();
-  alert(`✅ ${inv.id} saved!`);
+  if (typeof updateDashboardOrders === 'function') updateDashboardOrders();
+  alert(`✅ ${inv.id} ${wasEditing ? 'updated' : 'saved'}!`);
 }
 
 function saveAndPrintInvoice() {
-  const inv = _buildInvoiceRecord();
+  const inv = _persistInvoice();
   if (!inv) return;
-  invoiceList.unshift(inv);
-  saveInvoiceList();
   closeCreateInvoice();
   renderInvoicingPage();
   if (typeof renderOrders === 'function') renderOrders();
+  if (typeof updateDashboardOrders === 'function') updateDashboardOrders();
   _populateInvoiceOverlay(inv);
+}
+
+// Re-open the create form pre-filled to edit an existing invoice
+function editInvoice(invId) {
+  const inv = invoiceList.find(i => i.id === invId);
+  if (!inv) return;
+  const overlay = document.getElementById('create-invoice-overlay');
+  if (!overlay) return;
+
+  _ciEditingId = invId;
+  _ciItems = (inv.items || []).map(i => ({ desc: i.desc, qty: i.qty, rate: i.rate, orderId: i.orderId || null }));
+  if (!_ciItems.length) _ciItems = [{ desc: '', qty: '', rate: '', orderId: null }];
+
+  const titleEl = document.querySelector('#create-invoice-overlay .popup-title');
+  if (titleEl) titleEl.textContent = `✏️ Edit Invoice ${inv.id}`;
+
+  const partyEl = document.getElementById('ci-party');
+  if (partyEl) partyEl.value = inv.party || '';
+  const dateEl = document.getElementById('ci-date');
+  if (dateEl) dateEl.value = inv.date || new Date().toISOString().slice(0, 10);
+
+  const dl = document.getElementById('ci-party-list');
+  if (dl && typeof CLIENTS !== 'undefined') dl.innerHTML = CLIENTS.map(c => `<option value="${c.name}">`).join('');
+
+  overlay.style.display = 'flex';
+  renderInvoiceItemRows();
+  recalcInvoiceTotals();
 }
 
 function _populateInvoiceOverlay(inv) {
@@ -300,10 +373,19 @@ function _populateInvoiceOverlay(inv) {
       <td style="padding:12px;text-align:right;font-size:13px;font-weight:600">₹${fmt2(item.amount)}</td>
     </tr>`).join('');
 
+  const hasGst = (inv.gstPct || 0) > 0;
   document.getElementById('inv-subtotal').textContent = '₹' + fmt2(inv.subtotal);
-  const gstLabelEl = document.getElementById('inv-gst-label');
-  if (gstLabelEl) gstLabelEl.textContent = `GST @ ${inv.gstPct}%`;
-  document.getElementById('inv-gst').textContent  = '₹' + fmt2(inv.gstAmt);
+  const gstRow      = document.getElementById('inv-gst-row');
+  const subtotalRow = document.getElementById('inv-subtotal-row');
+  const docTitle    = document.getElementById('inv-doc-title');
+  if (gstRow)      gstRow.style.display      = hasGst ? '' : 'none';
+  if (subtotalRow) subtotalRow.style.display = hasGst ? '' : 'none'; // no GST → subtotal == total, hide the duplicate line
+  if (docTitle)    docTitle.textContent      = hasGst ? 'TAX INVOICE' : 'INVOICE';
+  if (hasGst) {
+    const gstLabelEl = document.getElementById('inv-gst-label');
+    if (gstLabelEl) gstLabelEl.textContent = `GST @ ${inv.gstPct}%`;
+    document.getElementById('inv-gst').textContent = '₹' + fmt2(inv.gstAmt);
+  }
   document.getElementById('inv-total').textContent = '₹' + fmt2(inv.total);
   document.getElementById('inv-amount-words').textContent = amountToWords(Math.round(inv.total));
 
@@ -327,13 +409,10 @@ function closeInvoice() {
   document.getElementById('invoice-overlay').style.display = 'none';
 }
 
-// Close product dropdown on outside click
+// Close per-row product dropdowns on outside click
 document.addEventListener('click', e => {
-  const grp = document.getElementById('ci-product-group');
-  if (grp && !grp.contains(e.target)) {
-    const dd = document.getElementById('ci-product-dropdown');
-    if (dd) dd.style.display = 'none';
-  }
+  const table = document.getElementById('ci-items-table');
+  if (table && !table.contains(e.target)) _hideAllItemDropdowns();
 });
 
 // ── Print Invoice (new window) ──
@@ -385,22 +464,25 @@ function renderInvoicingPage() {
       : `<div class="card">
           <div class="card-body" style="padding:0">
             <div class="orders-table">
-              <div class="table-header" style="grid-template-columns:90px 110px 1.5fr 1fr 80px 100px 100px">
+              <div class="table-header" style="grid-template-columns:90px 100px 1.4fr 1fr 70px 100px 130px">
                 <div>Invoice #</div><div>Date</div><div>Party</div><div>Order</div><div>Qty</div><div>Total</div><div>Actions</div>
               </div>
               ${invoiceList.map(inv => {
                 const qty = (inv.items || []).reduce((s, i) => s + (i.qty || 0), 0);
                 const dateDisp = (() => { try { return new Date(inv.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }); } catch { return inv.date; } })();
+                const orderIds = [...new Set((inv.items || []).map(i => i.orderId).filter(Boolean))];
+                const orderLbl = orderIds.length ? orderIds.join(', ') : (inv.orderId || '—');
                 return `
-                <div class="table-row" style="grid-template-columns:90px 110px 1.5fr 1fr 80px 100px 100px">
+                <div class="table-row" style="grid-template-columns:90px 100px 1.4fr 1fr 70px 100px 130px">
                   <div style="font-family:monospace;font-size:12px;color:var(--navy);font-weight:700">${inv.id}</div>
                   <div style="font-size:12px">${dateDisp}</div>
                   <div style="font-size:12px;font-weight:600">${inv.party}</div>
-                  <div style="font-size:11px;font-family:monospace;color:var(--muted)">${inv.orderId || '—'}</div>
-                  <div style="font-size:12px">${qty.toLocaleString('en-IN')} pcs</div>
+                  <div style="font-size:11px;font-family:monospace;color:var(--muted)">${orderLbl}</div>
+                  <div style="font-size:12px">${qty.toLocaleString('en-IN')}</div>
                   <div style="font-size:12px;font-weight:700;color:var(--navy)">₹${fmt2(inv.total)}</div>
-                  <div style="display:flex;gap:6px;align-items:center">
-                    <button class="btn-secondary" style="font-size:10px;padding:3px 8px" onclick="reprintInvoice('${inv.id}')">🖨 Print</button>
+                  <div style="display:flex;gap:5px;align-items:center">
+                    <button class="btn-secondary" style="font-size:10px;padding:3px 7px" onclick="editInvoice('${inv.id}')" title="Edit">✏️</button>
+                    <button class="btn-secondary" style="font-size:10px;padding:3px 7px" onclick="reprintInvoice('${inv.id}')" title="Print">🖨</button>
                     <button style="background:none;border:none;cursor:pointer;font-size:15px;color:var(--danger)" onclick="deleteInvoice('${inv.id}')" title="Delete">🗑</button>
                   </div>
                 </div>`;
