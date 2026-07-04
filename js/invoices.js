@@ -142,17 +142,29 @@ function selectInvoiceOrder(orderId) {
   const matchedEl  = document.getElementById('ci-order-matched');
   if (matchedEl) {
     matchedEl.style.display = 'flex';
+    matchedEl.style.alignItems = 'center';
+    matchedEl.style.justifyContent = 'space-between';
+    matchedEl.style.gap = '8px';
     matchedEl.innerHTML = `
-      <span>✅ Order <strong>${o.id}</strong> · ${o.customer} · ${dispatched.toLocaleString('en-IN')} dispatched · <strong>${toInvoice.toLocaleString('en-IN')} remaining to invoice</strong></span>
-      <button onclick="_ciOrderId=null;document.getElementById('ci-order-matched').style.display='none';_ciItems=[{desc:'',qty:'',rate:''}];renderInvoiceItemRows();recalcInvoiceTotals();"
+      <span>✅ Order <strong>${o.id}</strong> · ${o.customer} · ${dispatched.toLocaleString('en-IN')} dispatched · <strong>${toInvoice.toLocaleString('en-IN')} to invoice</strong></span>
+      <button onclick="_ciOrderId=null;const m=document.getElementById('ci-order-matched');m.style.display='none';m.innerHTML='';"
         style="background:none;border:none;cursor:pointer;font-size:16px;color:#15803D;flex-shrink:0">×</button>`;
   }
 
-  // Pre-fill items
+  // Add item row — replace only if the first row is blank, otherwise append
   const desc = [o.product || 'Corrugated Box', o.size, o.ply ? o.ply + ' Ply' : '', o.colour].filter(Boolean).join(' · ');
-  _ciItems = [{ desc, qty: toInvoice, rate: o.rate || '' }];
+  const newRow = { desc, qty: toInvoice, rate: o.rate || '' };
+  if (_ciItems.length === 1 && !_ciItems[0].desc && !_ciItems[0].qty) {
+    _ciItems = [newRow];
+  } else {
+    _ciItems.push(newRow);
+  }
   renderInvoiceItemRows();
   recalcInvoiceTotals();
+
+  // Clear product field so user can search again for another item
+  const productEl = document.getElementById('ci-product');
+  if (productEl) { productEl.value = ''; productEl.focus(); }
 }
 
 function renderInvoiceItemRows() {
