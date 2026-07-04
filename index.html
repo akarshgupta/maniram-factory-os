@@ -1316,6 +1316,11 @@
           onkeydown="if(event.key==='Escape')closeProductModal()">
         <div class="field-hint">Width of paper roll used on the machine — check with supervisor</div>
       </div>
+      <div class="form-group">
+        <label class="form-label">Rate (₹/pc) <span style="font-size:10px;font-weight:400;color:var(--muted)">optional — auto-fills order form</span></label>
+        <input class="form-input" type="number" id="pm-rate" placeholder="e.g. 32.50" step="0.01"
+          onkeydown="if(event.key==='Escape')closeProductModal()">
+      </div>
       <div class="form-group" style="grid-column:span 2">
         <label class="form-label" style="margin-bottom:2px">Paper GSM — each layer, top to bottom</label>
         <div class="field-hint" style="margin-bottom:8px">GSM = grams per square metre, the paper thickness/density. Higher GSM = heavier paper. Ask purchasing for the GSM of each paper grade used.</div>

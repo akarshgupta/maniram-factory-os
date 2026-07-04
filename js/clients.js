@@ -478,6 +478,7 @@ function onProductChange() {
   document.getElementById('f-colour').value    = p.colour   || '';
   document.getElementById('f-weight').value    = p.weight   || '';
   document.getElementById('f-reel-size').value = p.reelSize || '';
+  if (p.rate) document.getElementById('f-rate').value = p.rate;
 
   checkStockForCurrentOrder();
 }
@@ -595,6 +596,8 @@ function openProductModal(ci, pi, callback) {
   document.getElementById('pm-colour').value   = p ? p.colour   : 'Red';
   document.getElementById('pm-weight').value   = p ? p.weight   : '';
   document.getElementById('pm-reelsize').value = p ? p.reelSize : '';
+  const pmRate = document.getElementById('pm-rate');
+  if (pmRate) pmRate.value = p ? (p.rate || '') : '';
   document.getElementById('product-modal-overlay').style.display = 'flex';
   updateGsmFields(p ? p.gsm : null);
   if (typeof convertSizeCmIn === 'function') convertSizeCmIn('pm-size', 'pm-size-in');
@@ -613,13 +616,14 @@ function saveProductModal() {
   const colour   = document.getElementById('pm-colour').value.trim();
   const weight   = document.getElementById('pm-weight').value.trim();
   const reelSize = document.getElementById('pm-reelsize').value.trim();
+  const rate     = document.getElementById('pm-rate')?.value.trim() || '';
   const layers   = PLY_LAYERS[parseInt(ply)] || PLY_LAYERS[3];
   const gsm      = layers.map((_, i) => parseInt(document.getElementById('pm-gsm-' + (i+1))?.value) || 0).filter(v => v > 0);
 
   if (!name) { document.getElementById('pm-name').focus(); return; }
   if (!size) { document.getElementById('pm-size').focus(); return; }
 
-  const product = { name, size, ply, colour, weight, reelSize, gsm };
+  const product = { name, size, ply, colour, weight, reelSize, rate, gsm };
   const ci      = _productModalCi;
 
   if (_productModalPi >= 0) {
