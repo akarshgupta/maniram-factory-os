@@ -978,6 +978,66 @@
   </div>
 </div>
 
+<!-- CREATE INVOICE MODAL -->
+<div class="popup-overlay" id="create-invoice-overlay" style="display:none" onclick="closeCreateInvoice()">
+  <div class="popup-box" style="width:min(700px,96vw);max-height:92vh;overflow-y:auto;padding:24px" onclick="event.stopPropagation()">
+    <div class="popup-title" style="margin-bottom:18px">🧾 New Invoice</div>
+
+    <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+      <div class="form-group">
+        <label class="form-label">Party Name *</label>
+        <input class="form-input" type="text" id="ci-party" placeholder="Customer / company name" list="ci-party-list" autocomplete="off">
+        <datalist id="ci-party-list"></datalist>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Invoice Date</label>
+        <input class="form-input" type="date" id="ci-date">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Link to Order <span style="font-size:10px;color:var(--muted)">(optional)</span></label>
+        <select class="form-select" id="ci-order-link" onchange="onInvoiceOrderLink()">
+          <option value="">— Standalone Invoice —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">GST %</label>
+        <select class="form-select" id="ci-gst" onchange="recalcInvoiceTotals()">
+          <option value="0">0% (Exempt / Composition)</option>
+          <option value="5" selected>5% (Corrugated boxes)</option>
+          <option value="12">12%</option>
+          <option value="18">18%</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Items -->
+    <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:8px">Items</div>
+    <div id="ci-items-table"></div>
+    <button class="btn-secondary" onclick="addInvoiceItemRow()" style="font-size:12px;margin-top:6px">+ Add Item</button>
+
+    <!-- Totals -->
+    <div style="display:flex;justify-content:flex-end;margin-top:16px">
+      <div style="min-width:260px;font-size:13px;border:1px solid var(--border);border-radius:8px;padding:12px 14px">
+        <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--muted)">Subtotal</span><span id="ci-subtotal" style="font-weight:700">₹0.00</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--muted)" id="ci-gst-label">GST (5%)</span><span id="ci-gst-amt" style="font-weight:700">₹0.00</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:15px;font-weight:800;color:var(--navy)">
+          <span>Total</span><span id="ci-total">₹0.00</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap">
+      <button class="btn-primary" onclick="saveAndPrintInvoice()">🖨 Save &amp; Print</button>
+      <button class="btn-primary" onclick="saveInvoiceOnly()" style="background:var(--success)">💾 Save Only</button>
+      <button class="btn-secondary" onclick="closeCreateInvoice()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- INVOICE MODAL -->
 <div id="invoice-overlay" onclick="closeInvoice()">
   <div id="invoice-box" onclick="event.stopPropagation()">
@@ -1028,7 +1088,7 @@
             <span id="inv-subtotal" style="font-family:monospace"></span>
           </div>
           <div class="invoice-totals-row">
-            <span style="color:#666">GST @ 18%</span>
+            <span style="color:#666" id="inv-gst-label">GST @ 5%</span>
             <span id="inv-gst" style="font-family:monospace"></span>
           </div>
           <div class="invoice-total-final">
