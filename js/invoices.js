@@ -94,6 +94,66 @@ function printInvoice() {
   win.print();
 }
 
+// ── Invoicing Page ──
+function renderInvoicingPage() {
+  const el = document.getElementById('invoicing-page-content');
+  if (!el) return;
+
+  const dispatchedOrders = (typeof orders !== 'undefined' ? orders : [])
+    .filter(o => ['Dispatched', 'Delivered'].includes(o.status))
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  const allOrders = (typeof orders !== 'undefined' ? orders : [])
+    .filter(o => o.status !== 'Cancelled')
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  if (!allOrders.length) {
+    el.innerHTML = '<div class="empty-state">No orders found. Orders sync from Google Sheets.</div>';
+    return;
+  }
+
+  const invoicedCount = Object.keys(invoiceRegistry).length;
+  const readyCount    = dispatchedOrders.length;
+
+  el.innerHTML = `
+    <div class="grid-4" style="margin-bottom:16px">
+      <div class="stat-card good"><div class="stat-label">Dispatched / Delivered</div><div class="stat-value" style="color:var(--success)">${readyCount}</div><div class="stat-sub">Ready to invoice</div></div>
+      <div class="stat-card info"><div class="stat-label">Invoices Generated</div><div class="stat-value">${invoicedCount}</div><div class="stat-sub">In this session</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div style="font-size:13px;font-weight:700;color:var(--navy)">All Orders</div></div>
+      <div class="card-body" style="padding:0">
+        <div class="orders-table">
+          <div class="table-header" style="grid-template-columns:1fr 2fr 1fr 1fr 1fr 120px">
+            <div>Order ID</div><div>Customer · Product</div><div>Qty</div><div>Rate</div><div>Status</div><div>Invoice</div>
+          </div>
+          ${allOrders.map(o => {
+            const invNum  = invoiceRegistry[o.id] || '';
+            const subtotal = (o.qty || 0) * (o.rate || 0);
+            const canInv  = ['Dispatched','Delivered','Active','Ready'].includes(o.status);
+            return `
+            <div class="table-row" style="grid-template-columns:1fr 2fr 1fr 1fr 1fr 120px">
+              <div style="font-family:monospace;font-size:12px">${o.id || '—'}</div>
+              <div>
+                <div style="font-size:12px;font-weight:600">${o.customer || '—'}</div>
+                <div style="font-size:11px;color:var(--muted)">${[o.product, o.size, o.ply ? o.ply+'ply':'']. filter(Boolean).join(' · ')}</div>
+              </div>
+              <div style="font-size:12px">${(o.qty||0).toLocaleString('en-IN')} pcs</div>
+              <div style="font-size:12px">${o.rate ? '₹'+o.rate.toFixed(2) : '—'}</div>
+              <div><span style="font-size:11px;padding:2px 8px;border-radius:20px;background:var(--card-bg);border:1px solid var(--border)">${o.status}</span></div>
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                ${invNum ? `<span style="font-size:10px;font-family:monospace;color:var(--success)">${invNum}</span>` : ''}
+                ${canInv ? `<button class="btn-primary" style="font-size:10px;padding:4px 8px" onclick="openInvoice('${o.id}')">🖨 ${invNum ? 'Reprint' : 'Invoice'}</button>` : ''}
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 // ── Number to Words (Indian format) ──
 function amountToWords(amount) {
   if (amount === null || amount === undefined || isNaN(amount)) return '';

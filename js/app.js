@@ -25,6 +25,8 @@ const pageTitles = {
   receivables: '💰 Receivables',
   tally:       '📊 Tally Sync',
   analytics:   '📊 Analytics',
+  ratecalc:    '📐 Rate Calculator',
+  invoicing:   '🧾 Invoicing',
 };
 
 function showPage(id) {
@@ -46,6 +48,8 @@ function showPage(id) {
   if (id === 'receivables') renderReceivables();
   if (id === 'tally')       fetchTallySync();
   if (id === 'analytics')   renderAnalytics();
+  if (id === 'ratecalc')    { onPlyChange(); renderQuotationsList(); }
+  if (id === 'invoicing')   renderInvoicingPage();
 }
 
 // ── Topbar Date ──
