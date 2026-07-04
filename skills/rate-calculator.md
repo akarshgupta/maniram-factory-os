@@ -1,5 +1,5 @@
 # Maniram Industries — Box Rate Calculator Skill
-## Version: 2.0 (webapp integrated)
+## Version: 2.1 (two-part rule + GST 5%)
 
 ## Purpose
 Calculate corrugated box weight and rate. Also powers webapp Rate Calculator + Quotations feature.
@@ -14,12 +14,24 @@ Calculate corrugated box weight and rate. Also powers webapp Rate Calculator + Q
 
 ## Sheet Size Formula ✅ CORRECT
 ```
-Sheet Length = (L + W) × 2 + 2        [always add 2" edge margin]
+Sheet Length = (L + W) × 2 + 2        [single piece — 2" edge margin]
 Sheet Width  = W + H + 0.5            [with margin — default]
            OR = W + H                  [without margin — sometimes]
 Area (sqm)   = (Sheet_L × Sheet_W) / 1550
 ```
 ⚠️ WRONG (old mistake): Sheet L = L+H, Sheet W = W+H
+
+## Two-Part / Pasting Machine Rule ✅ (machine width = 82")
+```
+5/7/9-ply: single-piece Sheet Length limit = 76"
+  → agar (L+W)×2+2 > 76 → box TWO PARTS mein banega
+  → stitching margin 2" DO baar → Sheet Length = (L+W)×2 + 4
+3-ply: single-piece up to 80" normal; 80–82" special case (tight, machine max)
+```
+Example: 26.5×18×16 (7-ply) → single = 91" > 76" → two-part → 93"
+
+## Notation Standard
+Sheet size ALWAYS reel-size (width) first: **34.5 × 93**, never 93×34.5.
 
 ## Reel Size Relationship
 Sheet Width = Reel Size the box will be made from.
@@ -40,7 +52,7 @@ Total Weight = sum of all layers      [grams]
 ## Rate Formula
 ```
 Amount (₹/box)  = (Total Weight / 1000) × Paper Rate
-Inc GST (18%)   = Amount × 1.18
+Inc GST (5%)    = Amount × 1.05   [Maniram standard — corrugated boxes]
 ```
 
 ## Example — 20×14×28", 3-ply, 100 GSM all layers
@@ -54,7 +66,7 @@ Flute   = 100×1.919×1.5 = 287.9 gm
 Liner 2 = 100×1.919     = 191.9 gm
 Total   = 671.8 gm
 
-@ ₹56/kg → ₹37.62/box → ₹44.39 inc GST
+@ ₹56/kg → ₹37.62/box → ₹39.50 inc GST (5%)
 ```
 
 ## Webapp Feature (quotations.js)
