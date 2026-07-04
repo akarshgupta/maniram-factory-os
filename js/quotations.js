@@ -4,6 +4,41 @@
 
 const LS_QUOTATIONS = 'mi_quotations_v1';
 let quotations = [];
+let rcUnit = 'inch'; // 'inch' | 'mm'
+
+// ── Unit toggle pill ──
+function setRcUnit(unit) {
+  rcUnit = unit;
+  const isMM = unit === 'mm';
+
+  const btnInch = document.getElementById('unit-btn-inch');
+  const btnMM   = document.getElementById('unit-btn-mm');
+  if (btnInch) { btnInch.style.background = isMM ? 'transparent' : 'var(--blue)'; btnInch.style.color = isMM ? 'var(--muted)' : '#fff'; }
+  if (btnMM)   { btnMM.style.background   = isMM ? 'var(--blue)' : 'transparent'; btnMM.style.color   = isMM ? '#fff' : 'var(--muted)'; }
+
+  document.querySelectorAll('.rc-unit-label').forEach(el => el.textContent = unit);
+
+  const fields = [
+    { id: 'rc-length',    phIn: 'e.g. 20',   phMM: 'e.g. 508',  stepIn: '0.1', stepMM: '1' },
+    { id: 'rc-width',     phIn: 'e.g. 14',   phMM: 'e.g. 355',  stepIn: '0.1', stepMM: '1' },
+    { id: 'rc-height',    phIn: 'e.g. 28',   phMM: 'e.g. 711',  stepIn: '0.1', stepMM: '1' },
+    { id: 'rc-reel-size', phIn: 'e.g. 42.5', phMM: 'e.g. 1080', stepIn: '0.5', stepMM: '5' },
+  ];
+  fields.forEach(f => {
+    const el = document.getElementById(f.id);
+    if (!el) return;
+    el.placeholder = isMM ? f.phMM : f.phIn;
+    el.step        = isMM ? f.stepMM : f.stepIn;
+  });
+
+  const ml = document.getElementById('rc-margin-label');
+  if (ml) ml.textContent = isMM
+    ? 'Add 12.7mm margin to sheet width (W+H+12.7mm)'
+    : 'Add 0.5" margin to sheet width (W+H+0.5)';
+
+  const res = document.getElementById('rc-result');
+  if (res) res.style.display = 'none';
+}
 
 // ── Load / Save ──
 function loadQuotations() {
@@ -65,11 +100,18 @@ function calcBoxWeight(L, W, H, layers, withMargin) {
 }
 
 function runRateCalculator() {
-  // Inputs
-  const L = parseFloat(document.getElementById('rc-length').value) || 0;
-  const W = parseFloat(document.getElementById('rc-width').value)  || 0;
-  const H = parseFloat(document.getElementById('rc-height').value) || 0;
-  const reelSize  = parseFloat(document.getElementById('rc-reel-size').value) || 0;
+  // Inputs (convert mm→inches if needed)
+  const isMM = rcUnit === 'mm';
+  const rawL = parseFloat(document.getElementById('rc-length').value) || 0;
+  const rawW = parseFloat(document.getElementById('rc-width').value)  || 0;
+  const rawH = parseFloat(document.getElementById('rc-height').value) || 0;
+  const rawReel = parseFloat(document.getElementById('rc-reel-size').value) || 0;
+
+  const L = isMM ? rawL / 25.4 : rawL;
+  const W = isMM ? rawW / 25.4 : rawW;
+  const H = isMM ? rawH / 25.4 : rawH;
+  const reelSize  = rawReel ? (isMM ? rawReel / 25.4 : rawReel) : 0;
+
   const paperRate = parseFloat(document.getElementById('rc-paper-rate').value) || 0;
   const withMargin = document.getElementById('rc-margin').checked;
   const plyCount   = parseInt(document.getElementById('rc-ply').value) || 5;
@@ -136,8 +178,15 @@ function runRateCalculator() {
     ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px 12px;border-radius:8px;background:#FFF7E6;border:1px solid #F5C06B;font-size:12px"><span>⚠️</span><span><strong>Special case</strong> — 3-ply ${result.sheetL}" is above 80" (machine max 82"). Single-piece chalega par tight hai.</span></div>`
     : '';
 
+  const mmBanner = isMM ? `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:7px 12px;border-radius:8px;background:#EFF6FF;border:1px solid #BFDBFE;font-size:12px">
+      <span>🔄</span>
+      <span>Input (mm): <strong>${rawL} × ${rawW} × ${rawH} mm</strong> → converted to <strong>${L.toFixed(3)}" × ${W.toFixed(3)}" × ${H.toFixed(3)}"</strong> for calculation</span>
+    </div>` : '';
+
   box.innerHTML = `
     <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:10px;">📐 Calculation Result</div>
+    ${mmBanner}
     ${twoPartHTML}
     <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:10px;">
       <div><div style="font-size:11px;color:var(--muted)">Sheet Size (W × L)</div><div style="font-size:16px;font-weight:700">${result.sheetW} × ${result.sheetL}</div><div style="font-size:10px;color:var(--muted)">reel-size first</div></div>
@@ -162,8 +211,8 @@ function runRateCalculator() {
     </div>
   `;
 
-  // Store last calc for save/use
-  window._lastCalc = { L, W, H, reelSize, layers, plyCount, paperRate, withMargin, result, amtPerBox, amtGST };
+  // Store last calc for save/use (L/W/H always in inches)
+  window._lastCalc = { L, W, H, reelSize, layers, plyCount, paperRate, withMargin, result, amtPerBox, amtGST, unit: rcUnit, rawL, rawW, rawH };
 }
 
 // ── Fill GSM fields when ply changes or quick-fill ──

@@ -891,22 +891,31 @@
 
       <!-- Rate Calculator Form -->
       <div class="add-order-form" style="margin-bottom:16px">
-        <div class="form-title">📐 Box Rate Calculator</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+          <div class="form-title" style="margin-bottom:0">📐 Box Rate Calculator</div>
+          <!-- Unit toggle pill -->
+          <div style="display:inline-flex;background:var(--border);border-radius:20px;padding:2px;gap:0">
+            <button id="unit-btn-inch" onclick="setRcUnit('inch')"
+              style="padding:5px 18px;border:none;border-radius:18px;cursor:pointer;font-size:12px;font-weight:700;background:var(--blue);color:#fff;transition:all 0.2s">Inch</button>
+            <button id="unit-btn-mm" onclick="setRcUnit('mm')"
+              style="padding:5px 18px;border:none;border-radius:18px;cursor:pointer;font-size:12px;font-weight:700;background:transparent;color:var(--muted);transition:all 0.2s">mm</button>
+          </div>
+        </div>
         <div class="form-grid">
           <div class="form-group">
-            <label class="form-label">Length (inch)</label>
+            <label class="form-label">Length (<span class="rc-unit-label">inch</span>)</label>
             <input class="form-input" type="number" id="rc-length" placeholder="e.g. 20" step="0.1">
           </div>
           <div class="form-group">
-            <label class="form-label">Width (inch)</label>
+            <label class="form-label">Width (<span class="rc-unit-label">inch</span>)</label>
             <input class="form-input" type="number" id="rc-width" placeholder="e.g. 14" step="0.1">
           </div>
           <div class="form-group">
-            <label class="form-label">Height (inch)</label>
+            <label class="form-label">Height (<span class="rc-unit-label">inch</span>)</label>
             <input class="form-input" type="number" id="rc-height" placeholder="e.g. 28" step="0.1">
           </div>
           <div class="form-group">
-            <label class="form-label">Reel Size (inch) <span style="font-size:10px;color:var(--muted)">for validation</span></label>
+            <label class="form-label">Reel Size (<span class="rc-unit-label">inch</span>) <span style="font-size:10px;color:var(--muted)">for validation</span></label>
             <input class="form-input" type="number" id="rc-reel-size" placeholder="e.g. 42.5" step="0.5">
           </div>
           <div class="form-group">
@@ -939,7 +948,7 @@
         <!-- Margin toggle -->
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;font-size:13px">
           <input type="checkbox" id="rc-margin" checked>
-          <label for="rc-margin">Add 0.5" margin to sheet width (W+H+0.5)</label>
+          <label for="rc-margin" id="rc-margin-label">Add 0.5" margin to sheet width (W+H+0.5)</label>
         </div>
 
         <button class="btn-primary" onclick="runRateCalculator()">🧮 Calculate</button>
