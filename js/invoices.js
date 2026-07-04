@@ -124,10 +124,6 @@ function selectInvoiceOrder(orderId) {
 
   _ciOrderId = orderId;
 
-  // Update product input
-  const productEl = document.getElementById('ci-product');
-  if (productEl) productEl.value = o.product || '';
-
   // Hide dropdown
   document.getElementById('ci-product-dropdown').style.display = 'none';
 
