@@ -464,14 +464,10 @@ function switchOrderTab(tab, e) {
   document.getElementById('tab-all').style.display        = tab === 'all'        ? 'block' : 'none';
   document.getElementById('tab-grouped').style.display    = tab === 'grouped'    ? 'block' : 'none';
   document.getElementById('tab-reelmap').style.display    = tab === 'reelmap'    ? 'block' : 'none';
-  document.getElementById('tab-ratecalc').style.display   = tab === 'ratecalc'   ? 'block' : 'none';
-  document.getElementById('tab-quotations').style.display = tab === 'quotations' ? 'block' : 'none';
   document.getElementById('tab-challans').style.display   = tab === 'challans'   ? 'block' : 'none';
   document.getElementById('tab-history').style.display    = tab === 'history'    ? 'block' : 'none';
   if (tab === 'grouped')    renderGroupedOrders();
   if (tab === 'reelmap')    renderReelProductMap();
-  if (tab === 'ratecalc')   { onPlyChange(); }
-  if (tab === 'quotations') renderQuotationsList();
   if (tab === 'challans')   renderChallansTab();
   if (tab === 'history')    renderOrderHistory();
   // Show/hide search bar only for filterable tabs

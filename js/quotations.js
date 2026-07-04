@@ -168,18 +168,38 @@ function runRateCalculator() {
 
 // ── Fill GSM fields when ply changes or quick-fill ──
 function onPlyChange() {
-  const ply = parseInt(document.getElementById('rc-ply').value) || 5;
+  const ply = parseInt(document.getElementById('rc-ply')?.value) || 5;
   const container = document.getElementById('rc-gsm-layers');
-  const names = ply === 3
-    ? ['Liner 1', 'Flute 1', 'Liner 2']
-    : ['Liner 1', 'Flute 1', 'Liner 2', 'Flute 2', 'Liner 3'];
+  if (!container) return;
+
+  const layerNames = {
+    3: ['Liner 1', 'Flute 1', 'Liner 2'],
+    5: ['Liner 1', 'Flute 1', 'Liner 2', 'Flute 2', 'Liner 3'],
+    7: ['Liner 1', 'Flute 1', 'Liner 2', 'Flute 2', 'Liner 3', 'Flute 3', 'Liner 4'],
+    9: ['Liner 1', 'Flute 1', 'Liner 2', 'Flute 2', 'Liner 3', 'Flute 3', 'Liner 4', 'Flute 4', 'Liner 5'],
+  };
+  const names = layerNames[ply] || layerNames[5];
 
   container.innerHTML = names.map((name, i) => `
     <div class="form-group">
       <label class="form-label">${name} GSM</label>
-      <input class="form-input" type="number" id="rc-gsm-${i+1}" placeholder="e.g. 100" value="${document.getElementById(`rc-gsm-quick`)?.value || ''}">
+      <input class="form-input" type="number" id="rc-gsm-${i+1}" placeholder="e.g. 100" value="${document.getElementById('rc-gsm-quick')?.value || ''}">
     </div>
   `).join('');
+}
+
+// ── Inch ↔ mm Converter ──
+function convertUnits() {
+  const val = parseFloat(document.getElementById('conv-value')?.value);
+  const dir = document.getElementById('conv-direction')?.value;
+  const out = document.getElementById('conv-result');
+  if (!out) return;
+  if (isNaN(val) || !val) { out.textContent = '—'; return; }
+  if (dir === 'in-to-mm') {
+    out.textContent = (val * 25.4).toFixed(2) + ' mm';
+  } else {
+    out.textContent = (val / 25.4).toFixed(3) + ' in';
+  }
 }
 
 function quickFillGSM() {
@@ -201,6 +221,7 @@ function useInOrderForm() {
   document.getElementById('f-weight').value    = Math.round(c.result.totalWeight);
   if (c.reelSize) document.getElementById('f-reel-size').value = c.reelSize;
   if (c.amtPerBox) document.getElementById('f-rate').value = c.amtPerBox.toFixed(2);
+  showPage('orders');
   switchOrderTab('all');
   document.querySelector('.add-order-form').scrollIntoView({ behavior: 'smooth' });
   checkStockForCurrentOrder();
@@ -234,7 +255,8 @@ function saveAsQuotation() {
   quotations.unshift(qt);
   saveQuotations();
   renderQuotationsList();
-  switchOrderTab('quotations');
+  showPage('ratecalc');
+  document.getElementById('quotations-list')?.scrollIntoView({ behavior: 'smooth' });
   alert(`✅ ${qt.id} saved!`);
 }
 
@@ -291,6 +313,7 @@ function convertQuotation(id, mode) {
     if (q.ratePerBox) document.getElementById('f-rate').value   = q.ratePerBox;
     populateProductDropdown(q.customer);
     refreshOrderId();
+    showPage('orders');
     switchOrderTab('all');
     document.querySelector('.add-order-form').scrollIntoView({ behavior: 'smooth' });
     checkStockForCurrentOrder();
