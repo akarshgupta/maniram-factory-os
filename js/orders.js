@@ -497,14 +497,23 @@ function renderOrders() {
   activeOrders.forEach(o => {
     const dateDisp    = o.date ? new Date(o.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—';
     const dispatched  = typeof getDispatchedQty === 'function' ? getDispatchedQty(o.id) : 0;
+    const invoiced    = typeof getInvoicedQty   === 'function' ? getInvoicedQty(o.id)   : 0;
     const remaining   = Math.max(0, (o.qty || 0) - dispatched);
     const dispPct     = o.qty > 0 ? Math.min(100, Math.round((dispatched / o.qty) * 100)) : 0;
+    const invPct      = o.qty > 0 ? Math.min(100, Math.round((invoiced   / o.qty) * 100)) : 0;
     const dispBar     = o.qty > 0 && dispatched > 0 ? `
       <div style="margin-top:4px">
         <div style="background:#e5e7eb;border-radius:3px;height:5px;width:100%">
           <div style="background:${remaining === 0 ? 'var(--success)' : 'var(--blue)'};height:5px;border-radius:3px;width:${dispPct}%;transition:width 0.3s"></div>
         </div>
-        <div style="font-size:10px;color:var(--muted);margin-top:2px">${dispatched.toLocaleString('en-IN')} dispatched · <strong style="color:${remaining>0?'var(--danger)':'var(--success)'}">${remaining.toLocaleString('en-IN')} remaining</strong></div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">🚚 ${dispatched.toLocaleString('en-IN')} dispatched · <strong style="color:${remaining>0?'var(--danger)':'var(--success)'}">${remaining.toLocaleString('en-IN')} pending</strong></div>
+      </div>` : '';
+    const invBar      = o.qty > 0 && invoiced > 0 ? `
+      <div style="margin-top:3px">
+        <div style="background:#e5e7eb;border-radius:3px;height:4px;width:100%">
+          <div style="background:#0D9488;height:4px;border-radius:3px;width:${invPct}%;transition:width 0.3s"></div>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-top:1px">💵 ${invoiced.toLocaleString('en-IN')} invoiced${invoiced >= (o.qty||0) ? ' · <strong style="color:var(--success)">fully invoiced</strong>' : ''}</div>
       </div>` : '';
 
     const row      = document.createElement('div');
@@ -519,6 +528,7 @@ function renderOrders() {
         <div style="font-size:11px;color:var(--muted)">${o.product || '—'}${o.orderDate ? ' · <span style="color:var(--muted);font-size:10px">Ordered: ' + new Date(o.orderDate).toLocaleDateString('en-IN',{day:'numeric',month:'short'}) + '</span>' : ''}</div>
         ${stockBadgeHtml(o)}
         ${dispBar}
+        ${invBar}
       </div>
       <div style="font-size:12px;font-family:monospace">${o.size || '—'}</div>
       <div style="font-size:12px">${colourDot(o.colour)}${o.colour || '—'}</div>

@@ -891,22 +891,31 @@
 
       <!-- Rate Calculator Form -->
       <div class="add-order-form" style="margin-bottom:16px">
-        <div class="form-title">📐 Box Rate Calculator</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+          <div class="form-title" style="margin-bottom:0">📐 Box Rate Calculator</div>
+          <!-- Unit toggle pill -->
+          <div style="display:inline-flex;background:var(--border);border-radius:20px;padding:2px;gap:0">
+            <button id="unit-btn-inch" onclick="setRcUnit('inch')"
+              style="padding:5px 18px;border:none;border-radius:18px;cursor:pointer;font-size:12px;font-weight:700;background:var(--blue);color:#fff;transition:all 0.2s">Inch</button>
+            <button id="unit-btn-mm" onclick="setRcUnit('mm')"
+              style="padding:5px 18px;border:none;border-radius:18px;cursor:pointer;font-size:12px;font-weight:700;background:transparent;color:var(--muted);transition:all 0.2s">mm</button>
+          </div>
+        </div>
         <div class="form-grid">
           <div class="form-group">
-            <label class="form-label">Length (inch)</label>
+            <label class="form-label">Length (<span class="rc-unit-label">inch</span>)</label>
             <input class="form-input" type="number" id="rc-length" placeholder="e.g. 20" step="0.1">
           </div>
           <div class="form-group">
-            <label class="form-label">Width (inch)</label>
+            <label class="form-label">Width (<span class="rc-unit-label">inch</span>)</label>
             <input class="form-input" type="number" id="rc-width" placeholder="e.g. 14" step="0.1">
           </div>
           <div class="form-group">
-            <label class="form-label">Height (inch)</label>
+            <label class="form-label">Height (<span class="rc-unit-label">inch</span>)</label>
             <input class="form-input" type="number" id="rc-height" placeholder="e.g. 28" step="0.1">
           </div>
           <div class="form-group">
-            <label class="form-label">Reel Size (inch) <span style="font-size:10px;color:var(--muted)">for validation</span></label>
+            <label class="form-label">Reel Size (<span class="rc-unit-label">inch</span>) <span style="font-size:10px;color:var(--muted)">for validation</span></label>
             <input class="form-input" type="number" id="rc-reel-size" placeholder="e.g. 42.5" step="0.5">
           </div>
           <div class="form-group">
@@ -939,7 +948,7 @@
         <!-- Margin toggle -->
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;font-size:13px">
           <input type="checkbox" id="rc-margin" checked>
-          <label for="rc-margin">Add 0.5" margin to sheet width (W+H+0.5)</label>
+          <label for="rc-margin" id="rc-margin-label">Add 0.5" margin to sheet width (W+H+0.5)</label>
         </div>
 
         <button class="btn-primary" onclick="runRateCalculator()">🧮 Calculate</button>
@@ -966,6 +975,66 @@
       <div id="invoicing-page-content"><div class="empty-state">Loading orders...</div></div>
     </div><!-- /page-invoicing -->
 
+  </div>
+</div>
+
+<!-- CREATE INVOICE MODAL -->
+<div class="popup-overlay" id="create-invoice-overlay" style="display:none" onclick="closeCreateInvoice()">
+  <div class="popup-box" style="width:min(700px,96vw);max-height:92vh;overflow-y:auto;padding:24px" onclick="event.stopPropagation()">
+    <div class="popup-title" style="margin-bottom:18px">🧾 New Invoice</div>
+
+    <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+      <div class="form-group">
+        <label class="form-label">Party Name *</label>
+        <input class="form-input" type="text" id="ci-party" placeholder="Customer / company name" list="ci-party-list" autocomplete="off">
+        <datalist id="ci-party-list"></datalist>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Invoice Date</label>
+        <input class="form-input" type="date" id="ci-date">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Link to Order <span style="font-size:10px;color:var(--muted)">(optional)</span></label>
+        <select class="form-select" id="ci-order-link" onchange="onInvoiceOrderLink()">
+          <option value="">— Standalone Invoice —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">GST %</label>
+        <select class="form-select" id="ci-gst" onchange="recalcInvoiceTotals()">
+          <option value="0">0% (Exempt / Composition)</option>
+          <option value="5" selected>5% (Corrugated boxes)</option>
+          <option value="12">12%</option>
+          <option value="18">18%</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Items -->
+    <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:8px">Items</div>
+    <div id="ci-items-table"></div>
+    <button class="btn-secondary" onclick="addInvoiceItemRow()" style="font-size:12px;margin-top:6px">+ Add Item</button>
+
+    <!-- Totals -->
+    <div style="display:flex;justify-content:flex-end;margin-top:16px">
+      <div style="min-width:260px;font-size:13px;border:1px solid var(--border);border-radius:8px;padding:12px 14px">
+        <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--muted)">Subtotal</span><span id="ci-subtotal" style="font-weight:700">₹0.00</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--muted)" id="ci-gst-label">GST (5%)</span><span id="ci-gst-amt" style="font-weight:700">₹0.00</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:15px;font-weight:800;color:var(--navy)">
+          <span>Total</span><span id="ci-total">₹0.00</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap">
+      <button class="btn-primary" onclick="saveAndPrintInvoice()">🖨 Save &amp; Print</button>
+      <button class="btn-primary" onclick="saveInvoiceOnly()" style="background:var(--success)">💾 Save Only</button>
+      <button class="btn-secondary" onclick="closeCreateInvoice()">Cancel</button>
+    </div>
   </div>
 </div>
 
@@ -1019,7 +1088,7 @@
             <span id="inv-subtotal" style="font-family:monospace"></span>
           </div>
           <div class="invoice-totals-row">
-            <span style="color:#666">GST @ 18%</span>
+            <span style="color:#666" id="inv-gst-label">GST @ 5%</span>
             <span id="inv-gst" style="font-family:monospace"></span>
           </div>
           <div class="invoice-total-final">
