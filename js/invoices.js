@@ -26,7 +26,8 @@ function getInvoicedQty(orderId) {
 }
 
 // ── Create Invoice Modal ──
-let _ciItems = [];
+let _ciItems   = [];
+let _ciOrderId = null; // auto-matched order ID
 
 // Backward-compat: called from order history rows
 function openInvoice(orderId) {
@@ -34,9 +35,18 @@ function openInvoice(orderId) {
 }
 
 function openCreateInvoiceForm(orderId) {
-  _ciItems = [];
+  _ciItems   = [];
+  _ciOrderId = null;
   const overlay = document.getElementById('create-invoice-overlay');
   if (!overlay) return;
+
+  // Clear form fields
+  const partyEl   = document.getElementById('ci-party');
+  const productEl = document.getElementById('ci-product');
+  const matchedEl = document.getElementById('ci-order-matched');
+  if (partyEl)   partyEl.value   = '';
+  if (productEl) productEl.value = '';
+  if (matchedEl) { matchedEl.style.display = 'none'; matchedEl.innerHTML = ''; }
 
   // Today's date
   const dateEl = document.getElementById('ci-date');
@@ -48,22 +58,10 @@ function openCreateInvoiceForm(orderId) {
     dl.innerHTML = CLIENTS.map(c => `<option value="${c.name}">`).join('');
   }
 
-  // Order dropdown
-  const sel = document.getElementById('ci-order-link');
-  if (sel && typeof orders !== 'undefined') {
-    const activeOrders = orders
-      .filter(o => o.status !== 'Cancelled')
-      .sort((a, b) => (a.id || '').localeCompare(b.id || ''));
-    sel.innerHTML = '<option value="">— Standalone Invoice —</option>' +
-      activeOrders.map(o =>
-        `<option value="${o.id}" ${o.id === orderId ? 'selected' : ''}>${o.id} · ${o.customer} (${(o.qty || 0).toLocaleString('en-IN')} pcs)</option>`
-      ).join('');
-  }
-
   overlay.style.display = 'flex';
 
   if (orderId) {
-    _prefillFromOrder(orderId);
+    selectInvoiceOrder(orderId);
   } else {
     _ciItems = [{ desc: '', qty: '', rate: '' }];
     renderInvoiceItemRows();
@@ -74,31 +72,85 @@ function openCreateInvoiceForm(orderId) {
 function closeCreateInvoice() {
   const overlay = document.getElementById('create-invoice-overlay');
   if (overlay) overlay.style.display = 'none';
+  document.getElementById('ci-product-dropdown').style.display = 'none';
 }
 
-function onInvoiceOrderLink() {
-  const orderId = document.getElementById('ci-order-link')?.value;
-  if (orderId) {
-    _prefillFromOrder(orderId);
-  } else {
-    _ciItems = [{ desc: '', qty: '', rate: '' }];
-    renderInvoiceItemRows();
-    recalcInvoiceTotals();
-  }
+// ── Product search — fires on every keystroke in ci-product ──
+function onInvoicePartyChange() {
+  // Reset matched order when party changes
+  _ciOrderId = null;
+  const matchedEl = document.getElementById('ci-order-matched');
+  if (matchedEl) { matchedEl.style.display = 'none'; matchedEl.innerHTML = ''; }
+  _ciItems = [{ desc: '', qty: '', rate: '' }];
+  renderInvoiceItemRows();
+  recalcInvoiceTotals();
 }
 
-function _prefillFromOrder(orderId) {
+function onInvoiceProductInput() {
+  const party    = (document.getElementById('ci-party')?.value    || '').toLowerCase().trim();
+  const product  = (document.getElementById('ci-product')?.value  || '').toLowerCase().trim();
+  const dropdown = document.getElementById('ci-product-dropdown');
+  if (!dropdown) return;
+
+  if (!product) { dropdown.style.display = 'none'; return; }
+
+  const matches = (typeof orders !== 'undefined' ? orders : [])
+    .filter(o => o.status !== 'Cancelled')
+    .filter(o => !party || o.customer.toLowerCase().includes(party))
+    .filter(o => (o.product || '').toLowerCase().includes(product) || (o.size || '').toLowerCase().includes(product))
+    .slice(0, 8);
+
+  if (!matches.length) { dropdown.style.display = 'none'; return; }
+
+  dropdown.style.display = 'block';
+  dropdown.innerHTML = matches.map(o => {
+    const dispatched  = typeof getDispatchedQty === 'function' ? getDispatchedQty(o.id) : (o.qty || 0);
+    const invoiced    = getInvoicedQty(o.id);
+    const toInvoice   = Math.max(0, dispatched - invoiced);
+    const fullyDone   = toInvoice === 0;
+    return `
+    <div onclick="selectInvoiceOrder('${o.id}')"
+      style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);${fullyDone ? 'opacity:0.5' : ''}"
+      onmouseover="this.style.background='var(--hover-bg,#f5f7fa)'" onmouseout="this.style.background=''">
+      <div style="font-size:12px;font-weight:700">${o.customer} — ${o.product || '—'}</div>
+      <div style="font-size:11px;color:var(--muted)">${o.id} · ${[o.size, o.ply ? o.ply+' Ply':''].filter(Boolean).join(' · ')} · ${dispatched.toLocaleString('en-IN')} dispatched · <strong style="color:${toInvoice>0?'#B45309':'var(--success)'}">${toInvoice.toLocaleString('en-IN')} to invoice</strong></div>
+    </div>`;
+  }).join('');
+}
+
+function selectInvoiceOrder(orderId) {
   const o = typeof orders !== 'undefined' ? orders.find(x => x.id === orderId) : null;
   if (!o) return;
 
+  _ciOrderId = orderId;
+
+  // Update product input
+  const productEl = document.getElementById('ci-product');
+  if (productEl) productEl.value = o.product || '';
+
+  // Hide dropdown
+  document.getElementById('ci-product-dropdown').style.display = 'none';
+
+  // Pre-fill party if empty
   const partyEl = document.getElementById('ci-party');
   if (partyEl && !partyEl.value) partyEl.value = o.customer || '';
 
-  const alreadyInvoiced = getInvoicedQty(orderId);
-  const remaining = Math.max(0, (o.qty || 0) - alreadyInvoiced);
-  const desc = [o.product || 'Corrugated Box', o.size, o.ply ? o.ply + ' Ply' : '', o.colour].filter(Boolean).join(' · ');
+  // Show matched chip
+  const dispatched = typeof getDispatchedQty === 'function' ? getDispatchedQty(o.id) : (o.qty || 0);
+  const invoiced   = getInvoicedQty(orderId);
+  const toInvoice  = Math.max(0, dispatched - invoiced);
+  const matchedEl  = document.getElementById('ci-order-matched');
+  if (matchedEl) {
+    matchedEl.style.display = 'flex';
+    matchedEl.innerHTML = `
+      <span>✅ Order <strong>${o.id}</strong> · ${o.customer} · ${dispatched.toLocaleString('en-IN')} dispatched · <strong>${toInvoice.toLocaleString('en-IN')} remaining to invoice</strong></span>
+      <button onclick="_ciOrderId=null;document.getElementById('ci-order-matched').style.display='none';_ciItems=[{desc:'',qty:'',rate:''}];renderInvoiceItemRows();recalcInvoiceTotals();"
+        style="background:none;border:none;cursor:pointer;font-size:16px;color:#15803D;flex-shrink:0">×</button>`;
+  }
 
-  _ciItems = [{ desc, qty: remaining, rate: o.rate || '' }];
+  // Pre-fill items
+  const desc = [o.product || 'Corrugated Box', o.size, o.ply ? o.ply + ' Ply' : '', o.colour].filter(Boolean).join(' · ');
+  _ciItems = [{ desc, qty: toInvoice, rate: o.rate || '' }];
   renderInvoiceItemRows();
   recalcInvoiceTotals();
 }
@@ -158,8 +210,15 @@ function recalcInvoiceTotals() {
 function _buildInvoiceRecord() {
   const party   = (document.getElementById('ci-party')?.value || '').trim();
   const dateVal = document.getElementById('ci-date')?.value || new Date().toISOString().slice(0, 10);
-  const orderId = document.getElementById('ci-order-link')?.value || null;
+  const orderId = _ciOrderId || null;
   const gstPct  = parseFloat(document.getElementById('ci-gst')?.value) || 0;
+  // If user typed in product field but items row is blank, use product field as desc
+  const productVal = (document.getElementById('ci-product')?.value || '').trim();
+  if (productVal && _ciItems.length === 1 && !_ciItems[0].desc) {
+    _ciItems[0].desc = productVal;
+    renderInvoiceItemRows();
+  }
+
   const items   = _ciItems.filter(item => item.desc && +(item.qty || 0) > 0);
 
   if (!party)        { alert('Please enter party name.'); return null; }
@@ -259,6 +318,15 @@ function deleteInvoice(invId) {
 function closeInvoice() {
   document.getElementById('invoice-overlay').style.display = 'none';
 }
+
+// Close product dropdown on outside click
+document.addEventListener('click', e => {
+  const grp = document.getElementById('ci-product-group');
+  if (grp && !grp.contains(e.target)) {
+    const dd = document.getElementById('ci-product-dropdown');
+    if (dd) dd.style.display = 'none';
+  }
+});
 
 // ── Print Invoice (new window) ──
 function printInvoice() {
