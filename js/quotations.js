@@ -35,14 +35,22 @@ function generateQTId() {
 
 function calcBoxWeight(L, W, H, layers, withMargin) {
   // Sheet dimensions
-  const sheetL = (L + W) * 2 + 2;
+  const plyCount = layers.length;
+  const singleL  = (L + W) * 2 + 2;
+  // Pasting machine rule (machine width 82"):
+  //   5/7/9-ply: single-piece limit 76" — beyond that box is made in
+  //   TWO PARTS, stitching margin 2" applied twice → +4 instead of +2.
+  //   3-ply: single-piece up to 80" (special cases run up to 82").
+  const limit    = plyCount >= 5 ? 76 : 82;
+  const twoPart  = singleL > limit;
+  const special  = plyCount < 5 && singleL > 80 && singleL <= 82; // 3-ply special zone
+  const sheetL   = twoPart ? (L + W) * 2 + 4 : singleL;
   const sheetW = withMargin ? (W + H + 0.5) : (W + H);
   const areaSqm = (sheetL * sheetW) / 1550;
 
   // Layer weights: flat=liner, flute=medium (factor 1.5)
   // 5-ply: L1(flat), F1(flute), L2(flat), F2(flute), L3(flat)
   // 3-ply: L1(flat), F1(flute), L2(flat)
-  const plyCount = layers.length;
   let totalWeight = 0;
   const layerWeights = [];
 
@@ -53,7 +61,7 @@ function calcBoxWeight(L, W, H, layers, withMargin) {
     totalWeight += w;
   });
 
-  return { sheetL, sheetW, areaSqm, layerWeights, totalWeight, totalKg: totalWeight / 1000 };
+  return { sheetL, sheetW, areaSqm, layerWeights, totalWeight, totalKg: totalWeight / 1000, twoPart, special };
 }
 
 function runRateCalculator() {
@@ -82,8 +90,9 @@ function runRateCalculator() {
   const reelMatch = reelSize ? Math.abs(reelSize - result.sheetW) < 0.6 : null;
 
   // Rate
+  const GST_PCT   = 5; // Maniram standard — corrugated boxes
   const amtPerBox = paperRate ? result.totalKg * paperRate : null;
-  const amtGST    = amtPerBox ? amtPerBox * 1.18 : null;
+  const amtGST    = amtPerBox ? amtPerBox * (1 + GST_PCT / 100) : null;
 
   // Render result
   const box = document.getElementById('rc-result');
@@ -117,15 +126,22 @@ function runRateCalculator() {
       <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">Rate @ ₹${paperRate}/kg</div>
       <div style="display:flex;gap:24px;flex-wrap:wrap">
         <div><div style="font-size:11px;color:var(--muted)">Per Box (ex-GST)</div><div style="font-size:20px;font-weight:800;color:var(--navy)">₹${amtPerBox.toFixed(2)}</div></div>
-        <div><div style="font-size:11px;color:var(--muted)">Per Box (inc GST 18%)</div><div style="font-size:20px;font-weight:800;color:var(--blue)">₹${amtGST.toFixed(2)}</div></div>
+        <div><div style="font-size:11px;color:var(--muted)">Per Box (inc GST ${GST_PCT}%)</div><div style="font-size:20px;font-weight:800;color:var(--blue)">₹${amtGST.toFixed(2)}</div></div>
       </div>
     </div>` : '<div style="font-size:11px;color:var(--muted);margin-top:8px;">Enter paper rate to calculate box rate.</div>';
 
+  const twoPartHTML = result.twoPart
+    ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px 12px;border-radius:8px;background:#FFF7E6;border:1px solid #F5C06B;font-size:12px"><span>✂️</span><span><strong>Two-part box</strong> — sheet ${((L+W)*2+2)}" limit se bada, isliye 2 pieces + stitching margin ×2 (Sheet L = (L+W)×2+4)</span></div>`
+    : result.special
+    ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px 12px;border-radius:8px;background:#FFF7E6;border:1px solid #F5C06B;font-size:12px"><span>⚠️</span><span><strong>Special case</strong> — 3-ply ${result.sheetL}" is above 80" (machine max 82"). Single-piece chalega par tight hai.</span></div>`
+    : '';
+
   box.innerHTML = `
     <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:10px;">📐 Calculation Result</div>
-
+    ${twoPartHTML}
     <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:10px;">
-      <div><div style="font-size:11px;color:var(--muted)">Sheet Length</div><div style="font-size:16px;font-weight:700">${result.sheetL}"</div><div style="font-size:10px;color:var(--muted)">(${L}+${W})×2+2</div></div>
+      <div><div style="font-size:11px;color:var(--muted)">Sheet Size (W × L)</div><div style="font-size:16px;font-weight:700">${result.sheetW} × ${result.sheetL}</div><div style="font-size:10px;color:var(--muted)">reel-size first</div></div>
+      <div><div style="font-size:11px;color:var(--muted)">Sheet Length</div><div style="font-size:16px;font-weight:700">${result.sheetL}"</div><div style="font-size:10px;color:var(--muted)">(${L}+${W})×2+${result.twoPart ? '4 (two-part)' : '2'}</div></div>
       <div><div style="font-size:11px;color:var(--muted)">Sheet Width</div><div style="font-size:16px;font-weight:700">${result.sheetW}"</div><div style="font-size:10px;color:var(--muted)">${W}+${H}${withMargin?'+0.5':''}</div></div>
       <div><div style="font-size:11px;color:var(--muted)">Area</div><div style="font-size:16px;font-weight:700">${result.areaSqm.toFixed(4)} sqm</div></div>
     </div>
@@ -245,7 +261,7 @@ function renderQuotationsList() {
       <div class="card-body" style="padding-top:8px">
         <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:12px;margin-bottom:10px;">
           <div><span style="color:var(--muted)">Weight:</span> <strong>${q.weight} gm</strong></div>
-          <div><span style="color:var(--muted)">Sheet:</span> <strong>${q.sheetL}"×${q.sheetW}"</strong></div>
+          <div><span style="color:var(--muted)">Sheet:</span> <strong>${q.sheetW} × ${q.sheetL}</strong></div>
           ${q.reelSize ? `<div><span style="color:var(--muted)">Reel:</span> <strong>${q.reelSize}"</strong></div>` : ''}
           ${q.ratePerBox ? `<div><span style="color:var(--muted)">Rate:</span> <strong>₹${q.ratePerBox}/box</strong></div>` : ''}
           ${q.rateGST ? `<div><span style="color:var(--muted)">Inc GST:</span> <strong>₹${q.rateGST}/box</strong></div>` : ''}
