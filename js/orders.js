@@ -842,7 +842,36 @@ function showDeliverySuggestion(suggestion, reason, prodDays) {
         <div style="font-size:11px;color:var(--muted)">Production: ${prodDays} days${suggestion.reelArrival ? `<br>Reel arrives: ${formatDate(suggestion.reelArrival)}` : ''}</div>
         <button class="btn-primary" onclick="acceptSuggestion('${suggestion.date}')" style="padding:8px 16px;font-size:12px;">✅ Use This Date</button>
       </div>` : `<div style="font-size:13px;font-weight:600;color:var(--danger)">Cannot suggest a date. Please place a reel purchase order first.</div>`}
+    ${_learnedDeliveryHtml()}
   `;
+}
+
+// Historical lead-time insight, based on actual past deliveries for this client
+function _learnedDeliveryHtml() {
+  if (typeof getPredictedLeadDays !== 'function') return '';
+  const client   = (document.getElementById('f-customer')?.value || '').trim();
+  const priority = document.getElementById('f-priority')?.value || 'Normal';
+  const pred     = getPredictedLeadDays(client, priority);
+
+  if (!pred.ready) {
+    const s = pred.learning || { samples: 0, daysOfData: 0 };
+    const remain = Math.max(0, 15 - (s.daysOfData || 0));
+    return `<div style="margin-top:10px;padding-top:9px;border-top:1px dashed var(--border);font-size:11px;color:var(--muted)">
+      📚 Learning delivery times — ${s.samples} deliveries recorded over ${s.daysOfData} day(s).
+      ${remain > 0 ? `Predictions start in ~${remain} more day(s) of data.` : 'Almost ready.'}
+    </div>`;
+  }
+
+  const predicted = typeof addBusinessDays === 'function'
+    ? addBusinessDays(todayStr, pred.days)
+    : null;
+  return `<div style="margin-top:10px;padding-top:9px;border-top:1px dashed var(--border);font-size:12px;color:var(--text)">
+    📈 <strong>History says:</strong> similar orders (${pred.basedOn}) actually took
+    <strong>~${pred.days} day(s)</strong> to deliver
+    ${predicted ? `→ <strong style="font-family:monospace">${formatDate(predicted)}</strong>
+      <button class="btn-secondary" onclick="acceptSuggestion('${predicted}')" style="padding:4px 10px;font-size:11px;margin-left:6px">Use</button>` : ''}
+    <span style="color:var(--muted)"> (from ${pred.sampleSize} past deliveries)</span>
+  </div>`;
 }
 
 function acceptSuggestion(dateStr) {
