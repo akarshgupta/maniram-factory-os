@@ -23,8 +23,9 @@ var QUOTATIONS_SHEET_ID  = '';
 // ── Entry point ──
 function doPost(e) {
   try {
-    var data = JSON.parse(e.postData.contents);
-    var action = data.action;
+    var data         = JSON.parse(e.postData.contents);
+    var action       = data.action;
+    var responseData = {};
 
     if      (action === 'saveOrder')         saveOrder(data);
     else if (action === 'updateOrderStatus') updateOrderStatus(data);
@@ -37,6 +38,8 @@ function doPost(e) {
     else if (action === 'saveProdPerf')      saveProdPerf(data);
     else if (action === 'savePurchase')      savePurchase(data);
     else if (action === 'saveOverhead')      saveOverhead(data);
+    // ── Tally sync ──
+    else if (action === 'syncTally')         responseData = syncTallyData(data);
     // ── Separate finance sheets ──
     else if (action === 'saveInvoice')       saveInvoice(data);
     else if (action === 'deleteInvoice')     deleteFinanceRow(INVOICES_SHEET_ID, 'Invoices', data.id);
@@ -50,9 +53,13 @@ function doPost(e) {
     else if (action === 'deleteQuotation')   deleteFinanceRow(QUOTATIONS_SHEET_ID, 'Quotations', data.id);
     else if (action === 'createNotionPage')  { /* handled separately if needed */ }
 
-    return ContentService.createTextOutput('ok');
+    return ContentService
+      .createTextOutput(JSON.stringify(Object.assign({ success: true }, responseData)))
+      .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
-    return ContentService.createTextOutput('error: ' + err.toString());
+    return ContentService
+      .createTextOutput(JSON.stringify({ success: false, error: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
   }
 }
 
@@ -114,9 +121,9 @@ function deleteOrder(data) {
 // ══════════════════════════════════════════════════════════════
 
 function saveClient(data) {
-  var ss    = SpreadsheetApp.openById(ORDERS_SHEET_ID);
-  var sheet = ss.getSheetByName('Customers');
-  if (!sheet) { sheet = ss.insertSheet('Customers'); sheet.appendRow(['Name','Contact','Phone','City']); }
+  var ss    = SpreadsheetApp.openById(CUSTOMERS_SHEET_ID);
+  var sheet = ss.getSheetByName('Sheet1') || ss.getSheets()[0];
+  if (sheet.getLastRow() === 0) sheet.appendRow(['Name','Contact','Phone','City']);
 
   var rows       = sheet.getDataRange().getValues();
   var searchName = data.originalName || data.name;
@@ -134,10 +141,9 @@ function saveClient(data) {
 // ══════════════════════════════════════════════════════════════
 
 function saveProduct(data) {
-  var ss    = SpreadsheetApp.openById(ORDERS_SHEET_ID);
-  var sheet = ss.getSheetByName('Products');
-  if (!sheet) {
-    sheet = ss.insertSheet('Products');
+  var ss    = SpreadsheetApp.openById(PRODUCTS_SHEET_ID);
+  var sheet = ss.getSheetByName('Sheet1') || ss.getSheets()[0];
+  if (sheet.getLastRow() === 0) {
     sheet.appendRow(['ClientName','Product','Size','Ply','Colour','Weight','ReelSize',
                      'GSM1','GSM2','GSM3','GSM4','GSM5','GSM6','GSM7','GSM8','GSM9']);
   }
@@ -162,8 +168,8 @@ function saveProduct(data) {
 }
 
 function deleteProduct(data) {
-  var ss    = SpreadsheetApp.openById(ORDERS_SHEET_ID);
-  var sheet = ss.getSheetByName('Products');
+  var ss    = SpreadsheetApp.openById(PRODUCTS_SHEET_ID);
+  var sheet = ss.getSheetByName('Sheet1') || ss.getSheets()[0];
   if (!sheet) return;
   var rows = sheet.getDataRange().getValues();
   for (var i = rows.length - 1; i >= 1; i--) {
@@ -274,6 +280,83 @@ function saveOverhead(data) {
     }
   }
   sheet.appendRow(row);
+}
+
+// ══════════════════════════════════════════════════════════════
+// TALLY SYNC  →  ORDERS_SHEET_ID / "TallySync" tab
+// Called by scripts/fetch-tally.js running on the Tally PC.
+// Receives Sales vouchers, deduplicates, auto-matches to orders.
+// ══════════════════════════════════════════════════════════════
+
+var TALLY_SYNC_HEADERS = [
+  'SyncedAt','VoucherDate','Type','VoucherNo',
+  'Party','Amount','Narration','MatchedOrderID','MatchStatus'
+];
+
+function syncTallyData(data) {
+  var ss        = SpreadsheetApp.openById(ORDERS_SHEET_ID);
+  var syncSheet = ss.getSheetByName('TallySync');
+  if (!syncSheet) {
+    syncSheet = ss.insertSheet('TallySync');
+    syncSheet.appendRow(TALLY_SYNC_HEADERS);
+    syncSheet.setFrozenRows(1);
+    syncSheet.getRange(1, 1, 1, TALLY_SYNC_HEADERS.length).setFontWeight('bold').setBackground('#E8F0FE');
+  }
+
+  var ordersSheet = ss.getSheetByName('Orders');
+  var orderRows   = ordersSheet ? ordersSheet.getDataRange().getValues() : [];
+
+  // Load existing keys to prevent duplicates (VoucherDate|VoucherNo)
+  var existing   = syncSheet.getDataRange().getValues();
+  var syncedKeys = {};
+  for (var k = 1; k < existing.length; k++) {
+    syncedKeys[existing[k][1] + '|' + existing[k][3]] = true;
+  }
+
+  var vouchers = data.vouchers || [];
+  var matched  = 0, written = 0, skipped = 0;
+  var now = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'dd/MM/yyyy HH:mm');
+
+  for (var idx = 0; idx < vouchers.length; idx++) {
+    var v = vouchers[idx];
+
+    var key = (v.date || data.date) + '|' + (v.number || '');
+    if (syncedKeys[key]) { skipped++; continue; }
+
+    var matchedId   = '';
+    var matchStatus = 'Unmatched';
+    var partyLower  = (v.party || '').toLowerCase().trim();
+
+    // Fuzzy-match party name against order Customer column (col B = index 1)
+    for (var i = 1; i < orderRows.length; i++) {
+      var customer = (orderRows[i][1] || '').toLowerCase().trim();
+      if (!customer || !partyLower) continue;
+      var isMatch = customer === partyLower ||
+                    customer.indexOf(partyLower) >= 0 ||
+                    partyLower.indexOf(customer) >= 0;
+      if (isMatch) {
+        matchedId   = (orderRows[i][0] || '').toString();
+        matchStatus = 'Auto-matched';
+        matched++;
+        // Advance order to Dispatched if currently active
+        var curStatus = (orderRows[i][10] || '').toString();
+        if (curStatus === 'New' || curStatus === 'In Production' || curStatus === 'Ready') {
+          try { ordersSheet.getRange(i + 1, 11).setValue('Dispatched'); } catch (e) {}
+        }
+        break;
+      }
+    }
+
+    syncSheet.appendRow([
+      now, v.date || data.date, v.type || 'Sales',
+      v.number || '', v.party || '', v.amount || 0,
+      v.narration || '', matchedId, matchStatus
+    ]);
+    syncedKeys[key] = true;
+    written++;
+  }
+
+  return { matched: matched, written: written, skipped: skipped };
 }
 
 // ══════════════════════════════════════════════════════════════
