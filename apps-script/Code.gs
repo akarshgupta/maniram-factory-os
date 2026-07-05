@@ -11,6 +11,15 @@ var DISPATCH_SHEET_ID  = '15BIRmrIyu4m76c_-9xau_SYC_BxsvR-kM6WadQKDV60';
 var STAFF_LOG_SHEET_ID = '14AYCaA4uQ7rSnfuOfG0Joff-LmWVCYVb9Wc_95Zr60k';
 var PROD_PERF_SHEET_ID = '1cK7sbz1pwsSJOD6ZBgdj12CN3Gznw9Y37KN-U3_hTwQ';
 
+// ── Separate spreadsheet per finance operation ──
+// Run setupSheets() ONCE (from the editor) to create these and print their IDs,
+// then paste each ID below AND into js/config.js. Nothing is merged together.
+var INVOICES_SHEET_ID    = '';
+var EXPENSES_SHEET_ID    = '';
+var RECEIVABLES_SHEET_ID = '';
+var CHALLANS_SHEET_ID    = '';
+var QUOTATIONS_SHEET_ID  = '';
+
 // ── Entry point ──
 function doPost(e) {
   try {
@@ -28,6 +37,17 @@ function doPost(e) {
     else if (action === 'saveProdPerf')      saveProdPerf(data);
     else if (action === 'savePurchase')      savePurchase(data);
     else if (action === 'saveOverhead')      saveOverhead(data);
+    // ── Separate finance sheets ──
+    else if (action === 'saveInvoice')       saveInvoice(data);
+    else if (action === 'deleteInvoice')     deleteFinanceRow(INVOICES_SHEET_ID, 'Invoices', data.id);
+    else if (action === 'saveExpense')       saveExpense(data);
+    else if (action === 'deleteExpense')     deleteFinanceRow(EXPENSES_SHEET_ID, 'Expenses', data.id);
+    else if (action === 'savePayment')       savePayment(data);
+    else if (action === 'deletePayment')     deleteFinanceRow(RECEIVABLES_SHEET_ID, 'Receivables', data.id);
+    else if (action === 'saveChallan')       saveChallan(data);
+    else if (action === 'deleteChallan')     deleteFinanceRow(CHALLANS_SHEET_ID, 'Challans', data.id);
+    else if (action === 'saveQuotation')     saveQuotation(data);
+    else if (action === 'deleteQuotation')   deleteFinanceRow(QUOTATIONS_SHEET_ID, 'Quotations', data.id);
     else if (action === 'createNotionPage')  { /* handled separately if needed */ }
 
     return ContentService.createTextOutput('ok');
@@ -254,4 +274,101 @@ function saveOverhead(data) {
     }
   }
   sheet.appendRow(row);
+}
+
+// ══════════════════════════════════════════════════════════════
+// SEPARATE FINANCE SHEETS — Invoices · Expenses · Receivables ·
+// Challans · Quotations. Each in its OWN spreadsheet, upserted by ID.
+// ══════════════════════════════════════════════════════════════
+
+// Generic: open a finance spreadsheet, ensure headers, upsert a row by ID (column A).
+function _financeUpsert(sheetId, tabName, headers, row) {
+  if (!sheetId) return; // not configured yet
+  var ss    = SpreadsheetApp.openById(sheetId);
+  var sheet = ss.getSheetByName(tabName) || ss.getSheets()[0];
+  if (!sheet) sheet = ss.insertSheet(tabName);
+  if (sheet.getLastRow() === 0) sheet.appendRow(headers);
+
+  var rows = sheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if ((rows[i][0] || '').toString() === (row[0] || '').toString()) {
+      sheet.getRange(i + 1, 1, 1, row.length).setValues([row]);
+      return;
+    }
+  }
+  sheet.appendRow(row);
+}
+
+function deleteFinanceRow(sheetId, tabName, id) {
+  if (!sheetId || !id) return;
+  var ss    = SpreadsheetApp.openById(sheetId);
+  var sheet = ss.getSheetByName(tabName) || ss.getSheets()[0];
+  if (!sheet) return;
+  var rows = sheet.getDataRange().getValues();
+  for (var i = rows.length - 1; i >= 1; i--) {
+    if ((rows[i][0] || '').toString() === id.toString()) { sheet.deleteRow(i + 1); return; }
+  }
+}
+
+function saveInvoice(data) {
+  _financeUpsert(INVOICES_SHEET_ID, 'Invoices',
+    ['InvoiceNo','Date','Party','OrderIDs','Items','Qty','Amount','CreatedAt'],
+    [data.id, data.date, data.party, data.orderIds || '', data.items || '',
+     data.qty || 0, data.total || 0, data.createdAt || '']);
+}
+
+function saveExpense(data) {
+  _financeUpsert(EXPENSES_SHEET_ID, 'Expenses',
+    ['ID','Date','Category','PaidTo','Amount','Mode','Notes'],
+    [data.id, data.date, data.category, data.payee || '',
+     data.amount || 0, data.mode || '', data.notes || '']);
+}
+
+function savePayment(data) {
+  _financeUpsert(RECEIVABLES_SHEET_ID, 'Receivables',
+    ['ID','Date','Customer','Amount','Note'],
+    [data.id, data.date, data.customer, data.amount || 0, data.note || '']);
+}
+
+function saveChallan(data) {
+  _financeUpsert(CHALLANS_SHEET_ID, 'Challans',
+    ['ChallanNo','Date','OrderID','Customer','Product','Qty','Vehicle','Notes'],
+    [data.id, data.date, data.orderId || '', data.customer || '', data.product || '',
+     data.qty || 0, data.vehicle || '', data.notes || '']);
+}
+
+function saveQuotation(data) {
+  _financeUpsert(QUOTATIONS_SHEET_ID, 'Quotations',
+    ['ID','Date','Customer','Product','Size','Ply','Qty','Rate','Amount','Notes'],
+    [data.id, data.date, data.customer || '', data.product || '', data.size || '',
+     data.ply || '', data.qty || 0, data.rate || 0, data.amount || 0, data.notes || '']);
+}
+
+// ══════════════════════════════════════════════════════════════
+// ONE-TIME SETUP — run this once from the Apps Script editor.
+// Creates a SEPARATE spreadsheet for each finance operation, makes each
+// readable by link (so the web app can read it), and logs the IDs.
+// Copy the printed IDs into the vars at the top of this file AND into
+// js/config.js, then redeploy.
+// ══════════════════════════════════════════════════════════════
+function setupSheets() {
+  var defs = [
+    { name: 'Maniram — Invoices',    tab: 'Invoices',    headers: ['InvoiceNo','Date','Party','OrderIDs','Items','Qty','Amount','CreatedAt'] },
+    { name: 'Maniram — Expenses',    tab: 'Expenses',    headers: ['ID','Date','Category','PaidTo','Amount','Mode','Notes'] },
+    { name: 'Maniram — Receivables', tab: 'Receivables', headers: ['ID','Date','Customer','Amount','Note'] },
+    { name: 'Maniram — Challans',    tab: 'Challans',    headers: ['ChallanNo','Date','OrderID','Customer','Product','Qty','Vehicle','Notes'] },
+    { name: 'Maniram — Quotations',  tab: 'Quotations',  headers: ['ID','Date','Customer','Product','Size','Ply','Qty','Rate','Amount','Notes'] },
+  ];
+  var out = [];
+  for (var i = 0; i < defs.length; i++) {
+    var ss = SpreadsheetApp.create(defs[i].name);
+    var sh = ss.getSheets()[0];
+    sh.setName(defs[i].tab);
+    sh.appendRow(defs[i].headers);
+    // Make readable by anyone with the link so the web app's API key can read it
+    try { DriveApp.getFileById(ss.getId()).setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
+    out.push(defs[i].tab + '_SHEET_ID = ' + ss.getId());
+  }
+  Logger.log('Paste these IDs into Code.gs (top) and js/config.js:\n\n' + out.join('\n'));
+  return out.join('\n');
 }

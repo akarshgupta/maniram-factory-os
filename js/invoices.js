@@ -266,8 +266,21 @@ function _persistInvoice() {
     invoiceList.unshift(inv);
   }
   saveInvoiceList();
+  _mirrorInvoice(inv);
   _markInvoicedOrdersDelivered(inv);
   return inv;
+}
+
+// Push an invoice to its own Invoices sheet (readable columns)
+function _mirrorInvoice(inv) {
+  if (typeof mirrorToSheet !== 'function') return;
+  const orderIds = [...new Set((inv.items || []).map(i => i.orderId).filter(Boolean))].join(', ');
+  const itemsTxt = (inv.items || []).map(i => `${i.desc} x${i.qty} @${i.rate}`).join('; ');
+  const qty      = (inv.items || []).reduce((s, i) => s + (i.qty || 0), 0);
+  mirrorToSheet('saveInvoice', {
+    id: inv.id, date: inv.date, party: inv.party, orderIds,
+    items: itemsTxt, qty, total: inv.total, createdAt: inv.createdAt || '',
+  });
 }
 
 // Any order linked from this invoice's items is considered fully billed → Delivered.
@@ -408,6 +421,7 @@ function deleteInvoice(invId) {
   if (!confirm(`Delete invoice ${invId}? This cannot be undone.`)) return;
   invoiceList = invoiceList.filter(inv => inv.id !== invId);
   saveInvoiceList();
+  if (typeof mirrorToSheet === 'function') mirrorToSheet('deleteInvoice', { id: invId });
   renderInvoicingPage();
   if (typeof renderOrders === 'function') renderOrders();
 }

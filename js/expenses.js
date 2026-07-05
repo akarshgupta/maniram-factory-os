@@ -66,19 +66,28 @@ function saveExpense() {
   if (!cat)        { alert('Please choose a category.'); return; }
   if (amount <= 0) { alert('Please enter an amount greater than 0.'); return; }
 
+  let rec;
   if (_expEditingId) {
     const idx = expenseList.findIndex(e => e.id === _expEditingId);
     if (idx >= 0) {
       expenseList[idx] = { ...expenseList[idx], date, category: cat, payee, amount, mode, notes };
+      rec = expenseList[idx];
     }
     _expEditingId = null;
   } else {
-    expenseList.unshift({
+    rec = {
       id: generateExpenseId(), date, category: cat, payee, amount, mode, notes,
       createdAt: new Date().toISOString(),
-    });
+    };
+    expenseList.unshift(rec);
   }
   saveExpenseList();
+  if (rec && typeof mirrorToSheet === 'function') {
+    mirrorToSheet('saveExpense', {
+      id: rec.id, date: rec.date, category: rec.category, payee: rec.payee,
+      amount: rec.amount, mode: rec.mode, notes: rec.notes,
+    });
+  }
   renderExpensesPage();
 }
 
@@ -110,6 +119,7 @@ function deleteExpense(id) {
   if (!confirm(`Delete this ₹${e.amount.toLocaleString('en-IN')} ${e.category} expense?`)) return;
   expenseList = expenseList.filter(x => x.id !== id);
   saveExpenseList();
+  if (typeof mirrorToSheet === 'function') mirrorToSheet('deleteExpense', { id });
   renderExpensesPage();
 }
 

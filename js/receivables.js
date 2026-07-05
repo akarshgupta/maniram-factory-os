@@ -196,6 +196,12 @@ function saveRecordedPayment() {
 
   payments.push(entry);
   savePayments();
+  if (typeof mirrorToSheet === 'function') {
+    mirrorToSheet('savePayment', {
+      id: entry.id, date: entry.date, customer: entry.customer,
+      amount: entry.amount, note: entry.note,
+    });
+  }
   closeRecordPayment();
   renderReceivables();
 }
@@ -204,5 +210,6 @@ function deletePayment(id) {
   if (!confirm(`Delete payment ${id}?`)) return;
   payments = payments.filter(p => p.id !== id);
   savePayments();
+  if (typeof mirrorToSheet === 'function') mirrorToSheet('deletePayment', { id });
   renderReceivables();
 }
