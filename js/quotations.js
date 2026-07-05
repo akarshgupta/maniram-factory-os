@@ -303,10 +303,21 @@ function saveAsQuotation() {
 
   quotations.unshift(qt);
   saveQuotations();
+  _mirrorQuotation(qt);
   renderQuotationsList();
   showPage('ratecalc');
   document.getElementById('quotations-list')?.scrollIntoView({ behavior: 'smooth' });
   alert(`✅ ${qt.id} saved!`);
+}
+
+// Push a quotation (create or status change) to its own Quotations sheet
+function _mirrorQuotation(q) {
+  if (typeof mirrorToSheet !== 'function') return;
+  mirrorToSheet('saveQuotation', {
+    id: q.id, date: q.date, customer: q.customer, size: q.boxSize,
+    ply: q.ply, rate: q.ratePerBox || '', status: q.status || 'Pending',
+    notes: `${q.weight}gm · ${q.gsm} GSM${q.reelSize ? ' · reel ' + q.reelSize + '"' : ''}`,
+  });
 }
 
 // ── Render Quotations List ──
@@ -394,11 +405,12 @@ function convertQuotation(id, mode) {
   q.convertedAt = new Date().toISOString();
   q.convertedTo = mode;
   saveQuotations();
+  _mirrorQuotation(q);
   renderQuotationsList();
 }
 
 function rejectQuotation(id) {
   if (!confirm('Reject this quotation?')) return;
   const q = quotations.find(x => x.id === id);
-  if (q) { q.status = 'Rejected'; saveQuotations(); renderQuotationsList(); }
+  if (q) { q.status = 'Rejected'; saveQuotations(); _mirrorQuotation(q); renderQuotationsList(); }
 }

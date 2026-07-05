@@ -95,6 +95,13 @@ function saveAndPrintChallan() {
 
   challanList.push(record);
   saveChallans();
+  if (typeof mirrorToSheet === 'function') {
+    mirrorToSheet('saveChallan', {
+      id: record.dcNum, date: record.date, orderId: record.orderId,
+      customer: record.customer, product: record.product,
+      qty: record.qty, vehicle: '', notes: record.note,
+    });
+  }
 
   const orderId = _challanOrderId;
   closeChallanModal();
@@ -252,9 +259,11 @@ function printDeliveryChallan(record) {
 
 // ── Delete challan ──
 function deleteChallan(idx) {
-  if (!confirm(`Delete challan ${challanList[idx]?.dcNum}? This cannot be undone.`)) return;
+  const dcNum = challanList[idx]?.dcNum;
+  if (!confirm(`Delete challan ${dcNum}? This cannot be undone.`)) return;
   challanList.splice(idx, 1);
   saveChallans();
+  if (dcNum && typeof mirrorToSheet === 'function') mirrorToSheet('deleteChallan', { id: dcNum });
   renderChallansTab();
   renderOrders();
 }

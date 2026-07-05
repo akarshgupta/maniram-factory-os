@@ -339,9 +339,9 @@ function saveChallan(data) {
 
 function saveQuotation(data) {
   _financeUpsert(QUOTATIONS_SHEET_ID, 'Quotations',
-    ['ID','Date','Customer','Product','Size','Ply','Qty','Rate','Amount','Notes'],
-    [data.id, data.date, data.customer || '', data.product || '', data.size || '',
-     data.ply || '', data.qty || 0, data.rate || 0, data.amount || 0, data.notes || '']);
+    ['ID','Date','Customer','BoxSize','Ply','RatePerBox','Status','Notes'],
+    [data.id, data.date, data.customer || '', data.size || '',
+     data.ply || '', data.rate || 0, data.status || 'Pending', data.notes || '']);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -357,7 +357,7 @@ function setupSheets() {
     { name: 'Maniram — Expenses',    tab: 'Expenses',    headers: ['ID','Date','Category','PaidTo','Amount','Mode','Notes'] },
     { name: 'Maniram — Receivables', tab: 'Receivables', headers: ['ID','Date','Customer','Amount','Note'] },
     { name: 'Maniram — Challans',    tab: 'Challans',    headers: ['ChallanNo','Date','OrderID','Customer','Product','Qty','Vehicle','Notes'] },
-    { name: 'Maniram — Quotations',  tab: 'Quotations',  headers: ['ID','Date','Customer','Product','Size','Ply','Qty','Rate','Amount','Notes'] },
+    { name: 'Maniram — Quotations',  tab: 'Quotations',  headers: ['ID','Date','Customer','BoxSize','Ply','RatePerBox','Status','Notes'] },
   ];
   var out = [];
   for (var i = 0; i < defs.length; i++) {

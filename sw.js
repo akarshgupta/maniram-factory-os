@@ -3,7 +3,7 @@
 // Static shell: cache-first with background refresh.
 // Google APIs / Apps Script: network-only (live data must be live).
 // ══════════════════════════════════════════════════════════════
-const CACHE = 'mi-factory-os-v7';
+const CACHE = 'mi-factory-os-v8';
 const SHELL = [
   './', './index.html', './staff.html', './css/style.css', './manifest.json',
   './js/config.js', './js/auth.js', './js/app.js',
