@@ -5,6 +5,13 @@
 const LS_INVOICES = 'mi_invoices_v2';
 let invoiceList = [];
 
+// Always display invoices oldest → newest by date; tie-break on invoice number
+function _invByDateAsc(a, b) {
+  const da = (a.date || ''), db = (b.date || '');
+  if (da !== db) return da < db ? -1 : 1;
+  return String(a.id || '').localeCompare(String(b.id || ''), undefined, { numeric: true });
+}
+
 function loadInvoices()    { try { return JSON.parse(localStorage.getItem(LS_INVOICES) || '[]'); } catch { return []; } }
 function saveInvoiceList() { localStorage.setItem(LS_INVOICES, JSON.stringify(invoiceList)); }
 function initInvoices()    { invoiceList = loadInvoices(); }
@@ -467,7 +474,7 @@ function renderInvoicingPage() {
               <div class="table-header" style="grid-template-columns:90px 100px 1.4fr 1fr 70px 100px 130px">
                 <div>Invoice #</div><div>Date</div><div>Party</div><div>Order</div><div>Qty</div><div>Total</div><div>Actions</div>
               </div>
-              ${invoiceList.map(inv => {
+              ${invoiceList.slice().sort(_invByDateAsc).map(inv => {
                 const qty = (inv.items || []).reduce((s, i) => s + (i.qty || 0), 0);
                 const dateDisp = (() => { try { return new Date(inv.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }); } catch { return inv.date; } })();
                 const orderIds = [...new Set((inv.items || []).map(i => i.orderId).filter(Boolean))];
