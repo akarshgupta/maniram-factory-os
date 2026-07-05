@@ -27,6 +27,7 @@ const pageTitles = {
   analytics:   '📊 Analytics',
   ratecalc:    '📐 Rate Calculator',
   invoicing:   '🧾 Invoicing',
+  expenses:    '💸 Expense Tracker',
 };
 
 function showPage(id) {
@@ -50,6 +51,7 @@ function showPage(id) {
   if (id === 'analytics')   renderAnalytics();
   if (id === 'ratecalc')    { onPlyChange(); renderQuotationsList(); }
   if (id === 'invoicing')   renderInvoicingPage();
+  if (id === 'expenses')    renderExpensesPage();
 }
 
 // ── Topbar Date ──
@@ -77,6 +79,7 @@ async function init() {
 
   // Initialise localStorage-backed modules
   initInvoices();
+  initExpenses();
   initPayments();
   initQuotations();
   initChallans();

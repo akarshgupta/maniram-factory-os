@@ -143,20 +143,21 @@
   <nav class="sidebar-nav">
     <div class="nav-section">Main</div>
     <div class="nav-item active" onclick="showPage('dashboard')"><span class="nav-icon">⚡</span> Dashboard</div>
-    <div class="nav-item" onclick="showPage('calendar')"><span class="nav-icon">📅</span> Calendar</div>
+    <div class="nav-section">Finance</div>
+    <div class="nav-item" onclick="showPage('invoicing')"><span class="nav-icon">🧾</span> Invoicing</div>
+    <div class="nav-item" onclick="showPage('receivables')"><span class="nav-icon">💰</span> Receivables</div>
+    <div class="nav-item" onclick="showPage('expenses')"><span class="nav-icon">💸</span> Expenses</div>
+    <div class="nav-item" onclick="showPage('purchase')"><span class="nav-icon">🛒</span> Purchase Register</div>
+    <div class="nav-item" onclick="showPage('costing')"><span class="nav-icon">🧮</span> Job Costing</div>
+    <div class="nav-item" onclick="showPage('tally')"><span class="nav-icon">📊</span> Tally Sync</div>
+    <div class="nav-section">Operations</div>
     <div class="nav-item" onclick="showPage('orders')"><span class="nav-icon">📦</span> Orders</div>
+    <div class="nav-item" onclick="showPage('calendar')"><span class="nav-icon">📅</span> Calendar</div>
     <div class="nav-item" onclick="showPage('pipeline')"><span class="nav-icon">🚦</span> Pipeline Board</div>
-    <div class="nav-section">Factory</div>
     <div class="nav-item" onclick="showPage('production')"><span class="nav-icon">🏭</span> Production Plan</div>
     <div class="nav-item" onclick="showPage('reels')"><span class="nav-icon">🧻</span> Reel Stock</div>
     <div class="nav-item" onclick="showPage('deckle')"><span class="nav-icon">📏</span> Deckle Optimizer</div>
-    <div class="nav-item" onclick="showPage('purchase')"><span class="nav-icon">🛒</span> Purchase Register</div>
     <div class="nav-item" onclick="showPage('clients')"><span class="nav-icon">🤝</span> Clients</div>
-    <div class="nav-section">Finance</div>
-    <div class="nav-item" onclick="showPage('receivables')"><span class="nav-icon">💰</span> Receivables</div>
-    <div class="nav-item" onclick="showPage('invoicing')"><span class="nav-icon">🧾</span> Invoicing</div>
-    <div class="nav-item" onclick="showPage('costing')"><span class="nav-icon">🧮</span> Job Costing</div>
-    <div class="nav-item" onclick="showPage('tally')"><span class="nav-icon">📊</span> Tally Sync</div>
     <div class="nav-section">Tools</div>
     <div class="nav-item" onclick="showPage('ratecalc')"><span class="nav-icon">📐</span> Rate Calculator</div>
     <div class="nav-item" onclick="showPage('analytics')"><span class="nav-icon">📊</span> Analytics</div>
@@ -975,6 +976,14 @@
       <div id="invoicing-page-content"><div class="empty-state">Loading orders...</div></div>
     </div><!-- /page-invoicing -->
 
+    <!-- ══ EXPENSES ══ -->
+    <div class="page" id="page-expenses">
+      <div class="section-header" style="margin-bottom:16px">
+        <div class="section-title">💸 Expense Tracker</div>
+      </div>
+      <div id="expenses-page-content"><div class="empty-state">Loading expenses…</div></div>
+    </div><!-- /page-expenses -->
+
   </div>
 </div>
 
@@ -1537,6 +1546,7 @@
 <script src="js/calendar.js"></script>
 <script src="js/dashboard.js"></script>
 <script src="js/invoices.js"></script>
+<script src="js/expenses.js"></script>
 <script src="js/receivables.js"></script>
 <script src="js/whatsapp-import.js"></script>
 <script src="js/tally-sync.js"></script>
