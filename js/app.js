@@ -47,7 +47,7 @@ function showPage(id) {
   if (id === 'reminders')   computeReminders();
   if (id === 'purchase')    { renderPurchaseList(); renderRateHistory(); initPurchaseForm(); }
   if (id === 'receivables') renderReceivables();
-  if (id === 'tally')       fetchTallySync();
+  if (id === 'tally')       { initTallyExportCfg(); fetchTallySync(); }
   if (id === 'analytics')   renderAnalytics();
   if (id === 'ratecalc')    { onPlyChange(); renderQuotationsList(); }
   if (id === 'invoicing')   renderInvoicingPage();

@@ -135,3 +135,175 @@ function formatDateShort(iso) {
     return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
   } catch { return iso; }
 }
+
+// ══════════════════════════════════════════════════════════════
+// EXPORT TO TALLY — build importable Tally XML vouchers
+// TallyPrime: Gateway of Tally → Import → Vouchers → pick the file
+// ══════════════════════════════════════════════════════════════
+
+const LS_TALLY_CFG = 'mi_tally_cfg_v1';
+
+function _xmlEsc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+}
+
+// ISO (YYYY-MM-DD) → Tally date (YYYYMMDD)
+function _tallyDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return String(iso).replace(/-/g, '');
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function _tallyCfg() {
+  const saved = (() => { try { return JSON.parse(localStorage.getItem(LS_TALLY_CFG) || '{}'); } catch { return {}; } })();
+  const cfg = {
+    company:  (document.getElementById('tally-company')?.value        ?? saved.company  ?? '').trim(),
+    sales:    (document.getElementById('tally-sales-ledger')?.value    ?? saved.sales    ?? 'Sales').trim() || 'Sales',
+    purchase: (document.getElementById('tally-purchase-ledger')?.value ?? saved.purchase ?? 'Purchase').trim() || 'Purchase',
+    scope:    (document.getElementById('tally-export-scope')?.value    ?? 'all'),
+  };
+  localStorage.setItem(LS_TALLY_CFG, JSON.stringify(cfg));
+  return cfg;
+}
+
+// Prefill the config inputs from saved settings when the page opens
+function initTallyExportCfg() {
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(LS_TALLY_CFG) || '{}'); } catch {}
+  const set = (id, v) => { const el = document.getElementById(id); if (el && v != null && v !== '') el.value = v; };
+  set('tally-company', saved.company);
+  set('tally-sales-ledger', saved.sales);
+  set('tally-purchase-ledger', saved.purchase);
+}
+
+function _inScope(dateIso, scope) {
+  if (scope !== 'month') return true;
+  return (dateIso || '').slice(0, 7) === new Date().toISOString().slice(0, 7);
+}
+
+// One Sales voucher: debit the party (debtor), credit the Sales ledger.
+function _salesVoucherXML(inv, cfg) {
+  const total = +inv.total || 0;
+  const narr  = (inv.items || []).map(i => `${i.desc} x${i.qty}`).join(', ');
+  return `   <TALLYMESSAGE xmlns:UDF="TallyUDF">
+    <VOUCHER VCHTYPE="Sales" ACTION="Create" OBJVIEW="Accounting Voucher View">
+     <DATE>${_tallyDate(inv.date)}</DATE>
+     <VOUCHERTYPENAME>Sales</VOUCHERTYPENAME>
+     <VOUCHERNUMBER>${_xmlEsc(inv.id)}</VOUCHERNUMBER>
+     <PARTYLEDGERNAME>${_xmlEsc(inv.party)}</PARTYLEDGERNAME>
+     <NARRATION>${_xmlEsc(narr)}</NARRATION>
+     <ALLLEDGERENTRIES.LIST>
+      <LEDGERNAME>${_xmlEsc(inv.party)}</LEDGERNAME>
+      <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+      <AMOUNT>-${total.toFixed(2)}</AMOUNT>
+     </ALLLEDGERENTRIES.LIST>
+     <ALLLEDGERENTRIES.LIST>
+      <LEDGERNAME>${_xmlEsc(cfg.sales)}</LEDGERNAME>
+      <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+      <AMOUNT>${total.toFixed(2)}</AMOUNT>
+     </ALLLEDGERENTRIES.LIST>
+    </VOUCHER>
+   </TALLYMESSAGE>`;
+}
+
+// One Purchase voucher: debit the Purchase ledger, credit the supplier.
+function _purchaseVoucherXML(p, cfg) {
+  const total = (+p.quantityKg || 0) * (+p.ratePerKg || 0);
+  const narr  = `${p.reelSize}" reel · ${p.quantityKg}kg @ ₹${p.ratePerKg}/kg`;
+  return `   <TALLYMESSAGE xmlns:UDF="TallyUDF">
+    <VOUCHER VCHTYPE="Purchase" ACTION="Create" OBJVIEW="Accounting Voucher View">
+     <DATE>${_tallyDate(p.purchaseDate)}</DATE>
+     <VOUCHERTYPENAME>Purchase</VOUCHERTYPENAME>
+     <VOUCHERNUMBER>${_xmlEsc(p.id)}</VOUCHERNUMBER>
+     <PARTYLEDGERNAME>${_xmlEsc(p.supplier)}</PARTYLEDGERNAME>
+     <NARRATION>${_xmlEsc(narr)}</NARRATION>
+     <ALLLEDGERENTRIES.LIST>
+      <LEDGERNAME>${_xmlEsc(cfg.purchase)}</LEDGERNAME>
+      <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+      <AMOUNT>-${total.toFixed(2)}</AMOUNT>
+     </ALLLEDGERENTRIES.LIST>
+     <ALLLEDGERENTRIES.LIST>
+      <LEDGERNAME>${_xmlEsc(p.supplier)}</LEDGERNAME>
+      <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+      <AMOUNT>${total.toFixed(2)}</AMOUNT>
+     </ALLLEDGERENTRIES.LIST>
+    </VOUCHER>
+   </TALLYMESSAGE>`;
+}
+
+function _tallyEnvelope(messages, company) {
+  const companyVar = company ? `\n     <SVCURRENTCOMPANY>${_xmlEsc(company)}</SVCURRENTCOMPANY>` : '';
+  return `<ENVELOPE>
+ <HEADER>
+  <TALLYREQUEST>Import Data</TALLYREQUEST>
+ </HEADER>
+ <BODY>
+  <IMPORTDATA>
+   <REQUESTDESC>
+    <REPORTNAME>Vouchers</REPORTNAME>
+    <STATICVARIABLES>${companyVar}
+    </STATICVARIABLES>
+   </REQUESTDESC>
+   <REQUESTDATA>
+${messages.join('\n')}
+   </REQUESTDATA>
+  </IMPORTDATA>
+ </BODY>
+</ENVELOPE>`;
+}
+
+function _downloadFile(filename, content) {
+  const blob = new Blob([content], { type: 'application/xml' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function _tallyStatus(msg, ok) {
+  const el = document.getElementById('tally-export-status');
+  if (el) { el.textContent = msg; el.style.color = ok ? 'var(--success)' : 'var(--danger)'; }
+}
+
+// kind: 'sales' | 'purchase' | 'both'
+function exportTallyXML(kind) {
+  const cfg = _tallyCfg();
+  const messages = [];
+  let sales = 0, pur = 0;
+
+  if (kind === 'sales' || kind === 'both') {
+    const invs = (typeof invoiceList !== 'undefined' ? invoiceList : [])
+      .filter(inv => _inScope(inv.date, cfg.scope))
+      .slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    invs.forEach(inv => { messages.push(_salesVoucherXML(inv, cfg)); sales++; });
+  }
+  if (kind === 'purchase' || kind === 'both') {
+    const purs = (typeof purchases !== 'undefined' ? purchases : [])
+      .filter(p => _inScope(p.purchaseDate, cfg.scope))
+      .slice().sort((a, b) => (a.purchaseDate || '').localeCompare(b.purchaseDate || ''));
+    purs.forEach(p => { messages.push(_purchaseVoucherXML(p, cfg)); pur++; });
+  }
+
+  if (!messages.length) {
+    _tallyStatus('Nothing to export for the selected period.', false);
+    return;
+  }
+
+  const xml   = _tallyEnvelope(messages, cfg.company);
+  const stamp = new Date().toISOString().slice(0, 10);
+  const name  = kind === 'both' ? `tally-vouchers-${stamp}.xml`
+              : kind === 'sales' ? `tally-sales-${stamp}.xml`
+              : `tally-purchases-${stamp}.xml`;
+  _downloadFile(name, xml);
+
+  const parts = [];
+  if (sales) parts.push(`${sales} sales invoice${sales === 1 ? '' : 's'}`);
+  if (pur)   parts.push(`${pur} purchase${pur === 1 ? '' : 's'}`);
+  _tallyStatus(`✅ Exported ${parts.join(' + ')} → ${name}. Import it in TallyPrime: Gateway → Import → Vouchers.`, true);
+}
