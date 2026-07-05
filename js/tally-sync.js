@@ -149,21 +149,35 @@ function _xmlEsc(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 }
 
-// ISO (YYYY-MM-DD) → Tally date (YYYYMMDD)
-function _tallyDate(iso) {
+// Normalize any date string to ISO YYYY-MM-DD; returns '' if unparseable
+function _isoDate(str) {
+  if (!str) return '';
+  str = String(str).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
+  // DD/MM/YYYY
+  const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  const d = new Date(str);
+  if (!isNaN(d)) return d.toISOString().slice(0, 10);
+  return '';
+}
+
+// Any date format → Tally date (YYYYMMDD)
+function _tallyDate(str) {
+  const iso = _isoDate(str);
   if (!iso) return '';
-  const d = new Date(iso);
-  if (isNaN(d)) return String(iso).replace(/-/g, '');
-  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  return iso.replace(/-/g, '');
 }
 
 function _tallyCfg() {
   const saved = (() => { try { return JSON.parse(localStorage.getItem(LS_TALLY_CFG) || '{}'); } catch { return {}; } })();
+  const todayIso = new Date().toISOString().slice(0, 10);
   const cfg = {
-    company:  (document.getElementById('tally-company')?.value        ?? saved.company  ?? '').trim(),
-    sales:    (document.getElementById('tally-sales-ledger')?.value    ?? saved.sales    ?? 'Sales').trim() || 'Sales',
-    purchase: (document.getElementById('tally-purchase-ledger')?.value ?? saved.purchase ?? 'Purchase').trim() || 'Purchase',
-    scope:    (document.getElementById('tally-export-scope')?.value    ?? 'all'),
+    company:  (document.getElementById('tally-company')?.value         ?? saved.company  ?? '').trim(),
+    sales:    (document.getElementById('tally-sales-ledger')?.value     ?? saved.sales    ?? 'Sales').trim()    || 'Sales',
+    purchase: (document.getElementById('tally-purchase-ledger')?.value  ?? saved.purchase ?? 'Purchase').trim() || 'Purchase',
+    fromDate: (document.getElementById('tally-from-date')?.value        ?? saved.fromDate ?? ''),
+    toDate:   (document.getElementById('tally-to-date')?.value          ?? saved.toDate   ?? todayIso),
   };
   localStorage.setItem(LS_TALLY_CFG, JSON.stringify(cfg));
   return cfg;
@@ -173,15 +187,23 @@ function _tallyCfg() {
 function initTallyExportCfg() {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(LS_TALLY_CFG) || '{}'); } catch {}
-  const set = (id, v) => { const el = document.getElementById(id); if (el && v != null && v !== '') el.value = v; };
-  set('tally-company', saved.company);
-  set('tally-sales-ledger', saved.sales);
-  set('tally-purchase-ledger', saved.purchase);
+  const todayIso     = new Date().toISOString().slice(0, 10);
+  const firstOfMonth = todayIso.slice(0, 7) + '-01';
+  const set = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
+  set('tally-company',          saved.company);
+  set('tally-sales-ledger',     saved.sales    || 'Sales');
+  set('tally-purchase-ledger',  saved.purchase || 'Purchase');
+  set('tally-from-date',        saved.fromDate || firstOfMonth);
+  set('tally-to-date',          saved.toDate   || todayIso);
 }
 
-function _inScope(dateIso, scope) {
-  if (scope !== 'month') return true;
-  return (dateIso || '').slice(0, 7) === new Date().toISOString().slice(0, 7);
+// Returns true if dateStr falls within cfg.fromDate … cfg.toDate
+function _inScope(dateStr, cfg) {
+  const iso = _isoDate(dateStr);
+  if (!iso) return true;
+  if (cfg.fromDate && iso < cfg.fromDate) return false;
+  if (cfg.toDate   && iso > cfg.toDate)   return false;
+  return true;
 }
 
 // One Sales voucher: debit the party (debtor), credit the Sales ledger.
@@ -235,8 +257,11 @@ function _purchaseVoucherXML(p, cfg) {
 }
 
 function _tallyEnvelope(messages, company) {
-  const companyVar = company ? `\n     <SVCURRENTCOMPANY>${_xmlEsc(company)}</SVCURRENTCOMPANY>` : '';
-  return `<ENVELOPE>
+  const staticVars = company
+    ? `\n     <SVCURRENTCOMPANY>${_xmlEsc(company)}</SVCURRENTCOMPANY>\n    `
+    : '';
+  return `<?xml version="1.0" encoding="utf-8"?>
+<ENVELOPE>
  <HEADER>
   <TALLYREQUEST>Import Data</TALLYREQUEST>
  </HEADER>
@@ -244,8 +269,7 @@ function _tallyEnvelope(messages, company) {
   <IMPORTDATA>
    <REQUESTDESC>
     <REPORTNAME>Vouchers</REPORTNAME>
-    <STATICVARIABLES>${companyVar}
-    </STATICVARIABLES>
+    <STATICVARIABLES>${staticVars}</STATICVARIABLES>
    </REQUESTDESC>
    <REQUESTDATA>
 ${messages.join('\n')}
@@ -279,31 +303,31 @@ function exportTallyXML(kind) {
 
   if (kind === 'sales' || kind === 'both') {
     const invs = (typeof invoiceList !== 'undefined' ? invoiceList : [])
-      .filter(inv => _inScope(inv.date, cfg.scope))
-      .slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+      .filter(inv => _inScope(inv.date, cfg))
+      .slice().sort((a, b) => (_isoDate(a.date) || '').localeCompare(_isoDate(b.date) || ''));
     invs.forEach(inv => { messages.push(_salesVoucherXML(inv, cfg)); sales++; });
   }
   if (kind === 'purchase' || kind === 'both') {
     const purs = (typeof purchases !== 'undefined' ? purchases : [])
-      .filter(p => _inScope(p.purchaseDate, cfg.scope))
-      .slice().sort((a, b) => (a.purchaseDate || '').localeCompare(b.purchaseDate || ''));
+      .filter(p => _inScope(p.purchaseDate, cfg))
+      .slice().sort((a, b) => (_isoDate(a.purchaseDate) || '').localeCompare(_isoDate(b.purchaseDate) || ''));
     purs.forEach(p => { messages.push(_purchaseVoucherXML(p, cfg)); pur++; });
   }
 
   if (!messages.length) {
-    _tallyStatus('Nothing to export for the selected period.', false);
+    _tallyStatus(`Nothing to export for ${cfg.fromDate || 'all time'} → ${cfg.toDate || 'today'}.`, false);
     return;
   }
 
   const xml   = _tallyEnvelope(messages, cfg.company);
-  const stamp = new Date().toISOString().slice(0, 10);
-  const name  = kind === 'both' ? `tally-vouchers-${stamp}.xml`
-              : kind === 'sales' ? `tally-sales-${stamp}.xml`
-              : `tally-purchases-${stamp}.xml`;
+  const stamp = (cfg.fromDate || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
+  const name  = kind === 'both'     ? `tally-vouchers-${stamp}.xml`
+              : kind === 'sales'    ? `tally-sales-${stamp}.xml`
+              :                       `tally-purchases-${stamp}.xml`;
   _downloadFile(name, xml);
 
   const parts = [];
   if (sales) parts.push(`${sales} sales invoice${sales === 1 ? '' : 's'}`);
   if (pur)   parts.push(`${pur} purchase${pur === 1 ? '' : 's'}`);
-  _tallyStatus(`✅ Exported ${parts.join(' + ')} → ${name}. Import it in TallyPrime: Gateway → Import → Vouchers.`, true);
+  _tallyStatus(`✅ Exported ${parts.join(' + ')} → ${name}. Import in TallyPrime: Gateway → Import → Vouchers.`, true);
 }

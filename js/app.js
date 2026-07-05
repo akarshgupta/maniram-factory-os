@@ -40,10 +40,10 @@ function showPage(id) {
   document.getElementById('page-title').textContent = pageTitles[id] || id;
 
   if (id === 'calendar')    renderCalendar();
-  if (id === 'orders')      { renderOrders(); refreshOrderId(); }
+  if (id === 'orders')      { fetchClients().then(() => {}); renderOrders(); refreshOrderId(); }
   if (id === 'production')  renderProductionPlan();
   if (id === 'reels')       { fetchReelStock(); renderReelDateTabs(); }
-  if (id === 'clients')     renderClients();
+  if (id === 'clients')     { fetchClients().then(ok => { if (ok) renderClients(); }); renderClients(); }
   if (id === 'reminders')   computeReminders();
   if (id === 'purchase')    { renderPurchaseList(); renderRateHistory(); initPurchaseForm(); }
   if (id === 'receivables') renderReceivables();
@@ -90,6 +90,7 @@ async function init() {
   // Auto-refresh intervals
   setInterval(fetchReelStock,    10 * 60 * 1000); // every 10 min
   setInterval(fetchOrders,        5 * 60 * 1000); // every 5 min
+  setInterval(fetchClients,      10 * 60 * 1000); // every 10 min
   setInterval(computeReminders,  60 * 60 * 1000); // every 1 hr
 }
 

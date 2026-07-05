@@ -13,6 +13,19 @@ const PROD_PERF_SHEET_ID = '1cK7sbz1pwsSJOD6ZBgdj12CN3Gznw9Y37KN-U3_hTwQ'; // Pr
 const SNAPSHOT_SHEET_ID  = '1bSoFhhJ4_RzD8YiFhZFAA8sW_r1ItwC_EAP-6fPdl9k'; // Reel Snapshot Log
 const LEDGER_SHEET_ID    = '1dZKC2EtU9DAzGruKzeDIIM3XgWsqYVk2GqjHzfthdkE'; // Ledger July
 const PROD_LOG_SHEET_ID  = '1T3mED9PNC9twyc1O6S4_4XBB1aOsd6-BqTGwLopgkYU'; // Maniram Production Log
+
+// ── Separate sheet per finance operation (fill in after running setupSheets() in Apps Script) ──
+// Each is its OWN Google Spreadsheet — nothing is merged together.
+const INVOICES_SHEET_ID    = ''; // Invoices
+const EXPENSES_SHEET_ID     = ''; // Expenses
+const RECEIVABLES_SHEET_ID  = ''; // Receivables / Payments
+const CHALLANS_SHEET_ID     = ''; // Delivery Challans
+const QUOTATIONS_SHEET_ID   = ''; // Quotations
+const INVOICES_TAB    = 'Invoices';
+const EXPENSES_TAB    = 'Expenses';
+const RECEIVABLES_TAB = 'Receivables';
+const CHALLANS_TAB    = 'Challans';
+const QUOTATIONS_TAB  = 'Quotations';
 const APPS_SCRIPT_URL    = 'https://script.google.com/macros/s/AKfycbxCrZW5upLG7YWixwxaLq1y13opChsJdkcz-4sn2h9LwyuKSgW3mVFgb9KoDdq8lQP6/exec';
 const API_KEY            = 'AIzaSyBz9doIxDqLCmUd5mKjemM9ui3tVJBD34k';
 const REEL_TAB           = 'Stock';
@@ -43,6 +56,19 @@ const LS_PURCHASES     = 'mi_purchases_v1';
 const today       = new Date();
 const todayStr    = today.toISOString().split('T')[0];
 const tomorrowStr = new Date(today.getTime() + 86400000).toISOString().split('T')[0];
+
+// ── Mirror a write to Google Sheets via Apps Script (fire-and-forget, offline-safe) ──
+// Keeps localStorage as the live store; every save/delete is also pushed to its own
+// dedicated sheet so records are backed up and visible across devices.
+function mirrorToSheet(action, payload) {
+  try {
+    fetch(APPS_SCRIPT_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ action }, payload || {})),
+    }).catch(() => {});
+  } catch (e) { /* offline — localStorage still has it */ }
+}
 
 const COLOUR_HEX = {
   red:    '#E74C3C',
