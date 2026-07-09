@@ -28,6 +28,7 @@ const pageTitles = {
   ratecalc:    '📐 Rate Calculator',
   invoicing:   '🧾 Invoicing',
   expenses:    '💸 Expense Tracker',
+  registers:   '📋 Production Register',
 };
 
 function showPage(id) {
@@ -52,6 +53,7 @@ function showPage(id) {
   if (id === 'ratecalc')    { onPlyChange(); renderQuotationsList(); }
   if (id === 'invoicing')   renderInvoicingPage();
   if (id === 'expenses')    renderExpensesPage();
+  if (id === 'registers')   loadRegisters();
 }
 
 // ── Topbar Date ──

@@ -148,6 +148,7 @@
     <div class="nav-item" onclick="showPage('receivables')"><span class="nav-icon">💰</span> Receivables</div>
     <div class="nav-item" onclick="showPage('expenses')"><span class="nav-icon">💸</span> Expenses</div>
     <div class="nav-item" onclick="showPage('purchase')"><span class="nav-icon">🛒</span> Purchase Register</div>
+    <div class="nav-item" onclick="showPage('registers')"><span class="nav-icon">📋</span> Production Register</div>
     <div class="nav-item" onclick="showPage('costing')"><span class="nav-icon">🧮</span> Job Costing</div>
     <div class="nav-item" onclick="showPage('tally')"><span class="nav-icon">📊</span> Tally Sync</div>
     <div class="nav-section">Operations</div>
@@ -612,6 +613,11 @@
       <!-- Rate History -->
       <div class="section-header" style="margin-top:28px;"><div class="section-title">📈 Rate History by Reel Size</div></div>
       <div id="rate-history-list"><div class="empty-state">Rate history will appear here after purchases are added.</div></div>
+    </div>
+
+    <!-- ══ PRODUCTION REGISTER ══ -->
+    <div id="page-registers" class="page" style="display:none">
+      <div id="registers-root"></div>
     </div>
 
     <!-- ══ CLIENTS ══ -->
@@ -1601,6 +1607,7 @@
 <script src="js/job-costing.js"></script>
 <script src="js/pipeline-board.js"></script>
 <script src="js/analytics.js"></script>
+<script src="js/registers.js"></script>
 <script src="js/app.js"></script>
 
 </body>
