@@ -147,12 +147,13 @@ async function fetchClients() {
 
     if (cJson.error) return false;
 
-    const cRows = (cJson.values || []).slice(1); // skip header
+    const allCRows = (cJson.values || []).slice(1).filter(r => r[0]);
+    // If the dedicated sheet is blank, signal failure so callers fall back to localStorage
+    if (allCRows.length === 0) return false;
+
     const pRows = (pJson.values || []).slice(1);
 
-    CLIENTS = cRows
-      .filter(r => r[0])
-      .map(r => ({
+    CLIENTS = allCRows.map(r => ({
         name:     r[0] || '',
         contact:  r[1] || '',
         phone:    r[2] || '',
@@ -349,13 +350,20 @@ async function runClientMigration() {
     let cRows = (cJson.values || []).filter(r => r[0]);
     let pRows = (pJson.values || []).filter(r => r[0] && r[1]);
 
-    // Dedicated sheets are blank — fall back to in-memory CLIENTS
-    if (!cRows.length && CLIENTS.length > 0) {
-      cRows = CLIENTS.map(c => [c.name, c.contact || '', c.phone || '', c.city || '']);
-      pRows = CLIENTS.flatMap(c =>
-        (c.products || []).map(p => [c.name, p.name, p.size||'', p.ply||'',
-          p.colour||'', p.weight||'', p.reelSize||'', ...(p.gsm||[])])
-      );
+    // Dedicated sheets are blank — fall back to in-memory CLIENTS, then localStorage
+    if (!cRows.length) {
+      let source = CLIENTS.length > 0 ? CLIENTS : null;
+      if (!source) {
+        const stored = localStorage.getItem(LS_CLIENTS);
+        source = stored ? JSON.parse(stored) : JSON.parse(JSON.stringify(DEFAULT_CLIENTS));
+      }
+      if (source && source.length > 0) {
+        cRows = source.map(c => [c.name, c.contact || '', c.phone || '', c.city || '']);
+        pRows = source.flatMap(c =>
+          (c.products || []).map(p => [c.name, p.name, p.size||'', p.ply||'',
+            p.colour||'', p.weight||'', p.reelSize||'', ...(p.gsm||[])])
+        );
+      }
     }
 
     if (!cRows.length) {
