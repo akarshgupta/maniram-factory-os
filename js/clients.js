@@ -301,8 +301,8 @@ async function migrateClientsToSheets(clients) {
   await new Promise(r => setTimeout(r, 3000));
 }
 
-// Track whether data came from the old fallback location
-let _clientsFromFallback = false;
+// true = clients were loaded from Google Sheets; false = loaded from localStorage/defaults
+let _clientsFromSheet = false;
 
 async function initClients() {
   const migrated = localStorage.getItem('mi_clients_migrated');
@@ -324,8 +324,10 @@ async function initClients() {
   if (!ok || CLIENTS.length === 0) {
     const stored = localStorage.getItem(LS_CLIENTS);
     CLIENTS = stored ? JSON.parse(stored) : JSON.parse(JSON.stringify(DEFAULT_CLIENTS));
+    _clientsFromSheet = false;
   } else {
     localStorage.removeItem(LS_CLIENTS);
+    _clientsFromSheet = true;
   }
 }
 
@@ -347,9 +349,8 @@ async function runClientMigration() {
     let cRows = (cJson.values || []).filter(r => r[0]);
     let pRows = (pJson.values || []).filter(r => r[0] && r[1]);
 
-    // If Orders sheet has no Customers tab, fall back to in-memory CLIENTS (if real data)
-    if (!cRows.length && CLIENTS.length > 0 &&
-        JSON.stringify(CLIENTS) !== JSON.stringify(DEFAULT_CLIENTS)) {
+    // Dedicated sheets are blank — fall back to in-memory CLIENTS
+    if (!cRows.length && CLIENTS.length > 0) {
       cRows = CLIENTS.map(c => [c.name, c.contact || '', c.phone || '', c.city || '']);
       pRows = CLIENTS.flatMap(c =>
         (c.products || []).map(p => [c.name, p.name, p.size||'', p.ply||'',
@@ -524,7 +525,7 @@ function clearProductFields() {
 
 function renderClients() {
   const banner = document.getElementById('client-migration-banner');
-  if (banner) banner.style.display = 'none'; // no migration needed
+  if (banner) banner.style.display = _clientsFromSheet ? 'none' : 'block';
 
   const list = document.getElementById('clients-list');
   list.innerHTML = '';
