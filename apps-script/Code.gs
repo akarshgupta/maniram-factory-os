@@ -145,7 +145,8 @@ function saveProduct(data) {
   var sheet = ss.getSheetByName('Sheet1') || ss.getSheets()[0];
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(['ClientName','Product','Size','Ply','Colour','Weight','ReelSize',
-                     'GSM1','GSM2','GSM3','GSM4','GSM5','GSM6','GSM7','GSM8','GSM9']);
+                     'GSM1','GSM2','GSM3','GSM4','GSM5','GSM6','GSM7','GSM8','GSM9',
+                     'HasPrint','PrintColour','PrintDesign']);
   }
 
   var gsm  = Array.isArray(data.gsm) ? data.gsm : [];
@@ -153,14 +154,17 @@ function saveProduct(data) {
     data.clientName, data.name, data.size || '', data.ply || '',
     data.colour || '', data.weight || '', data.reelSize || '',
     gsm[0]||'', gsm[1]||'', gsm[2]||'', gsm[3]||'', gsm[4]||'',
-    gsm[5]||'', gsm[6]||'', gsm[7]||'', gsm[8]||''
+    gsm[5]||'', gsm[6]||'', gsm[7]||'', gsm[8]||'',
+    data.hasPrint ? 'TRUE' : 'FALSE',
+    data.printColour || '',
+    data.printDesign || ''
   ];
 
   var rows       = sheet.getDataRange().getValues();
   var searchProd = data.originalName || data.name;
   for (var i = 1; i < rows.length; i++) {
     if ((rows[i][0]||'').trim() === data.clientName.trim() && (rows[i][1]||'').trim() === searchProd.trim()) {
-      sheet.getRange(i + 1, 1, 1, 16).setValues([row]);
+      sheet.getRange(i + 1, 1, 1, 19).setValues([row]);
       return;
     }
   }
