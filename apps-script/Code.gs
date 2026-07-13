@@ -14,6 +14,12 @@ var PROD_PERF_SHEET_ID = '1cK7sbz1pwsSJOD6ZBgdj12CN3Gznw9Y37KN-U3_hTwQ';
 // ── Separate spreadsheet per finance operation ──
 // Run setupSheets() ONCE (from the editor) to create these and print their IDs,
 // then paste each ID below AND into js/config.js. Nothing is merged together.
+var REEL_SHEET_ID        = '1tcE8W_1q-tkXn6DZ9DX6darBnUpwcQtFZqA9sUbtjR8';
+var REEL_STOCK_TAB       = 'Stock';
+
+// ── Separate spreadsheet per finance operation ──
+// Run setupSheets() ONCE (from the editor) to create these and print their IDs,
+// then paste each ID below AND into js/config.js. Nothing is merged together.
 var INVOICES_SHEET_ID    = '';
 var EXPENSES_SHEET_ID    = '';
 var RECEIVABLES_SHEET_ID = '';
@@ -37,6 +43,8 @@ function doPost(e) {
     else if (action === 'saveStaffLog')      saveStaffLog(data);
     else if (action === 'saveProdPerf')      saveProdPerf(data);
     else if (action === 'savePurchase')      savePurchase(data);
+    else if (action === 'updatePurchase')    updatePurchase(data);
+    else if (action === 'addReelStock')      addReelStock(data);
     else if (action === 'saveOverhead')      saveOverhead(data);
     // ── Tally sync ──
     else if (action === 'syncTally')         responseData = syncTallyData(data);
@@ -239,16 +247,101 @@ function saveProdPerf(data) {
 // PURCHASES  →  ORDERS_SHEET_ID / "Purchases" tab  (unchanged)
 // ══════════════════════════════════════════════════════════════
 
+function _purchaseHeaders() {
+  return ['ID','Supplier','ReelSize','GSM','BF','QuantityKg','RatePerKg',
+          'PurchaseDate','ExpectedDelivery','ActualDelivery',
+          'PaymentStatus','PaidAmount','Remarks','Status'];
+}
+
+function _purchaseRow(d) {
+  return [
+    d.id || '', d.supplier || '', d.reelSize || '', d.gsm || '', d.bf || '',
+    d.quantityKg || 0, d.ratePerKg || 0, d.purchaseDate || '',
+    d.expectedDelivery || '', d.actualDelivery || '',
+    d.paymentStatus || 'Unpaid', d.paidAmount || 0, d.remarks || '', d.status || 'Pending'
+  ];
+}
+
 function savePurchase(data) {
   var ss    = SpreadsheetApp.openById(ORDERS_SHEET_ID);
   var sheet = ss.getSheetByName('Purchases');
-  if (!sheet) return;
-  if (sheet.getLastRow() === 0) {
-    sheet.appendRow(['Date','Supplier','Item','Qty','Unit','Rate','Total','Notes']);
+  if (!sheet) {
+    sheet = ss.insertSheet('Purchases');
+    sheet.appendRow(_purchaseHeaders());
+    sheet.setFrozenRows(1);
+    sheet.getRange(1,1,1,14).setFontWeight('bold').setBackground('#E8F0FE');
   }
-  sheet.appendRow([data.date || '', data.supplier || '', data.item || '',
-                   data.qty || '', data.unit || '', data.rate || '',
-                   data.total || '', data.notes || '']);
+  if (sheet.getLastRow() === 0) sheet.appendRow(_purchaseHeaders());
+  sheet.appendRow(_purchaseRow(data));
+}
+
+function updatePurchase(data) {
+  var ss    = SpreadsheetApp.openById(ORDERS_SHEET_ID);
+  var sheet = ss.getSheetByName('Purchases');
+  if (!sheet) return;
+  var rows = sheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if ((rows[i][0] || '').toString() === (data.id || '').toString()) {
+      sheet.getRange(i + 1, 1, 1, 14).setValues([_purchaseRow(data)]);
+      return;
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// REEL STOCK  →  REEL_SHEET_ID / "Stock" tab
+// Called when a purchase is marked received. Appends new reel
+// rows matching the sheet's existing column layout.
+// ══════════════════════════════════════════════════════════════
+
+function addReelStock(data) {
+  var ss    = SpreadsheetApp.openById(REEL_SHEET_ID);
+  var sheet = ss.getSheetByName(REEL_STOCK_TAB);
+  if (!sheet) sheet = ss.getSheets()[0];
+
+  var rows      = sheet.getDataRange().getValues();
+  var headerIdx = -1;
+  var colSize = -1, colGSM = -1, colBF = -1, colWeight = -1, colQty = -1;
+
+  // Detect header row (same logic as the JS frontend)
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i].map(function(c) { return (c || '').toString().trim().toUpperCase(); });
+    var si = -1;
+    for (var j = 0; j < r.length; j++) {
+      if (r[j] === 'SIZE' || r[j] === 'REEL SIZE' || r[j] === 'REEL_SIZE') { si = j; break; }
+    }
+    if (si >= 0) {
+      headerIdx = i;
+      colSize   = si;
+      for (var j = 0; j < r.length; j++) {
+        if (r[j] === 'GSM')                                                          colGSM    = j;
+        if (r[j] === 'BF')                                                           colBF     = j;
+        if (r[j].indexOf('WEIGHT') >= 0 || r[j] === 'WT' || r[j] === 'KG' || r[j] === 'NET WT' || r[j] === 'GROSS WT') colWeight = j;
+        if (r[j] === 'QTY' || r[j] === 'QUANTITY' || r[j] === 'REELS' || r[j] === 'COUNT' || r[j] === 'NOS' || r[j] === 'NO.') colQty = j;
+      }
+      break;
+    }
+  }
+
+  var numReels     = parseInt(data.numReels)  || 1;
+  var weightPerReel = parseFloat(data.weightPerReel) || parseFloat(data.quantityKg) || 0;
+
+  if (headerIdx < 0 || (colSize < 0 && colGSM < 0)) {
+    // Sheet has no recognisable header — just append a simple row
+    sheet.appendRow([data.reelSize || '', data.gsm || '', data.bf || '', weightPerReel, numReels]);
+    return;
+  }
+
+  var maxCol = Math.max(colSize, colGSM, colBF, colWeight, colQty) + 1;
+  var newRow  = [];
+  for (var k = 0; k < maxCol; k++) newRow.push('');
+  if (colSize   >= 0) newRow[colSize]   = data.reelSize   || '';
+  if (colGSM    >= 0) newRow[colGSM]    = data.gsm        || '';
+  if (colBF     >= 0) newRow[colBF]     = data.bf         || '';
+  if (colWeight >= 0) newRow[colWeight] = weightPerReel;
+  if (colQty    >= 0) newRow[colQty]    = numReels;
+
+  sheet.appendRow(newRow);
 }
 
 // ══════════════════════════════════════════════════════════════

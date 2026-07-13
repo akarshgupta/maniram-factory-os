@@ -149,15 +149,42 @@ function savePurchase() {
 function markPurchaseReceived(id) {
   const idx = purchases.findIndex(p => p.id === id);
   if (idx < 0) return;
+  const p      = purchases[idx];
   const actual = prompt('Actual delivery date (YYYY-MM-DD):', todayStr);
   if (!actual) return;
+
+  const numReelsStr = prompt(
+    `How many reels received?\n(Total: ${p.quantityKg} kg — enter number of reels to add to stock)`,
+    '1'
+  );
+  if (numReelsStr === null) return;
+  const numReels     = parseInt(numReelsStr) || 1;
+  const weightPerReel = Math.round((p.quantityKg / numReels) * 10) / 10;
+
   purchases[idx].status         = 'Received';
   purchases[idx].actualDelivery = actual;
   renderPurchaseList();
   renderRateHistory();
 
   postPurchase({ action: 'updatePurchase', ...purchases[idx] });
-  setTimeout(fetchPurchases, 2000);
+
+  // Add to reel stock sheet
+  postPurchase({
+    action: 'addReelStock',
+    reelSize:     p.reelSize,
+    gsm:          p.gsm,
+    bf:           p.bf,
+    numReels,
+    weightPerReel,
+    quantityKg:   p.quantityKg,
+    supplier:     p.supplier,
+    purchaseId:   p.id,
+  });
+
+  setTimeout(() => {
+    fetchPurchases();
+    if (typeof fetchReelStock === 'function') fetchReelStock();
+  }, 2500);
 }
 
 function markPayment(id) {
