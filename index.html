@@ -1311,7 +1311,7 @@
         <label class="form-label">Box Size (cm) <span style="color:var(--danger)">*</span></label>
         <input class="form-input" type="text" id="pm-size" placeholder="e.g. 50×35×68 cm"
           onkeydown="if(event.key==='Escape')closeProductModal()"
-          oninput="convertSizeCmIn('pm-size','pm-size-in')">
+          oninput="convertSizeCmIn('pm-size','pm-size-in');updateProductSchematic()">
         <div id="pm-size-in" style="font-size:10px;color:var(--muted);margin-top:3px;min-height:14px"></div>
       </div>
       <div class="form-group">
@@ -1351,6 +1351,39 @@
         <div class="field-hint" style="margin-bottom:8px">GSM = grams per square metre, the paper thickness/density. Higher GSM = heavier paper. Ask purchasing for the GSM of each paper grade used.</div>
         <div id="pm-gsm-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px"></div>
       </div>
+
+      <!-- Printing -->
+      <div class="form-group" style="grid-column:span 2;margin-top:4px">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <input type="checkbox" id="pm-has-print" style="width:16px;height:16px;cursor:pointer;accent-color:var(--navy)" onchange="toggleProductPrintFields()">
+          <span style="font-weight:600;font-size:13px;color:var(--navy)">Has Printing / Flexo Print?</span>
+        </label>
+      </div>
+      <div id="pm-print-fields" style="display:none;grid-column:span 2">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Print Colour(s)</label>
+            <input class="form-input" type="text" id="pm-print-colour" placeholder="e.g. Red, Black"
+              onkeydown="if(event.key==='Escape')closeProductModal()"
+              oninput="updateProductSchematic()">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Design Name / Description</label>
+            <input class="form-input" type="text" id="pm-print-design" placeholder="e.g. Eagle + Handle with Care"
+              onkeydown="if(event.key==='Escape')closeProductModal()"
+              oninput="updateProductSchematic()">
+          </div>
+        </div>
+      </div>
+
+      <!-- Box blank schematic preview -->
+      <div class="form-group" style="grid-column:span 2;margin-top:8px">
+        <label class="form-label" style="margin-bottom:6px">Box Blank Schematic</label>
+        <div id="pm-box-preview" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px;min-height:56px;display:flex;align-items:center;justify-content:center;overflow-x:auto">
+          <span style="font-size:11px;color:#aaa">Enter box size above to preview</span>
+        </div>
+      </div>
+
     </div>
     <div style="display:flex;gap:10px">
       <button class="btn-primary" onclick="saveProductModal()">💾 Save Product</button>
@@ -1490,8 +1523,9 @@
       <textarea id="wa-message" class="form-input" rows="11"
         style="font-family:monospace;font-size:12px;line-height:1.65;resize:vertical"></textarea>
     </div>
-    <div style="display:flex;gap:10px">
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn-primary" style="background:#25D366;border-color:#25D366;flex:1" onclick="sendWhatsAppNow()">📱 Open WhatsApp</button>
+      <button class="btn-secondary" onclick="openJobCardFromWa()" title="Generate production job card">📋 Job Card</button>
       <button class="btn-secondary" onclick="closeWaModal()">Skip</button>
     </div>
   </div>

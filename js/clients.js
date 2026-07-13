@@ -84,6 +84,33 @@ let _productModalCi  = -1;
 let _productModalPi  = -1; // -1 = adding new
 let _productModalCb  = null; // optional callback after save
 
+// ── Print fields toggle in product modal ──
+function toggleProductPrintFields() {
+  const hasPrint = !!document.getElementById('pm-has-print')?.checked;
+  const div = document.getElementById('pm-print-fields');
+  if (div) div.style.display = hasPrint ? 'grid' : 'none';
+  updateProductSchematic();
+}
+
+// ── Box blank schematic preview in product modal ──
+function updateProductSchematic() {
+  const preview = document.getElementById('pm-box-preview');
+  if (!preview) return;
+  const sizeStr = document.getElementById('pm-size')?.value || '';
+  const dims = (typeof _parseDims === 'function') ? _parseDims(sizeStr) : null;
+  if (!dims || !dims.l || !dims.w || !dims.h) {
+    preview.innerHTML = '<span style="font-size:11px;color:#aaa">Enter box size above to preview</span>';
+    return;
+  }
+  const hasPrint   = !!document.getElementById('pm-has-print')?.checked;
+  const printDesc  = hasPrint ? (document.getElementById('pm-print-design')?.value || '') : '';
+  const spec       = hasPrint ? { colours: 1, printDesc } : null;
+  if (typeof _buildSchematic === 'function') {
+    preview.innerHTML = _buildSchematic(dims, spec);
+    preview.style.display = 'block';
+  }
+}
+
 // ── GSM Grid ──
 function updateGsmFields(existingGsm) {
   const grid = document.getElementById('pm-gsm-grid');
@@ -113,7 +140,7 @@ function updateGsmFields(existingGsm) {
 async function fetchClients() {
   try {
     const cUrl = `https://sheets.googleapis.com/v4/spreadsheets/${CUSTOMERS_SHEET_ID}/values/${encodeURIComponent(CUSTOMERS_TAB + '!A1:D500')}?key=${API_KEY}`;
-    const pUrl = `https://sheets.googleapis.com/v4/spreadsheets/${PRODUCTS_SHEET_ID}/values/${encodeURIComponent(PRODUCTS_TAB + '!A1:P2000')}?key=${API_KEY}`;
+    const pUrl = `https://sheets.googleapis.com/v4/spreadsheets/${PRODUCTS_SHEET_ID}/values/${encodeURIComponent(PRODUCTS_TAB + '!A1:S2000')}?key=${API_KEY}`;
 
     const [cRes, pRes]   = await Promise.all([fetch(cUrl), fetch(pUrl)]);
     const [cJson, pJson] = await Promise.all([cRes.json(), pRes.json()]);
@@ -133,13 +160,16 @@ async function fetchClients() {
         products: pRows
           .filter(p => p[0] === r[0])
           .map(p => ({
-            name:     p[1] || '',
-            size:     p[2] || '',
-            ply:      p[3] || '',
-            colour:   p[4] || '',
-            weight:   p[5] || '',
-            reelSize: p[6] || '',
-            gsm:      [p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]].map(Number).filter(v => v > 0),
+            name:        p[1] || '',
+            size:        p[2] || '',
+            ply:         p[3] || '',
+            colour:      p[4] || '',
+            weight:      p[5] || '',
+            reelSize:    p[6] || '',
+            gsm:         [p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]].map(Number).filter(v => v > 0),
+            hasPrint:    String(p[16] || '').toUpperCase() === 'TRUE' || p[16] === '1' || p[16] === true,
+            printColour: p[17] || '',
+            printDesign: p[18] || '',
           })),
       }));
 
@@ -309,7 +339,7 @@ async function runClientMigration() {
 
   try {
     const cUrl = `https://sheets.googleapis.com/v4/spreadsheets/${CUSTOMERS_SHEET_ID}/values/${encodeURIComponent(CUSTOMERS_TAB + '!A2:D500')}?key=${API_KEY}`;
-    const pUrl = `https://sheets.googleapis.com/v4/spreadsheets/${PRODUCTS_SHEET_ID}/values/${encodeURIComponent(PRODUCTS_TAB + '!A2:P2000')}?key=${API_KEY}`;
+    const pUrl = `https://sheets.googleapis.com/v4/spreadsheets/${PRODUCTS_SHEET_ID}/values/${encodeURIComponent(PRODUCTS_TAB + '!A2:S2000')}?key=${API_KEY}`;
 
     const [cRes, pRes]   = await Promise.all([fetch(cUrl), fetch(pUrl)]);
     const [cJson, pJson] = await Promise.all([cRes.json(), pRes.json()]);
@@ -596,9 +626,18 @@ function openProductModal(ci, pi, callback) {
   document.getElementById('pm-reelsize').value = p ? p.reelSize : '';
   const pmRate = document.getElementById('pm-rate');
   if (pmRate) pmRate.value = p ? (p.rate || '') : '';
+  // Print fields
+  const hpEl = document.getElementById('pm-has-print');
+  if (hpEl) hpEl.checked = p ? !!p.hasPrint : false;
+  const pcEl = document.getElementById('pm-print-colour');
+  if (pcEl) pcEl.value = p ? (p.printColour || '') : '';
+  const pdEl = document.getElementById('pm-print-design');
+  if (pdEl) pdEl.value = p ? (p.printDesign || '') : '';
+  toggleProductPrintFields();
   document.getElementById('product-modal-overlay').style.display = 'flex';
   updateGsmFields(p ? p.gsm : null);
   if (typeof convertSizeCmIn === 'function') convertSizeCmIn('pm-size', 'pm-size-in');
+  setTimeout(updateProductSchematic, 60);
   document.getElementById('pm-name').focus();
 }
 
@@ -621,7 +660,10 @@ function saveProductModal() {
   if (!name) { document.getElementById('pm-name').focus(); return; }
   if (!size) { document.getElementById('pm-size').focus(); return; }
 
-  const product = { name, size, ply, colour, weight, reelSize, rate, gsm };
+  const hasPrint    = !!document.getElementById('pm-has-print')?.checked;
+  const printColour = hasPrint ? (document.getElementById('pm-print-colour')?.value.trim() || '') : '';
+  const printDesign = hasPrint ? (document.getElementById('pm-print-design')?.value.trim() || '') : '';
+  const product = { name, size, ply, colour, weight, reelSize, rate, gsm, hasPrint, printColour, printDesign };
   const ci      = _productModalCi;
 
   if (_productModalPi >= 0) {

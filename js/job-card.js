@@ -24,15 +24,22 @@ function openPrintSpecModal(orderId) {
   if (!o) { alert('Order not found.'); return; }
   _printSpecOrderId = orderId;
 
-  const spec = getPrintSpec(o.customer, o.product) || {};
+  // Pre-fill from saved spec, with fallback to product-level print data
+  const saved   = getPrintSpec(o.customer, o.product) || {};
+  const prodData = (typeof CLIENTS !== 'undefined')
+    ? CLIENTS.find(c => c.name === o.customer)?.products?.find(p => p.name === o.product)
+    : null;
 
   document.getElementById('ps-order-info').textContent = `${o.id} · ${o.customer} · ${o.product || o.size || '—'}`;
-  document.getElementById('ps-colours').value       = spec.colours      || '1';
-  document.getElementById('ps-block-ref').value     = spec.blockRef     || '';
-  document.getElementById('ps-print-desc').value    = spec.printDesc    || '';
-  document.getElementById('ps-notes').value         = spec.notes        || '';
+  document.getElementById('ps-colours').value    = saved.colours   || 1;
+  document.getElementById('ps-block-ref').value  = saved.blockRef  || '';
+  document.getElementById('ps-print-desc').value = saved.printDesc || prodData?.printDesign || '';
+  document.getElementById('ps-notes').value      = saved.notes     || '';
 
-  _renderColourRows(parseInt(spec.colours || 1), spec.colourDetails || []);
+  const defaultRows = (prodData?.printColour && !saved.colourDetails?.length)
+    ? [{ name: prodData.printColour, desc: prodData.printDesign || '' }]
+    : (saved.colourDetails || []);
+  _renderColourRows(parseInt(saved.colours || 1), defaultRows);
   document.getElementById('print-spec-overlay').style.display = 'flex';
   document.getElementById('ps-colours').focus();
 }
@@ -107,7 +114,7 @@ function printJobCard(orderId) {
 
   // Box schematic: parse L×W×H from size field
   const dims = _parseDims(o.size);
-  const schematic = dims ? _buildSchematic(dims) : '';
+  const schematic = dims ? _buildSchematic(dims, spec) : '';
 
   // Colour spec rows
   const colourRows = (spec.colourDetails || []).map((c, i) => `
@@ -361,26 +368,116 @@ function _parseDims(sizeStr) {
   return null;
 }
 
-// ── Build CSS box face schematic (front face: L × H) ──
-function _buildSchematic(dims) {
+// ── Build SVG flat box blank schematic ──
+// Layout (left→right): [Stitch | W | L | W | L]
+// Each panel has top and bottom flaps (W/2 height)
+// Print area shown on both Length panels
+function _buildSchematic(dims, spec) {
   const { l, w, h } = dims;
-  const maxW = 160, maxH = 110;
-  const scale = Math.min(maxW / Math.max(l, 1), maxH / Math.max(h || w, 1), 2.5);
-  const bW    = Math.round(l * scale);
-  const bH    = Math.round((h || w) * scale);
-  const pad   = 10;
-  const pzX   = Math.round(bW * 0.1), pzY = Math.round(bH * 0.1);
-  const pzW   = Math.round(bW * 0.8), pzH = Math.round(bH * 0.8);
+  if (!l || !w) return '';
+  const H = h || w;
 
-  return `
-    <div style="text-align:center">
-      <div style="font-size:9px;color:#888;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Front Face (L × H)</div>
-      <div class="box-face" style="width:${bW}px;height:${bH}px;margin:0 auto">
-        <div class="print-zone" style="left:${pzX}px;top:${pzY}px;width:${pzW}px;height:${pzH}px">
-          <div style="font-size:9px;color:#E74C3C;text-align:center;margin-top:${Math.round(pzH/2)-8}px;font-weight:700">PRINT AREA</div>
-        </div>
-      </div>
-      <div style="font-size:9px;color:#555;margin-top:6px">${l} × ${h || w} cm (L × ${h ? 'H' : 'W'})</div>
-      <div style="font-size:9px;color:#888">W = ${w} cm</div>
+  const stitch  = Math.max(w * 0.15, 1.5);  // stitch tab width
+  const flapH   = w / 2;                     // all flaps = W/2 deep
+  const totalW  = 2 * l + 2 * w + stitch;
+  const totalH  = H + 2 * flapH;
+
+  // Scale to fit 460 × 182 px canvas
+  const MAX_W = 460, MAX_H = 182;
+  const sc    = Math.min(MAX_W / totalW, MAX_H / totalH, 6);
+
+  const sl = l * sc, sw = w * sc, sH = H * sc;
+  const sf = flapH * sc, ss = stitch * sc;
+
+  const PAD = 2;
+  const VW = Math.ceil(totalW * sc + PAD * 2 + 18);  // extra right margin for annotation
+  const VH = Math.ceil(totalH * sc + PAD * 2);
+
+  // Panel x-origins
+  const xSt = PAD;
+  const xW1 = xSt + ss;
+  const xL1 = xW1 + sw;
+  const xW2 = xL1 + sl;
+  const xL2 = xW2 + sw;
+
+  // Y bands
+  const yTop  = PAD;
+  const yBody = PAD + sf;
+  const yBot  = yBody + sH;
+
+  const hasSpec  = !!(spec && (spec.colours > 0 || spec.printDesc));
+  const dLabel   = (spec && spec.printDesc) ? spec.printDesc : '';
+  const dShort   = dLabel.length > 22 ? dLabel.slice(0, 20) + '…' : dLabel;
+  const fmtN     = n => n % 1 === 0 ? String(n) : n.toFixed(1);
+  const r        = n => Math.round(n * 10) / 10;
+
+  const bRect = (x, y, rw, rh) =>
+    `<rect x="${r(x)}" y="${r(y)}" width="${r(rw)}" height="${r(rh)}" fill="#fff" stroke="#042C53" stroke-width="1.5"/>`;
+  const fRect = (x, y, rw, rh) =>
+    `<rect x="${r(x)}" y="${r(y)}" width="${r(rw)}" height="${r(rh)}" fill="#dbeafe" stroke="#1d4ed8" stroke-width="1" stroke-dasharray="4,2"/>`;
+  const pRect = (x, y, rw, rh) => {
+    const sty = hasSpec
+      ? `fill="rgba(220,38,38,0.07)" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="5,3"`
+      : `fill="#f8fafc" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,2"`;
+    return `<rect x="${r(x)}" y="${r(y)}" width="${r(rw)}" height="${r(rh)}" ${sty}/>`;
+  };
+  const t = (x, y, anchor, size, fill, weight, content) =>
+    `<text x="${r(x)}" y="${r(y)}" text-anchor="${anchor}" font-size="${size}" fill="${fill}" font-weight="${weight}">${content}</text>`;
+
+  const printTxt = (px, py, prw, prh) => {
+    if (!hasSpec && !dShort) return '';
+    const cx = px + prw / 2, cy = py + prh / 2;
+    const line1 = hasSpec ? t(cx, cy - 4, 'middle', 7, '#dc2626', 'bold', '✦ PRINT') : '';
+    const line2 = dShort  ? t(cx, cy + 7, 'middle', 6.5, '#dc2626', 'normal', dShort) : '';
+    return line1 + line2;
+  };
+
+  const parts = [
+    `<svg width="${VW}" height="${VH}" viewBox="0 0 ${VW} ${VH}" xmlns="http://www.w3.org/2000/svg" style="font-family:Arial,sans-serif;display:block;max-width:100%">`,
+
+    // Stitch tab
+    `<rect x="${r(xSt)}" y="${r(yBody)}" width="${r(ss)}" height="${r(sH)}" fill="#f3f4f6" stroke="#9ca3af" stroke-width="1" stroke-dasharray="3,2"/>`,
+    ss > 10 ? `<text x="${r(xSt+ss/2)}" y="${r(yBody+sH/2+3)}" text-anchor="middle" font-size="6" fill="#6b7280" transform="rotate(-90 ${r(xSt+ss/2)} ${r(yBody+sH/2)})">STITCH</text>` : '',
+
+    // W1
+    bRect(xW1, yBody, sw, sH),
+    fRect(xW1, yTop,  sw, sf),
+    fRect(xW1, yBot,  sw, sf),
+    t(xW1+sw/2, yBody+sH/2-3,  'middle', 8, '#042C53', 'bold',   'W'),
+    sw > 20 ? t(xW1+sw/2, yBody+sH/2+9, 'middle', 7, '#555',    'normal', fmtN(w)) : '',
+
+    // L1
+    bRect(xL1, yBody, sl, sH),
+    pRect(xL1+sl*0.07, yBody+sH*0.1, sl*0.86, sH*0.8),
+    printTxt(xL1+sl*0.07, yBody+sH*0.1, sl*0.86, sH*0.8),
+    fRect(xL1, yTop, sl, sf),
+    fRect(xL1, yBot, sl, sf),
+    sH > 14 ? t(xL1+sl/2, yBody+9, 'middle', 7, '#042C53', 'bold', `L=${fmtN(l)}`) : '',
+
+    // W2
+    bRect(xW2, yBody, sw, sH),
+    fRect(xW2, yTop,  sw, sf),
+    fRect(xW2, yBot,  sw, sf),
+    t(xW2+sw/2, yBody+sH/2-3,  'middle', 8, '#042C53', 'bold',   'W'),
+    sw > 20 ? t(xW2+sw/2, yBody+sH/2+9, 'middle', 7, '#555',    'normal', fmtN(w)) : '',
+
+    // L2
+    bRect(xL2, yBody, sl, sH),
+    pRect(xL2+sl*0.07, yBody+sH*0.1, sl*0.86, sH*0.8),
+    printTxt(xL2+sl*0.07, yBody+sH*0.1, sl*0.86, sH*0.8),
+    fRect(xL2, yTop, sl, sf),
+    fRect(xL2, yBot, sl, sf),
+    sH > 14 ? t(xL2+sl/2, yBody+9, 'middle', 7, '#042C53', 'bold', `L=${fmtN(l)}`) : '',
+
+    // Right-side annotations
+    sf > 14 ? t(xL2+sl+3, yTop+sf/2+3,  'start', 7, '#1d4ed8', 'normal', 'W/2') : '',
+    sf > 14 ? t(xL2+sl+3, yBot+sf/2+3,  'start', 7, '#1d4ed8', 'normal', 'W/2') : '',
+
+    '</svg>',
+  ];
+
+  return `<div style="overflow-x:auto">${parts.join('')}</div>
+    <div style="font-size:9px;color:#888;text-align:center;margin-top:4px">
+      Flat Blank · L=${fmtN(l)} × W=${fmtN(w)} × H=${fmtN(H)} · Print areas on both Length panels
     </div>`;
 }

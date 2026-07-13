@@ -958,3 +958,10 @@ function closeWaModal() {
   if (overlay) overlay.style.display = 'none';
   waCurrentOrder = null;
 }
+
+function openJobCardFromWa() {
+  if (!waCurrentOrder) return;
+  const id = waCurrentOrder.id;
+  closeWaModal();
+  if (typeof openPrintSpecModal === 'function') openPrintSpecModal(id);
+}
