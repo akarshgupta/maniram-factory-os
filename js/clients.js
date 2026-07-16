@@ -84,6 +84,50 @@ let _productModalCi  = -1;
 let _productModalPi  = -1; // -1 = adding new
 let _productModalCb  = null; // optional callback after save
 
+// ── Print photo helpers ──
+let _pmCurrentPhoto = null; // base64 string for the photo in the current open modal
+
+function handlePrintPhotoUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 900;
+      const ratio = Math.min(MAX / img.width, MAX / img.height, 1);
+      const canvas = document.createElement('canvas');
+      canvas.width  = Math.round(img.width  * ratio);
+      canvas.height = Math.round(img.height * ratio);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      _pmCurrentPhoto = canvas.toDataURL('image/jpeg', 0.78);
+      _showPhotoPreview(_pmCurrentPhoto);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function _showPhotoPreview(dataUrl) {
+  const preview  = document.getElementById('pm-photo-preview');
+  const imgEl    = document.getElementById('pm-photo-img');
+  const clearBtn = document.getElementById('pm-photo-clear');
+  if (preview)  preview.style.display  = dataUrl ? 'block' : 'none';
+  if (imgEl)    imgEl.src              = dataUrl || '';
+  if (clearBtn) clearBtn.style.display = dataUrl ? 'inline-block' : 'none';
+}
+
+function clearPrintPhoto() {
+  _pmCurrentPhoto = null;
+  _showPhotoPreview(null);
+  const inp = document.getElementById('pm-print-photo');
+  if (inp) inp.value = '';
+}
+
+function _photoKey(clientName, productName) {
+  return `mi_print_photo_${clientName}__${productName}`;
+}
+
 // ── Print fields toggle in product modal ──
 function toggleProductPrintFields() {
   const hasPrint = !!document.getElementById('pm-has-print')?.checked;
@@ -104,7 +148,7 @@ function updateProductSchematic() {
   }
   const hasPrint   = !!document.getElementById('pm-has-print')?.checked;
   const printDesc  = hasPrint ? (document.getElementById('pm-print-design')?.value || '') : '';
-  const spec       = hasPrint ? { colours: 1, printDesc } : null;
+  const spec       = hasPrint ? { colours: 1, printDesc, printLines: printDesc.split('\n').filter(Boolean) } : null;
   if (typeof _buildSchematic === 'function') {
     preview.innerHTML = _buildSchematic(dims, spec);
     preview.style.display = 'block';
@@ -642,6 +686,15 @@ function openProductModal(ci, pi, callback) {
   if (pcEl) pcEl.value = p ? (p.printColour || '') : '';
   const pdEl = document.getElementById('pm-print-design');
   if (pdEl) pdEl.value = p ? (p.printDesign || '') : '';
+  // Print photo
+  _pmCurrentPhoto = null;
+  if (p) {
+    const stored = localStorage.getItem(_photoKey(CLIENTS[ci].name, p.name));
+    if (stored) _pmCurrentPhoto = stored;
+  }
+  _showPhotoPreview(_pmCurrentPhoto);
+  const inp = document.getElementById('pm-print-photo');
+  if (inp) inp.value = '';
   toggleProductPrintFields();
   document.getElementById('product-modal-overlay').style.display = 'flex';
   updateGsmFields(p ? p.gsm : null);
@@ -671,7 +724,7 @@ function saveProductModal() {
 
   const hasPrint    = !!document.getElementById('pm-has-print')?.checked;
   const printColour = hasPrint ? (document.getElementById('pm-print-colour')?.value.trim() || '') : '';
-  const printDesign = hasPrint ? (document.getElementById('pm-print-design')?.value.trim() || '') : '';
+  const printDesign = hasPrint ? (document.getElementById('pm-print-design')?.value || '') : '';
   const product = { name, size, ply, colour, weight, reelSize, rate, gsm, hasPrint, printColour, printDesign };
   const ci      = _productModalCi;
 
@@ -682,6 +735,14 @@ function saveProductModal() {
   } else {
     CLIENTS[ci].products.push(product);
     postClient({ action: 'saveProduct', clientName: CLIENTS[ci].name, ...product, gsm });
+  }
+
+  // Save / remove print reference photo in localStorage
+  const key = _photoKey(CLIENTS[ci].name, name);
+  if (hasPrint && _pmCurrentPhoto) {
+    try { localStorage.setItem(key, _pmCurrentPhoto); } catch (e) { /* quota */ }
+  } else if (!hasPrint || !_pmCurrentPhoto) {
+    localStorage.removeItem(key);
   }
 
   const cb    = _productModalCb;
