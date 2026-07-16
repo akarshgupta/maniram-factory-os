@@ -538,7 +538,8 @@ function renderOrders() {
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         <span style="font-size:13px;font-weight:600">${o.qty ? o.qty.toLocaleString('en-IN') : '—'}</span>
         <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();openChallanModal('${o.id}')" title="Issue Delivery Challan">🚚</button>
-        <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();openPrintSpecModal('${o.id}')" title="Print Spec / Job Card">📋</button>
+        <button class="btn-sm" style="font-size:10px;padding:2px 8px;font-weight:600" onclick="event.stopPropagation();quickPrintJobCard('${o.id}')" title="Print Job Card (holds print spec if saved)">📋 Job Card</button>
+        <button class="btn-sm" style="font-size:10px;padding:2px 6px;color:var(--muted)" onclick="event.stopPropagation();openPrintSpecModal('${o.id}')" title="Edit Print Spec">✏️</button>
       </div>
     `;
     list.appendChild(row);
