@@ -1251,6 +1251,8 @@
     </div>
     <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap">
       <button class="btn-primary" onclick="saveEditedOrder()" id="edit-save-btn">💾 Save Changes</button>
+      <button class="btn-secondary" onclick="if(editingOrderId){quickPrintJobCard(editingOrderId)}" style="font-weight:600">📋 Job Card</button>
+      <button class="btn-secondary" onclick="if(editingOrderId){openPrintSpecModal(editingOrderId);document.getElementById('edit-order-overlay').style.display='none'}" style="color:var(--muted);font-size:12px">✏️ Edit Print Spec</button>
       <button class="btn-secondary" onclick="document.getElementById('edit-order-overlay').style.display='none'">✖ Cancel</button>
     </div>
   </div>
