@@ -18,6 +18,18 @@ function getPrintSpec(clientName, productName) {
   return map[_specKey(clientName, productName)] || null;
 }
 
+// ── Quick print: use saved spec if available, else open spec modal ──
+function quickPrintJobCard(orderId) {
+  const o = orders.find(x => x.id === orderId);
+  if (!o) return;
+  const spec = getPrintSpec(o.customer, o.product);
+  if (spec) {
+    printJobCard(orderId);
+  } else {
+    openPrintSpecModal(orderId);
+  }
+}
+
 // ── Open print-spec modal ──
 function openPrintSpecModal(orderId) {
   const o = orders.find(x => x.id === orderId);

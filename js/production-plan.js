@@ -708,7 +708,8 @@ function prodOrderRow(o, stage) {
         </select>
         ${sheetsBtn}
         ${dispatchBtn}
-        <button class="btn-sm" onclick="event.stopPropagation();openPrintSpecModal('${eid}')" title="Job Card / Print Spec">📋</button>
+        <button class="btn-sm" onclick="event.stopPropagation();quickPrintJobCard('${eid}')" title="Print Job Card">📋 Job Card</button>
+        <button class="btn-sm" style="color:var(--muted)" onclick="event.stopPropagation();openPrintSpecModal('${eid}')" title="Edit Print Spec">✏️</button>
         <button class="btn-sm" onclick="event.stopPropagation();openChallanModal('${eid}')" title="Delivery Challan">🚚</button>
         <button class="btn-sm" onclick="openEditModal('${eid}')" title="Edit order">✏️</button>
       </div>
