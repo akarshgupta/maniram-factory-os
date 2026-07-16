@@ -116,6 +116,10 @@ function printJobCard(orderId) {
   const dims = _parseDims(o.size);
   const schematic = dims ? _buildSchematic(dims, spec) : '';
 
+  // Print reference photo (stored in localStorage by product modal)
+  const printPhotoKey   = `mi_print_photo_${o.customer}__${o.product}`;
+  const printPhotoData  = localStorage.getItem(printPhotoKey);
+
   // Colour spec rows
   const colourRows = (spec.colourDetails || []).map((c, i) => `
     <tr>
@@ -316,7 +320,14 @@ function printJobCard(orderId) {
         <div class="spec-row"><span class="spec-label">Print Description:</span><span class="spec-val">${spec.printDesc || '—'}</span></div>
         ${spec.notes ? `<div class="spec-row"><span class="spec-label">Notes:</span><span class="spec-val">${spec.notes}</span></div>` : ''}
       </div>
-      ${schematic ? `<div class="spec-half schematic-wrap">${schematic}</div>` : '<div class="spec-half" style="padding:10px;font-size:11px;color:#888">No box dimensions detected in size field.</div>'}
+      <div class="spec-half schematic-wrap" style="flex-direction:column;gap:10px;align-items:center">
+        ${schematic || '<span style="font-size:11px;color:#888">No box dimensions detected.</span>'}
+        ${printPhotoData ? `
+        <div style="text-align:center;margin-top:4px">
+          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#888;margin-bottom:4px">Print Reference Photo</div>
+          <img src="${printPhotoData}" style="max-width:100%;max-height:160px;object-fit:contain;border:1px solid #e5e7eb;border-radius:4px">
+        </div>` : ''}
+      </div>
     </div>
 
     ${colourRows ? `
@@ -407,7 +418,7 @@ function _buildSchematic(dims, spec) {
 
   const hasSpec  = !!(spec && (spec.colours > 0 || spec.printDesc));
   const dLabel   = (spec && spec.printDesc) ? spec.printDesc : '';
-  const dShort   = dLabel.length > 22 ? dLabel.slice(0, 20) + '…' : dLabel;
+  const dLines   = dLabel.split('\n').map(s => s.trim()).filter(Boolean);
   const fmtN     = n => n % 1 === 0 ? String(n) : n.toFixed(1);
   const r        = n => Math.round(n * 10) / 10;
 
@@ -425,11 +436,15 @@ function _buildSchematic(dims, spec) {
     `<text x="${r(x)}" y="${r(y)}" text-anchor="${anchor}" font-size="${size}" fill="${fill}" font-weight="${weight}">${content}</text>`;
 
   const printTxt = (px, py, prw, prh) => {
-    if (!hasSpec && !dShort) return '';
-    const cx = px + prw / 2, cy = py + prh / 2;
-    const line1 = hasSpec ? t(cx, cy - 4, 'middle', 7, '#dc2626', 'bold', '✦ PRINT') : '';
-    const line2 = dShort  ? t(cx, cy + 7, 'middle', 6.5, '#dc2626', 'normal', dShort) : '';
-    return line1 + line2;
+    if (!hasSpec && !dLines.length) return '';
+    const cx = px + prw / 2;
+    if (!dLines.length) return t(cx, py + prh / 2 + 3, 'middle', 7, '#dc2626', 'bold', '✦ PRINT');
+    const lh = Math.min(prh / (dLines.length + 1.5), 11);
+    const startY = py + prh / 2 - ((dLines.length - 1) * lh) / 2;
+    return dLines.map((line, i) => {
+      const fs = Math.min(lh * 0.82, 9);
+      return t(cx, r(startY + i * lh), 'middle', fs, '#dc2626', i === 0 ? 'bold' : 'normal', line);
+    }).join('');
   };
 
   const parts = [
