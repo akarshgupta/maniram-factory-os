@@ -29,6 +29,7 @@ const pageTitles = {
   invoicing:   '🧾 Invoicing',
   expenses:    '💸 Expense Tracker',
   registers:   '📋 Production Register',
+  svlog:       '📝 Supervisor Register',
   pipeline:    '🚦 Pipeline Board',
   costing:     '🧮 Job Costing',
   deckle:      '📏 Deckle Optimizer',
@@ -57,6 +58,7 @@ function showPage(id) {
   if (id === 'invoicing')   renderInvoicingPage();
   if (id === 'expenses')    renderExpensesPage();
   if (id === 'registers')   loadRegisters();
+  if (id === 'svlog')       loadSupervisorLog();
   if (id === 'pipeline')    renderPipelineBoard();
   if (id === 'costing')     initJobCosting();
   if (id === 'deckle')      initDeckle();

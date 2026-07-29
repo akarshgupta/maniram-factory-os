@@ -14,6 +14,11 @@ const SNAPSHOT_SHEET_ID  = '1bSoFhhJ4_RzD8YiFhZFAA8sW_r1ItwC_EAP-6fPdl9k'; // Re
 const LEDGER_SHEET_ID    = '1dZKC2EtU9DAzGruKzeDIIM3XgWsqYVk2GqjHzfthdkE'; // Ledger July
 const PROD_LOG_SHEET_ID  = '1T3mED9PNC9twyc1O6S4_4XBB1aOsd6-BqTGwLopgkYU'; // Maniram Production Log
 
+// ── Supervisor register (Google Form responses — supervisor phone entry) ──
+const SUPERVISOR_SHEET_ID = '1ArpIy-BTUzHAKmVlcX8_7LChLM8MRiWtO7lmRW2V3sk'; // Maniram — Register Responses
+const SUPERVISOR_PROD_TAB = 'Production';
+const SUPERVISOR_DISP_TAB = 'Dispatch';
+
 // ── Separate sheet per finance operation (fill in after running setupSheets() in Apps Script) ──
 // Each is its OWN Google Spreadsheet — nothing is merged together.
 const INVOICES_SHEET_ID    = ''; // Invoices

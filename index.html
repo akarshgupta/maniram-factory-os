@@ -156,6 +156,7 @@
     <div class="nav-item" onclick="showPage('calendar')"><span class="nav-icon">📅</span> Calendar</div>
     <div class="nav-item" onclick="showPage('pipeline')"><span class="nav-icon">🚦</span> Pipeline Board</div>
     <div class="nav-item" onclick="showPage('production')"><span class="nav-icon">🏭</span> Production Plan</div>
+    <div class="nav-item" onclick="showPage('svlog')"><span class="nav-icon">📝</span> Supervisor Log</div>
     <div class="nav-item" onclick="showPage('reels')"><span class="nav-icon">🧻</span> Reel Stock</div>
     <div class="nav-item" onclick="showPage('deckle')"><span class="nav-icon">📏</span> Deckle Optimizer</div>
     <div class="nav-item" onclick="showPage('clients')"><span class="nav-icon">🤝</span> Clients</div>
@@ -618,6 +619,16 @@
     <!-- ══ PRODUCTION REGISTER ══ -->
     <div id="page-registers" class="page">
       <div id="registers-root"></div>
+    </div>
+
+    <!-- ══ SUPERVISOR LOG (Google Form register responses) ══ -->
+    <div id="page-svlog" class="page">
+      <div class="section-header">
+        <div class="section-title">Supervisor Register</div>
+        <button class="btn-secondary" onclick="loadSupervisorLog()" style="font-size:11px;padding:5px 12px">↻ Refresh</button>
+      </div>
+      <div class="field-hint" style="margin-bottom:12px">Supervisor phone se Google Form bharta hai — entries yahan live dikhti hain (read-only).</div>
+      <div id="svlog-root"><div class="empty-state">Loading…</div></div>
     </div>
 
     <!-- ══ CLIENTS ══ -->
@@ -1658,6 +1669,7 @@
 <script src="js/pipeline-board.js"></script>
 <script src="js/analytics.js"></script>
 <script src="js/registers.js"></script>
+<script src="js/supervisor-log.js"></script>
 <script src="js/app.js"></script>
 
 </body>
