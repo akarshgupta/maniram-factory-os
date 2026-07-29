@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Supervisor — Maniram Factory</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f5f5f5; --card: #fff; --border: #e0e0e0;
+    --primary: #1a73e8; --primary-dark: #1557b0;
+    --success: #34a853; --danger: #ea4335; --warn: #fbbc04;
+    --text: #202124; --muted: #5f6368; --label: #444;
+    --tab-active: #1a73e8; --tab-inactive: #5f6368;
+  }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 15px; min-height: 100dvh; }
+
+  /* ── top bar ── */
+  .topbar { background: #1a73e8; color: #fff; padding: 14px 16px 10px; position: sticky; top: 0; z-index: 10; }
+  .topbar h1 { font-size: 17px; font-weight: 600; }
+  .topbar small { font-size: 11px; opacity: .8; }
+
+  /* ── tab strip ── */
+  .tabs { display: flex; background: #fff; border-bottom: 2px solid var(--border); position: sticky; top: 54px; z-index: 9; }
+  .tab-btn { flex: 1; padding: 12px 4px; font-size: 12px; font-weight: 600; text-align: center; border: none; background: none; cursor: pointer; color: var(--tab-inactive); border-bottom: 3px solid transparent; margin-bottom: -2px; transition: color .15s, border-color .15s; }
+  .tab-btn.active { color: var(--tab-active); border-bottom-color: var(--tab-active); }
+
+  /* ── panels ── */
+  .panel { display: none; padding: 16px; max-width: 600px; margin: 0 auto; }
+  .panel.active { display: block; }
+
+  /* ── cards ── */
+  .card { background: var(--card); border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .card-title { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 12px; }
+
+  /* ── form elements ── */
+  label { display: block; font-size: 13px; font-weight: 600; color: var(--label); margin-bottom: 4px; margin-top: 12px; }
+  label:first-child { margin-top: 0; }
+  select, input[type=text], input[type=number], input[type=date], textarea {
+    width: 100%; padding: 11px 12px; border: 1.5px solid var(--border);
+    border-radius: 8px; font-size: 15px; background: #fff; color: var(--text);
+    appearance: none; -webkit-appearance: none; outline: none; transition: border-color .15s;
+  }
+  select:focus, input:focus, textarea:focus { border-color: var(--primary); }
+  textarea { resize: vertical; min-height: 60px; }
+  input[type=number] { -moz-appearance: textfield; }
+
+  /* ── reel table ── */
+  .reel-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  .reel-table th { font-size: 11px; font-weight: 700; color: var(--muted); text-align: center; padding: 6px 4px; background: #f8f9fa; border-bottom: 1.5px solid var(--border); }
+  .reel-table td { padding: 4px 3px; }
+  .reel-table td:first-child { font-size: 12px; font-weight: 600; color: var(--muted); width: 52px; vertical-align: middle; padding-left: 0; }
+  .reel-table input { padding: 8px 6px; font-size: 13px; border-radius: 6px; }
+
+  /* ── calc display ── */
+  .calc-box { background: #e8f0fe; border-radius: 8px; padding: 10px 14px; margin-top: 10px; font-size: 14px; }
+  .calc-box span { font-weight: 700; font-size: 16px; color: var(--primary-dark); }
+
+  /* ── submit button ── */
+  .btn-submit { width: 100%; background: var(--primary); color: #fff; border: none; border-radius: 10px; padding: 15px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 16px; transition: background .15s; }
+  .btn-submit:active { background: var(--primary-dark); }
+  .btn-submit:disabled { background: #aaa; cursor: not-allowed; }
+
+  /* ── toast ── */
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 12px 22px; border-radius: 24px; font-size: 14px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 999; white-space: nowrap; }
+  #toast.show { opacity: 1; }
+  #toast.ok   { background: var(--success); }
+  #toast.err  { background: var(--danger); }
+
+  /* ── info row (per-box calc) ── */
+  .info-row { display: flex; gap: 10px; margin-top: 8px; }
+  .info-box { flex: 1; background: #f8f9fa; border-radius: 8px; padding: 8px 10px; text-align: center; }
+  .info-box .val { font-size: 18px; font-weight: 700; color: var(--primary-dark); }
+  .info-box .lbl { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* ── order info banner ── */
+  .order-info { background: #fff8e1; border: 1.5px solid var(--warn); border-radius: 8px; padding: 10px 12px; margin-top: 8px; font-size: 13px; color: #5f4800; display: none; }
+  .order-info.show { display: block; }
+
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #121212; --card: #1e1e1e; --border: #333; --text: #e8e8e8; --muted: #aaa; --label: #ccc; }
+    .topbar { background: #1557b0; }
+    select, input, textarea { background: #2a2a2a; color: #e8e8e8; border-color: #444; }
+    .reel-table th { background: #2a2a2a; }
+    .order-info { background: #2a2000; border-color: #806000; color: #ffd740; }
+    .calc-box { background: #1a2f5e; }
+    .info-box { background: #2a2a2a; }
+    .tabs { background: #1e1e1e; border-bottom-color: #333; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>Maniram Factory — Supervisor</h1>
+  <small id="topdate"></small>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="showTab('dispatch')">📦 Dispatch</button>
+  <button class="tab-btn" onclick="showTab('production')">⚙️ Production</button>
+  <button class="tab-btn" onclick="showTab('readystock')">📊 Ready Stock</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     PANEL 1 — DISPATCH WEIGHT
+══════════════════════════════════════════════════ -->
+<div id="panel-dispatch" class="panel active">
+
+  <div class="card">
+    <div class="card-title">Dispatch Weight Entry</div>
+
+    <label>Date</label>
+    <input type="date" id="dw-date">
+
+    <label>Order</label>
+    <select id="dw-order" onchange="onDwOrderChange()">
+      <option value="">— select order —</option>
+    </select>
+    <div id="dw-order-info" class="order-info"></div>
+
+    <label>Boxes Dispatched</label>
+    <input type="number" id="dw-boxes" min="1" placeholder="e.g. 500" oninput="calcPerBox()">
+
+    <label>Total Bundle Weight (kg)</label>
+    <input type="number" id="dw-weight" min="0.1" step="0.1" placeholder="e.g. 327.5" oninput="calcPerBox()">
+
+    <div class="info-row" id="dw-calc" style="display:none">
+      <div class="info-box">
+        <div class="val" id="dw-perbox">—</div>
+        <div class="lbl">grams / box</div>
+      </div>
+      <div class="info-box">
+        <div class="val" id="dw-kgperbox">—</div>
+        <div class="lbl">kg / box</div>
+      </div>
+    </div>
+
+    <label>Notes (optional)</label>
+    <input type="text" id="dw-notes" placeholder="vehicle no, party, etc.">
+
+    <button class="btn-submit" id="dw-submit" onclick="submitDispatchWeight()">Save Dispatch Entry</button>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     PANEL 2 — PRODUCTION / CORRUGATION
+══════════════════════════════════════════════════ -->
+<div id="panel-production" class="panel">
+
+  <div class="card">
+    <div class="card-title">Production Log — Corrugation</div>
+
+    <label>Date</label>
+    <input type="date" id="pl-date">
+
+    <label>Order</label>
+    <select id="pl-order" onchange="onPlOrderChange()">
+      <option value="">— select order —</option>
+    </select>
+    <div id="pl-order-info" class="order-info"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Reel Details</div>
+
+    <table class="reel-table">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Size (mm)</th>
+          <th>GSM</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Reel 1</td>
+          <td><input type="number" id="pl-r1size" placeholder="e.g. 900"></td>
+          <td><input type="number" id="pl-r1gsm"  placeholder="e.g. 120"></td>
+        </tr>
+        <tr>
+          <td>Reel 2</td>
+          <td><input type="number" id="pl-r2size" placeholder="e.g. 900"></td>
+          <td><input type="number" id="pl-r2gsm"  placeholder="e.g. 120"></td>
+        </tr>
+        <tr>
+          <td>Reel 3</td>
+          <td><input type="number" id="pl-r3size" placeholder="e.g. 900"></td>
+          <td><input type="number" id="pl-r3gsm"  placeholder="e.g. 120"></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <label>Paper / Ply</label>
+    <select id="pl-paperply">
+      <option value="">— select —</option>
+      <option>3 Ply</option>
+      <option>5 Ply</option>
+      <option>7 Ply</option>
+    </select>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Output Count</div>
+
+    <label>Boxes Corrugated</label>
+    <input type="number" id="pl-corrugated" min="0" placeholder="0">
+
+    <label>Boxes Stitched / Finished</label>
+    <input type="number" id="pl-stitched" min="0" placeholder="0">
+
+    <label>Testing Count</label>
+    <input type="number" id="pl-testing" min="0" placeholder="0">
+
+    <label>Rejects</label>
+    <input type="number" id="pl-rejects" min="0" placeholder="0">
+
+    <label>Notes (optional)</label>
+    <input type="text" id="pl-notes" placeholder="any remarks">
+
+    <button class="btn-submit" id="pl-submit" onclick="submitProductionLog()">Save Production Log</button>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     PANEL 3 — READY STOCK
+══════════════════════════════════════════════════ -->
+<div id="panel-readystock" class="panel">
+
+  <div class="card">
+    <div class="card-title">Ready Stock Entry</div>
+    <small style="color:var(--muted);font-size:12px;display:block;margin-bottom:12px">Boxes produced but not yet dispatched</small>
+
+    <label>Date</label>
+    <input type="date" id="rs-date">
+
+    <label>Order</label>
+    <select id="rs-order" onchange="onRsOrderChange()">
+      <option value="">— select order —</option>
+    </select>
+    <div id="rs-order-info" class="order-info"></div>
+
+    <label>Qty Ready (boxes)</label>
+    <input type="number" id="rs-qty" min="1" placeholder="e.g. 200">
+
+    <label>Notes (optional)</label>
+    <input type="text" id="rs-notes" placeholder="storage location, batch, etc.">
+
+    <button class="btn-submit" id="rs-submit" onclick="submitReadyStock()">Save Ready Stock</button>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+  // ── Config ──
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxCrZW5upLG7YWixwxaLq1y13opChsJdkcz-4sn2h9LwyuKSgW3mVFgb9KoDdq8lQP6/exec';
+  const ORDERS_SHEET_ID = '1JVWfffLht7X_mGOyQb0QK1cB3vx68TTM1yx9pGZbb30';
+  const API_KEY         = 'AIzaSyBz9doIxDqLCmUd5mKjemM9ui3tVJBD34k';
+
+  let ORDERS = [];
+
+  // ── Init ──
+  (function init() {
+    const today = new Date().toISOString().split('T')[0];
+    ['dw-date','pl-date','rs-date'].forEach(id => {
+      document.getElementById(id).value = today;
+    });
+    document.getElementById('topdate').textContent =
+      new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+    loadOrders();
+  })();
+
+  async function loadOrders() {
+    try {
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/Orders?key=${API_KEY}`;
+      const res = await fetch(url);
+      const json = await res.json();
+      const rows = (json.values || []).slice(1).filter(r => r[0]);
+      ORDERS = rows.map(r => ({
+        id: r[0]||'', customer: r[1]||'', product: r[2]||'',
+        size: r[3]||'', ply: r[4]||'', qty: r[8]||'', status: r[10]||'New'
+      })).filter(o => o.status !== 'Cancelled' && o.status !== 'Delivered');
+      populateOrderDropdowns();
+    } catch(e) {
+      showToast('Could not load orders — check internet', 'err');
+    }
+  }
+
+  function populateOrderDropdowns() {
+    const opts = ORDERS.map(o =>
+      `<option value="${o.id}" data-customer="${esc(o.customer)}" data-product="${esc(o.product)}" data-size="${esc(o.size)}" data-ply="${esc(o.ply)}" data-qty="${esc(o.qty)}">${o.id} — ${o.customer} / ${o.product}</option>`
+    ).join('');
+    const base = '<option value="">— select order —</option>';
+    ['dw-order','pl-order','rs-order'].forEach(id => {
+      document.getElementById(id).innerHTML = base + opts;
+    });
+  }
+
+  function esc(s) { return (s||'').replace(/"/g,'&quot;'); }
+
+  function orderInfo(selId) {
+    const sel = document.getElementById(selId);
+    const opt = sel.options[sel.selectedIndex];
+    if (!opt || !opt.value) return null;
+    return {
+      id: opt.value,
+      customer: opt.dataset.customer,
+      product: opt.dataset.product,
+      size: opt.dataset.size,
+      ply: opt.dataset.ply,
+      qty: opt.dataset.qty,
+    };
+  }
+
+  function showOrderInfo(infoDivId, selId) {
+    const info = orderInfo(selId);
+    const div = document.getElementById(infoDivId);
+    if (!info) { div.className = 'order-info'; return; }
+    div.innerHTML = `<b>${info.customer}</b> · ${info.product} · ${info.size} · ${info.ply} Ply · Qty: ${info.qty}`;
+    div.className = 'order-info show';
+  }
+
+  function onDwOrderChange()  { showOrderInfo('dw-order-info', 'dw-order'); }
+  function onPlOrderChange()  { showOrderInfo('pl-order-info', 'pl-order'); }
+  function onRsOrderChange()  { showOrderInfo('rs-order-info', 'rs-order'); }
+
+  // ── Per-box weight calc ──
+  function calcPerBox() {
+    const boxes  = parseFloat(document.getElementById('dw-boxes').value) || 0;
+    const totalKg = parseFloat(document.getElementById('dw-weight').value) || 0;
+    const calcDiv = document.getElementById('dw-calc');
+    if (boxes > 0 && totalKg > 0) {
+      const perBoxKg = totalKg / boxes;
+      const perBoxG  = Math.round(perBoxKg * 1000);
+      document.getElementById('dw-perbox').textContent = perBoxG.toLocaleString('en-IN');
+      document.getElementById('dw-kgperbox').textContent = perBoxKg.toFixed(3);
+      calcDiv.style.display = 'flex';
+    } else {
+      calcDiv.style.display = 'none';
+    }
+  }
+
+  // ── Tab switching ──
+  function showTab(name) {
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('panel-' + name).classList.add('active');
+    event.currentTarget.classList.add('active');
+  }
+
+  // ── Toast ──
+  let toastTimer;
+  function showToast(msg, type) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'show ' + (type || '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.className = ''; }, 3000);
+  }
+
+  // ── Submit helpers ──
+  function setLoading(btnId, loading) {
+    const btn = document.getElementById(btnId);
+    btn.disabled = loading;
+    btn.textContent = loading ? 'Saving…' : btn.dataset.label || btn.textContent;
+    if (!loading && btn.dataset.label) btn.textContent = btn.dataset.label;
+  }
+
+  function post(payload) {
+    return fetch(APPS_SCRIPT_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // ── Submit 1: Dispatch Weight ──
+  async function submitDispatchWeight() {
+    const ord    = orderInfo('dw-order');
+    const date   = document.getElementById('dw-date').value;
+    const boxes  = document.getElementById('dw-boxes').value;
+    const wt     = document.getElementById('dw-weight').value;
+    const notes  = document.getElementById('dw-notes').value;
+
+    if (!date)  { showToast('Select a date', 'err'); return; }
+    if (!ord)   { showToast('Select an order', 'err'); return; }
+    if (!boxes) { showToast('Enter boxes count', 'err'); return; }
+    if (!wt)    { showToast('Enter total weight', 'err'); return; }
+
+    const btn = document.getElementById('dw-submit');
+    btn.dataset.label = 'Save Dispatch Entry';
+    btn.disabled = true; btn.textContent = 'Saving…';
+
+    try {
+      await post({
+        action: 'saveDispatchWeight',
+        date, orderId: ord.id, customer: ord.customer, product: ord.product,
+        boxesCount: boxes, totalWeightKg: wt, notes
+      });
+      showToast('Dispatch entry saved ✓', 'ok');
+      document.getElementById('dw-boxes').value = '';
+      document.getElementById('dw-weight').value = '';
+      document.getElementById('dw-notes').value = '';
+      document.getElementById('dw-order').value = '';
+      document.getElementById('dw-order-info').className = 'order-info';
+      document.getElementById('dw-calc').style.display = 'none';
+    } catch(e) {
+      showToast('Save failed — try again', 'err');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save Dispatch Entry';
+    }
+  }
+
+  // ── Submit 2: Production Log ──
+  async function submitProductionLog() {
+    const ord  = orderInfo('pl-order');
+    const date = document.getElementById('pl-date').value;
+    if (!date) { showToast('Select a date', 'err'); return; }
+    if (!ord)  { showToast('Select an order', 'err'); return; }
+
+    const reels = [
+      { size: document.getElementById('pl-r1size').value, gsm: document.getElementById('pl-r1gsm').value },
+      { size: document.getElementById('pl-r2size').value, gsm: document.getElementById('pl-r2gsm').value },
+      { size: document.getElementById('pl-r3size').value, gsm: document.getElementById('pl-r3gsm').value },
+    ];
+    const paperPly        = document.getElementById('pl-paperply').value;
+    const boxesCorrugated = document.getElementById('pl-corrugated').value;
+    const boxesStitched   = document.getElementById('pl-stitched').value;
+    const testingCount    = document.getElementById('pl-testing').value;
+    const rejects         = document.getElementById('pl-rejects').value;
+    const notes           = document.getElementById('pl-notes').value;
+
+    if (!boxesCorrugated && !boxesStitched) { showToast('Enter boxes corrugated or stitched', 'err'); return; }
+
+    const btn = document.getElementById('pl-submit');
+    btn.disabled = true; btn.textContent = 'Saving…';
+
+    try {
+      await post({
+        action: 'saveProductionLog',
+        date, orderId: ord.id, customer: ord.customer, product: ord.product,
+        reels, paperPly, boxesCorrugated, boxesStitched, testingCount, rejects, notes
+      });
+      showToast('Production log saved ✓', 'ok');
+      ['pl-r1size','pl-r1gsm','pl-r2size','pl-r2gsm','pl-r3size','pl-r3gsm',
+       'pl-corrugated','pl-stitched','pl-testing','pl-rejects','pl-notes'].forEach(id => {
+        document.getElementById(id).value = '';
+      });
+      document.getElementById('pl-paperply').value = '';
+      document.getElementById('pl-order').value = '';
+      document.getElementById('pl-order-info').className = 'order-info';
+    } catch(e) {
+      showToast('Save failed — try again', 'err');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save Production Log';
+    }
+  }
+
+  // ── Submit 3: Ready Stock ──
+  async function submitReadyStock() {
+    const ord   = orderInfo('rs-order');
+    const date  = document.getElementById('rs-date').value;
+    const qty   = document.getElementById('rs-qty').value;
+    const notes = document.getElementById('rs-notes').value;
+
+    if (!date) { showToast('Select a date', 'err'); return; }
+    if (!ord)  { showToast('Select an order', 'err'); return; }
+    if (!qty)  { showToast('Enter qty ready', 'err'); return; }
+
+    const btn = document.getElementById('rs-submit');
+    btn.disabled = true; btn.textContent = 'Saving…';
+
+    try {
+      await post({
+        action: 'saveReadyStock',
+        date, orderId: ord.id, customer: ord.customer, product: ord.product,
+        qtyReady: qty, notes
+      });
+      showToast('Ready stock saved ✓', 'ok');
+      document.getElementById('rs-qty').value = '';
+      document.getElementById('rs-notes').value = '';
+      document.getElementById('rs-order').value = '';
+      document.getElementById('rs-order-info').className = 'order-info';
+    } catch(e) {
+      showToast('Save failed — try again', 'err');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save Ready Stock';
+    }
+  }
+</script>
+</body>
+</html>

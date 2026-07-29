@@ -60,6 +60,10 @@ function doPost(e) {
     else if (action === 'saveQuotation')     saveQuotation(data);
     else if (action === 'deleteQuotation')   deleteFinanceRow(QUOTATIONS_SHEET_ID, 'Quotations', data.id);
     else if (action === 'createNotionPage')  { /* handled separately if needed */ }
+    // ── Supervisor data collection ──
+    else if (action === 'saveDispatchWeight') saveDispatchWeight(data);
+    else if (action === 'saveProductionLog')  saveProductionLog(data);
+    else if (action === 'saveReadyStock')     saveReadyStock(data);
 
     return ContentService
       .createTextOutput(JSON.stringify(Object.assign({ success: true }, responseData)))
@@ -522,6 +526,74 @@ function saveQuotation(data) {
     ['ID','Date','Customer','BoxSize','Ply','RatePerBox','Status','Notes'],
     [data.id, data.date, data.customer || '', data.size || '',
      data.ply || '', data.rate || 0, data.status || 'Pending', data.notes || '']);
+}
+
+// ══════════════════════════════════════════════════════════════
+// SUPERVISOR DATA COLLECTION
+// All three write to ORDERS_SHEET_ID for easy access.
+// ══════════════════════════════════════════════════════════════
+
+function saveDispatchWeight(data) {
+  var ss    = SpreadsheetApp.openById(ORDERS_SHEET_ID);
+  var sheet = ss.getSheetByName('WeightLog');
+  if (!sheet) {
+    sheet = ss.insertSheet('WeightLog');
+    sheet.appendRow(['Date','OrderID','Customer','Product','BoxesCount','TotalWeightKg','PerBoxGrams','Notes','SavedAt']);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1,1,1,9).setFontWeight('bold').setBackground('#E8F0FE');
+  }
+  var now = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'dd/MM/yyyy HH:mm');
+  var perBox = (data.totalWeightKg && data.boxesCount)
+    ? Math.round((parseFloat(data.totalWeightKg) / parseInt(data.boxesCount)) * 1000)
+    : '';
+  sheet.appendRow([
+    data.date || '', data.orderId || '', data.customer || '', data.product || '',
+    parseInt(data.boxesCount) || '', parseFloat(data.totalWeightKg) || '',
+    perBox, data.notes || '', now
+  ]);
+}
+
+function saveProductionLog(data) {
+  var ss    = SpreadsheetApp.openById(ORDERS_SHEET_ID);
+  var sheet = ss.getSheetByName('ProdLog');
+  if (!sheet) {
+    sheet = ss.insertSheet('ProdLog');
+    sheet.appendRow([
+      'Date','OrderID','Customer','Product',
+      'Reel1Size','Reel1GSM','Reel2Size','Reel2GSM','Reel3Size','Reel3GSM',
+      'PaperPly','BoxesCorrugated','BoxesStitched','TestingCount','Rejects','Notes','SavedAt'
+    ]);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1,1,1,17).setFontWeight('bold').setBackground('#E8F0FE');
+  }
+  var reels = data.reels || [];
+  var now = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'dd/MM/yyyy HH:mm');
+  sheet.appendRow([
+    data.date || '', data.orderId || '', data.customer || '', data.product || '',
+    (reels[0] && reels[0].size) || '', (reels[0] && reels[0].gsm) || '',
+    (reels[1] && reels[1].size) || '', (reels[1] && reels[1].gsm) || '',
+    (reels[2] && reels[2].size) || '', (reels[2] && reels[2].gsm) || '',
+    data.paperPly || '',
+    parseInt(data.boxesCorrugated) || '', parseInt(data.boxesStitched) || '',
+    parseInt(data.testingCount) || '', parseInt(data.rejects) || '',
+    data.notes || '', now
+  ]);
+}
+
+function saveReadyStock(data) {
+  var ss    = SpreadsheetApp.openById(ORDERS_SHEET_ID);
+  var sheet = ss.getSheetByName('ReadyStock');
+  if (!sheet) {
+    sheet = ss.insertSheet('ReadyStock');
+    sheet.appendRow(['Date','OrderID','Customer','Product','QtyReady','Notes','SavedAt']);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1,1,1,7).setFontWeight('bold').setBackground('#E8F0FE');
+  }
+  var now = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'dd/MM/yyyy HH:mm');
+  sheet.appendRow([
+    data.date || '', data.orderId || '', data.customer || '', data.product || '',
+    parseInt(data.qtyReady) || '', data.notes || '', now
+  ]);
 }
 
 // ══════════════════════════════════════════════════════════════
