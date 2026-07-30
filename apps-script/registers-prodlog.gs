@@ -1,13 +1,9 @@
 // ══════════════════════════════════════════════════════════════
-// REGISTERS-PRODLOG.GS — Standalone Apps Script for "Registers" sheet
-// Deploy as its OWN Web App (existing Code.gs ko touch mat karo).
-// Steps:
-//   1. Registers Google Sheet kholo → Extensions → Apps Script
-//   2. Ye poora code paste karo (REG_SHEET_ID neeche check karo)
-//   3. Deploy → New deployment → Web App → Execute as: Me,
-//      Access: Anyone → Deploy → URL copy karo
-//   4. URL js/config.js ke REGISTERS_SCRIPT_URL mein paste karo
-// Tabs (ProdLog, GSMeta) pehli entry pe khud ban jayenge.
+// ⚠️ DEPRECATED — ab iski zaroorat NAHI hai.
+// prodlogAppend + gsmSet handlers ab main Code.gs mein merge ho
+// chuke hain aur ProdLog/GSMeta tabs Orders spreadsheet mein bante
+// hain. Sirf Code.gs redeploy karo — ye file deploy mat karo.
+// (Rakha hai sirf reference ke liye.)
 // ══════════════════════════════════════════════════════════════
 
 const REG_SHEET_ID = ''; // ← Registers sheet ka ID yahan paste karo

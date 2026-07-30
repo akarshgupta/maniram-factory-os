@@ -64,6 +64,9 @@ function doPost(e) {
     else if (action === 'saveDispatchWeight') saveDispatchWeight(data);
     else if (action === 'saveProductionLog')  saveProductionLog(data);
     else if (action === 'saveReadyStock')     saveReadyStock(data);
+    // ── Production Register (in-app machine-stage entries) ──
+    else if (action === 'prodlogAppend')      prodlogAppend(data);
+    else if (action === 'gsmSet')             gsmSet(data);
 
     return ContentService
       .createTextOutput(JSON.stringify(Object.assign({ success: true }, responseData)))
@@ -555,9 +558,9 @@ function saveDispatchWeight(data) {
 
 function saveProductionLog(data) {
   var ss    = SpreadsheetApp.openById(ORDERS_SHEET_ID);
-  var sheet = ss.getSheetByName('ProdLog');
+  var sheet = ss.getSheetByName('SupvProdLog');
   if (!sheet) {
-    sheet = ss.insertSheet('ProdLog');
+    sheet = ss.insertSheet('SupvProdLog');
     sheet.appendRow([
       'Date','OrderID','Customer','Product',
       'Reel1Size','Reel1GSM','Reel2Size','Reel2GSM','Reel3Size','Reel3GSM',
@@ -594,6 +597,42 @@ function saveReadyStock(data) {
     data.date || '', data.orderId || '', data.customer || '', data.product || '',
     parseInt(data.qtyReady) || '', data.notes || '', now
   ]);
+}
+
+// ══════════════════════════════════════════════════════════════
+// PRODUCTION REGISTER  →  ORDERS_SHEET_ID / "ProdLog" + "GSMeta" tabs
+// In-app machine-stage entries (js/registers.js). Tabs auto-create.
+// ══════════════════════════════════════════════════════════════
+
+function prodlogAppend(d) {
+  var ss = SpreadsheetApp.openById(ORDERS_SHEET_ID);
+  var sh = ss.getSheetByName('ProdLog');
+  if (!sh) {
+    sh = ss.insertSheet('ProdLog');
+    sh.appendRow(['Date','Machine','OrderID','Qty','Remarks','Timestamp']);
+    sh.setFrozenRows(1);
+    sh.getRange(1,1,1,6).setFontWeight('bold').setBackground('#E8F0FE');
+  }
+  sh.appendRow([d.date||'', d.machine||'', d.orderId||'', d.qty||0, d.remarks||'', d.ts||new Date().toISOString()]);
+}
+
+function gsmSet(d) {
+  var ss = SpreadsheetApp.openById(ORDERS_SHEET_ID);
+  var sh = ss.getSheetByName('GSMeta');
+  if (!sh) {
+    sh = ss.insertSheet('GSMeta');
+    sh.appendRow(['OrderID','GSM','Timestamp']);
+    sh.setFrozenRows(1);
+    sh.getRange(1,1,1,3).setFontWeight('bold').setBackground('#E8F0FE');
+  }
+  var data = sh.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]) === String(d.orderId)) {
+      sh.getRange(i + 1, 2, 1, 2).setValues([[d.gsm||'', d.ts||'']]);
+      return;
+    }
+  }
+  sh.appendRow([d.orderId||'', d.gsm||'', d.ts||new Date().toISOString()]);
 }
 
 // ══════════════════════════════════════════════════════════════

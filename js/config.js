@@ -32,9 +32,9 @@ const RECEIVABLES_TAB = 'Receivables';
 const CHALLANS_TAB    = 'Challans';
 const QUOTATIONS_TAB  = 'Quotations';
 
-// ── Production Register (Registers sheet — apna alag Apps Script) ──
-const REGISTERS_SHEET_ID  = ''; // Registers sheet ID (Drive: Maniram Industries Database)
-const REGISTERS_SCRIPT_URL = ''; // registers-prodlog.gs deploy karke Web App URL yahan
+// ── Production Register (tabs live in the Orders spreadsheet; writes via main Apps Script) ──
+const REGISTERS_SHEET_ID  = '1JVWfffLht7X_mGOyQb0QK1cB3vx68TTM1yx9pGZbb30'; // = ORDERS_SHEET_ID (ProdLog + GSMeta tabs)
+const REGISTERS_SCRIPT_URL = ''; // blank = writes fall back to main APPS_SCRIPT_URL (prodlogAppend/gsmSet in Code.gs)
 const PRODLOG_TAB = 'ProdLog';
 const GSMMETA_TAB = 'GSMeta';
 const APPS_SCRIPT_URL    = 'https://script.google.com/macros/s/AKfycbxCrZW5upLG7YWixwxaLq1y13opChsJdkcz-4sn2h9LwyuKSgW3mVFgb9KoDdq8lQP6/exec';
