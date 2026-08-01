@@ -540,11 +540,69 @@ function renderOrders() {
         <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();openChallanModal('${o.id}')" title="Issue Delivery Challan">🚚</button>
         <button class="btn-sm" style="font-size:10px;padding:2px 8px;font-weight:600" onclick="event.stopPropagation();quickPrintJobCard('${o.id}')" title="Print Job Card (holds print spec if saved)">📋 Job Card</button>
         <button class="btn-sm" style="font-size:10px;padding:2px 6px;color:var(--muted)" onclick="event.stopPropagation();openPrintSpecModal('${o.id}')" title="Edit Print Spec">✏️</button>
+        <button class="btn-sm" style="font-size:10px;padding:2px 7px;color:var(--success)" onclick="event.stopPropagation();markOrderComplete('${o.id}')" title="Mark Complete (even if short of full quantity)">✅ Complete</button>
         <button class="btn-sm" style="font-size:10px;padding:2px 6px;color:var(--danger)" onclick="event.stopPropagation();removeOrder('${o.id}')" title="Delete Order">🗑</button>
       </div>
     `;
     list.appendChild(row);
   });
+}
+
+// ── Mark an order complete at less than (or equal to) its full ordered
+// quantity. Use when production/dispatch fell short but the order is
+// being closed out as-is (e.g. ordered 500, made 400 — close at 400). ──
+function markOrderComplete(orderId) {
+  const o = orders.find(x => x.id === orderId);
+  if (!o) return;
+  if (FINISHED_STATUSES.includes(o.status)) { alert(`${o.id} is already ${o.status}.`); return; }
+
+  const ordered   = parseInt(o.qty) || 0;
+  const dispatched = typeof getDispatchedQty === 'function' ? getDispatchedQty(orderId) : 0;
+  const suggested = dispatched > 0 ? dispatched : ordered;
+
+  const input = prompt(
+    `Mark ${o.id} — ${o.customer} (${o.product || o.size || ''}) as complete.\n` +
+    `Ordered: ${ordered.toLocaleString('en-IN')} boxes.\n\n` +
+    `How many boxes were actually completed?`,
+    String(suggested)
+  );
+  if (input === null) return; // cancelled
+  const actual = parseInt(input.trim());
+  if (!actual || actual <= 0) { alert('Enter a valid number of boxes.'); return; }
+
+  const short = ordered - actual;
+  if (short > 0 && !confirm(`This closes ${o.id} at ${actual.toLocaleString('en-IN')} of ${ordered.toLocaleString('en-IN')} ordered — ${short.toLocaleString('en-IN')} short.\nContinue?`)) return;
+
+  const shortfallNote = short > 0 ? `Completed ${actual}/${ordered} — ${short} short` : '';
+  o.remarks = [o.remarks, shortfallNote].filter(Boolean).join(' · ');
+  o.qty     = actual;
+  o.status  = 'Delivered';
+
+  if (typeof clearDispatch === 'function') clearDispatch(orderId);
+  if (typeof recordDeliveredOrder === 'function') recordDeliveredOrder(o);
+
+  if (o.rowIndex && o.rowIndex !== 9999) {
+    const d   = new Date(o.date + 'T00:00:00');
+    const fmt = isNaN(d) ? o.date : `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+    fetch(APPS_SCRIPT_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'update', rowIndex: o.rowIndex,
+        id: o.id, customer: o.customer, product: o.product || '', size: o.size || '',
+        ply: o.ply || '', colour: o.colour || '', weight: o.weight || '',
+        qty: actual, rate: o.rate, date: fmt, status: 'Delivered',
+        priority: o.priority || 'Normal', reelSize: o.reelSize || '',
+        reservedKg: o.reservedKg || 0, remarks: o.remarks || ''
+      })
+    }).catch(() => {});
+  }
+
+  renderOrders();
+  if (typeof activeOrderTab !== 'undefined' && activeOrderTab === 'grouped') renderGroupedOrders();
+  if (typeof updateDashboardOrders === 'function') updateDashboardOrders();
+  if (typeof renderCalendar === 'function') renderCalendar();
+  if (typeof renderProductionPlan === 'function') renderProductionPlan();
 }
 
 // ── Delete order (app + sheet) ──
@@ -608,6 +666,7 @@ function renderOrderHistory() {
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:13px;font-weight:600">${o.qty ? o.qty.toLocaleString('en-IN') : '—'}</span>
         ${o.rate ? `<span style="font-size:11px;color:var(--muted)">₹${(o.qty*o.rate).toLocaleString('en-IN',{maximumFractionDigits:0})}</span>` : ''}
+        ${o.remarks && o.remarks.includes('short') ? `<span style="font-size:10px;color:#E67E22;font-weight:600" title="${o.remarks}">⚠️ short</span>` : ''}
       </div>
     `;
     el.appendChild(row);
