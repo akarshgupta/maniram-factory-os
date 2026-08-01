@@ -2,8 +2,15 @@
 // SUPERVISOR-LOG.JS — Live view of the supervisor's Google Form
 // register ("Maniram — Register Responses" sheet).
 //   Production tab: reel widths/GSM, cutting size, pieces/sheets/rolls
-//   Dispatch tab:   party, pieces, size, measured weight per piece
+//   Dispatch tab:   party, product, pieces, size, measured weight/piece
 // Read-only in the app — supervisor enters data via the form on phone.
+//
+// Dispatch column F ("Product Name") is optional — Google Forms
+// appends a NEW question as a new column at the END of the response
+// sheet, not inline, so older rows (and the sheet before that
+// question is added) simply have it blank. Everything below falls
+// back to fuzzy-matching the combined party/item column when the
+// product column is empty, so this works either way.
 // ══════════════════════════════════════════════════════════════
 
 let _svProd = [];
@@ -32,6 +39,7 @@ async function fetchSupervisorLog() {
       ts: r[0] || '', date: r[1] || '', party: r[2] || '',
       pcs: parseInt(r[3]) || 0, size: r[4] || '',
       wtPc: parseFloat(r[5]) || 0,
+      product: r[6] || '', // new "Product Name" question — appended column F, blank on older rows
     })).reverse();
     return true;
   } catch (e) {
@@ -40,14 +48,21 @@ async function fetchSupervisorLog() {
   }
 }
 
-// Find expected weight (gm) from the product master by product-name match.
-function _svExpectedWeight(party) {
-  if (typeof CLIENTS === 'undefined' || !party) return null;
-  const p = party.toString().trim().toLowerCase();
+// Find expected weight (gm) from the product master. Prefers an exact
+// product-name match (from the form's Product Name column); falls back
+// to fuzzy-matching whatever text landed in the party/item column for
+// rows entered before that question existed.
+function _svExpectedWeight(party, product) {
+  if (typeof CLIENTS === 'undefined') return null;
+  const needle = (product || party || '').toString().trim().toLowerCase();
+  if (!needle) return null;
+  const exact = !!product;
   for (const c of CLIENTS) {
     for (const prod of (c.products || [])) {
       const n = (prod.name || '').trim().toLowerCase();
-      if (n && (n === p || p.includes(n) || n.includes(p))) {
+      if (!n) continue;
+      const isMatch = exact ? (n === needle) : (n === needle || needle.includes(n) || n.includes(needle));
+      if (isMatch) {
         const w = parseFloat(prod.weight);
         return w > 0 ? { weight: w, client: c.name, product: prod.name } : null;
       }
@@ -99,7 +114,7 @@ function _svDispatchHtml() {
 
   const rows = _svDisp.map(e => {
     const totalKg = e.pcs && e.wtPc ? (e.pcs * e.wtPc / 1000) : 0;
-    const exp = _svExpectedWeight(e.party);
+    const exp = _svExpectedWeight(e.party, e.product);
     let deltaHtml = '<span style="color:var(--muted,#888)">—</span>';
     if (exp && e.wtPc) {
       const d = ((e.wtPc - exp.weight) / exp.weight) * 100;
@@ -108,7 +123,8 @@ function _svDispatchHtml() {
     }
     return `<tr style="border-top:1px solid var(--border,#e5e7eb)">
       <td style="padding:8px 10px;white-space:nowrap">${e.date}</td>
-      <td style="padding:8px 10px;font-weight:600">${e.party}</td>
+      <td style="padding:8px 10px;font-weight:600">${e.party || '—'}</td>
+      <td style="padding:8px 10px">${e.product || '<span style="color:var(--muted,#888)">—</span>'}</td>
       <td style="padding:8px 10px">${e.size || '—'}</td>
       <td style="padding:8px 10px">${e.pcs.toLocaleString('en-IN')}</td>
       <td style="padding:8px 10px;font-weight:700">${e.wtPc ? e.wtPc + ' gm' : '—'}</td>
@@ -130,14 +146,16 @@ function _svDispatchHtml() {
     <table class="data-table" style="width:100%;border-collapse:collapse;font-size:13px">
       <thead><tr style="text-align:left">
         <th style="padding:8px 10px">Date</th>
-        <th style="padding:8px 10px">Party / Item</th>
+        <th style="padding:8px 10px">Party</th>
+        <th style="padding:8px 10px">Product</th>
         <th style="padding:8px 10px">Size</th>
         <th style="padding:8px 10px">Pieces</th>
         <th style="padding:8px 10px">Wt / piece</th>
         <th style="padding:8px 10px">Total wt</th>
         <th style="padding:8px 10px" title="Measured vs product master weight">vs Master</th>
       </tr></thead><tbody>${rows}</tbody></table></div>
-    <div class="field-hint" style="margin-top:8px">vs Master compares the supervisor's measured weight against the product weight on the Clients page. Within ±3% green, ±7% orange, beyond that red — red means check the paper GSM or size.</div>`;
+    <div class="field-hint" style="margin-top:8px">vs Master compares the supervisor's measured weight against the product weight on the Clients page. Within ±3% green, ±7% orange, beyond that red — red means check the paper GSM or size.
+    ${_svDisp.some(e => !e.product) ? '<br>⚠️ Older entries have no separate Product Name — see the note below on adding that question to the form.' : ''}</div>`;
 }
 
 // Paper weight consumed by one entry, in kg.
