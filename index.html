@@ -1260,8 +1260,8 @@
 </div>
 
 <!-- PRODUCT MODAL -->
-<div class="popup-overlay" id="product-modal-overlay" style="display:none" onclick="closeProductModal()">
-  <div class="popup-box" style="width:min(520px,95vw);padding:24px" onclick="event.stopPropagation()">
+<div class="popup-overlay" id="product-modal-overlay" style="display:none">
+  <div class="popup-box" style="width:min(520px,95vw);padding:24px" onclick="event.stopPropagation()" onkeydown="if(event.key==='Escape')closeProductModal()">
     <div class="popup-title" id="product-modal-title">Add Product</div>
     <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
       <div class="form-group" style="grid-column:span 2">
