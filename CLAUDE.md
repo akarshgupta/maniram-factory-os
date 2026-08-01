@@ -1,0 +1,58 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+Factory management SPA for Maniram Industries, a corrugated-box manufacturer in Jhansi. Vanilla JS — no framework, no bundler, no npm, no test suite. Deployed via GitHub Pages from `main` (squash-merge PRs to release). UI copy is intentionally Hindi/Hinglish — keep that style in user-facing text.
+
+## Running locally
+
+```bash
+python3 -m http.server 8899        # serve from repo root, open /index.html
+node --check js/<file>.js          # only syntax gate available
+```
+
+There is no automated test suite. Verification is done by driving headless Chromium (playwright-core + system Chromium) against the local server. To bypass the login overlay in automation, seed localStorage before page scripts run:
+
+```js
+localStorage.setItem('mi_auth_hash_v1', 'seeded');
+localStorage.setItem('mi_auth_session_v1', JSON.stringify({ ok: true, expires: Date.now() + 86400000 }));
+```
+
+## Architecture
+
+**Three entry pages**, all standalone HTML with inline or `js/` scripts:
+- `index.html` — the main app (password-gated by `js/auth.js`, pure client-side)
+- `staff.html` — simplified staff portal (PIN-gated, `js/staff-app.js`)
+- `supervisor.html` — standalone supervisor entry page (largely superseded: the supervisor now enters data via a Google Form; the app reads its responses sheet)
+
+**No modules.** Every `js/*.js` file is a plain script sharing global scope, loaded in order by `<script>` tags at the bottom of `index.html`. `config.js` must load first (constants), `auth.js` before app scripts. New pages need: a `js/` file, a `<script>` tag, a nav item, a `#page-<id>` div, entries in `pageTitles` and `showPage()` in `js/app.js`, and an entry in the `sw.js` SHELL list.
+
+**Data layer (the big picture):**
+- **Reads** go straight from the browser to the Google Sheets API v4 using the public `API_KEY` in `js/config.js`. Every sheet that the app reads must be shared "Anyone with link → Viewer".
+- **Writes** POST to a Google Apps Script web app (`APPS_SCRIPT_URL`) with `{ action: '...', ...payload }`, always `mode: 'no-cors'` fire-and-forget (response is opaque; failures are silent by design).
+- **localStorage** is the offline cache / fallback for most features (`mirrorToSheet()` pattern in `config.js`: localStorage is the live store, sheet writes are mirrors).
+
+**The backend is `apps-script/Code.gs`** — a single `doPost` action dispatcher. It is deployed manually by the owner in the Apps Script editor; **changing Code.gs in the repo does nothing until the owner redeploys** (Deploy → Manage deployments → Edit → New version). Spreadsheet IDs are duplicated at the top of `Code.gs` and in `js/config.js` — keep them in sync. `apps-script/registers-prodlog.gs` is deprecated; never tell the user to deploy it.
+
+**Spreadsheets:** the Orders spreadsheet (`ORDERS_SHEET_ID`) is multi-tab (Orders, Purchases, Overheads, TallySync, ProdLog, GSMeta, SupvProdLog, WeightLog, ReadyStock — tabs auto-create on first write). Customers, Products, Dispatch, StaffLog, ProdPerf, and Reel Stock are separate single-tab spreadsheets. `SUPERVISOR_SHEET_ID` is the supervisor's Google Form responses sheet ("Maniram — Register Responses", tabs Production/Dispatch) — read-only from the app; its column order is fixed by the form's question order.
+
+**Page navigation:** pages are `#page-<id>` divs toggled by the `.active` class via `showPage()` in `js/app.js`. Never put inline `display:none` on a page div — inline styles beat the `.page.active` CSS rule and the page will never open (this was a real bug).
+
+**Service worker (`sw.js`):** bump the `CACHE` version string on every release that changes shell files, and add any new HTML/JS/asset to the SHELL list. Install tolerates missing files, but a stale cache version means clients keep old code.
+
+## Domain math
+
+`skills/rate-calculator.md` is the canonical reference for box weight/rate math (sheet size formula, two-part/pasting rule, GST). Key formula used in several places (`js/registers.js`, rate calculator, deckle optimizer):
+
+```
+Sheet Length = (L + W) × 2 + 2      Sheet Width = W + H (+ 0.5" margin)
+Area (sqm) = (SheetL × SheetW) / 1550
+```
+
+Box `weight` fields throughout the app are **grams per box**. Reel sizes are inches of width.
+
+## Tally sync
+
+`scripts/fetch-tally.js` runs on the factory's Windows PC against a local TallyPrime instance and POSTs Sales vouchers to the Apps Script (`syncTally` action), which dedupes, fuzzy-matches parties to orders, and advances matched orders to Dispatched.
