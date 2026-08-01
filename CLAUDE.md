@@ -16,9 +16,10 @@ node --check js/<file>.js          # only syntax gate available
 There is no automated test suite. Verification is done by driving headless Chromium (playwright-core + system Chromium) against the local server. To bypass the login overlay in automation, seed localStorage before page scripts run:
 
 ```js
-localStorage.setItem('mi_auth_hash_v1', 'seeded');
 localStorage.setItem('mi_auth_session_v1', JSON.stringify({ ok: true, expires: Date.now() + 86400000 }));
 ```
+
+Login is a single fixed user: `js/auth.js` checks `authHash(username + '::' + password)` against the baked-in `AUTH_CRED_HASH`. There is no setup, change-password, or recovery flow — to rotate credentials, compute a new hash with `authHash()` in the console and replace the constant.
 
 ## Architecture
 

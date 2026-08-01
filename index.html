@@ -25,99 +25,24 @@
       <div style="font-size:12px;color:#6B7280;margin-top:2px">Factory OS · Admin</div>
     </div>
 
-    <!-- Setup panel -->
-    <div id="auth-setup-panel" style="display:none">
-      <div style="font-size:15px;font-weight:700;color:#042C53;margin-bottom:4px">Set Admin Password</div>
-      <div style="font-size:12px;color:#6B7280;margin-bottom:16px">First time — create your admin password.</div>
-      <div style="margin-bottom:10px">
-        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">New Password</label>
-        <input id="auth-new-pw" type="password" placeholder="Minimum 4 characters"
-          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box"
-          onkeydown="if(event.key==='Enter')authSetup()">
-      </div>
-      <div style="margin-bottom:12px">
-        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Confirm Password</label>
-        <input id="auth-new-pw2" type="password" placeholder="Confirm password"
-          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box"
-          onkeydown="if(event.key==='Enter')authSetup()">
-      </div>
-      <div id="auth-setup-err" style="display:none;font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 12px;border-radius:6px;margin-bottom:12px"></div>
-      <button onclick="authSetup()" style="width:100%;padding:11px;background:#042C53;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">🔐 Set Password</button>
-    </div>
-
-    <!-- Login panel -->
+    <!-- Login panel — single fixed user -->
     <div id="auth-login-panel" style="display:none">
       <div style="font-size:15px;font-weight:700;color:#042C53;margin-bottom:4px">Admin Login</div>
-      <div style="font-size:12px;color:#6B7280;margin-bottom:16px">Enter your password to continue.</div>
+      <div style="font-size:12px;color:#6B7280;margin-bottom:16px">Enter your username and password.</div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Username</label>
+        <input id="auth-user" type="text" placeholder="Username" autocomplete="username" autocapitalize="none"
+          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box"
+          onkeydown="if(event.key==='Enter')document.getElementById('auth-pw').focus()">
+      </div>
       <div style="margin-bottom:12px">
         <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Password</label>
-        <input id="auth-pw" type="password" placeholder="Enter password"
+        <input id="auth-pw" type="password" placeholder="Password" autocomplete="current-password"
           style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box"
           onkeydown="if(event.key==='Enter')authLogin()">
       </div>
       <div id="auth-login-err" style="display:none;font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 12px;border-radius:6px;margin-bottom:12px"></div>
       <button onclick="authLogin()" style="width:100%;padding:11px;background:#042C53;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">🔓 Login</button>
-      <div style="text-align:center;margin-top:12px">
-        <button onclick="openRecovery()" style="background:none;border:none;color:#6B7280;font-size:12px;cursor:pointer;text-decoration:underline">Forgot password?</button>
-      </div>
-    </div>
-
-    <!-- Change password panel -->
-    <div id="auth-change-panel" style="display:none">
-      <div style="font-size:15px;font-weight:700;color:#042C53;margin-bottom:4px">Change Password</div>
-      <div style="font-size:12px;color:#6B7280;margin-bottom:16px">Verify your current password to set a new one.</div>
-      <div style="margin-bottom:10px">
-        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Current Password</label>
-        <input id="auth-cur-pw" type="password" placeholder="Current password"
-          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box"
-          onkeydown="if(event.key==='Enter')authChangePassword()">
-      </div>
-      <div style="margin-bottom:10px">
-        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">New Password</label>
-        <input id="auth-ch-pw1" type="password" placeholder="New password (min. 4 chars)"
-          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box"
-          onkeydown="if(event.key==='Enter')authChangePassword()">
-      </div>
-      <div style="margin-bottom:12px">
-        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Confirm New Password</label>
-        <input id="auth-ch-pw2" type="password" placeholder="Confirm new password"
-          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box"
-          onkeydown="if(event.key==='Enter')authChangePassword()">
-      </div>
-      <div id="auth-change-err" style="display:none;font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 12px;border-radius:6px;margin-bottom:12px"></div>
-      <div style="display:flex;gap:10px">
-        <button onclick="authChangePassword()" style="flex:1;padding:11px;background:#042C53;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">💾 Save</button>
-        <button onclick="closeChangePassword()" style="padding:11px 16px;background:#F3F4F6;color:#374151;border:none;border-radius:8px;font-size:14px;cursor:pointer">Cancel</button>
-      </div>
-    </div>
-
-    <!-- Recovery panel -->
-    <div id="auth-recovery-panel" style="display:none">
-      <div style="font-size:15px;font-weight:700;color:#042C53;margin-bottom:4px">Password Reset</div>
-      <div style="font-size:12px;color:#6B7280;margin-bottom:16px">Enter the reset code (see <code>ADMIN_RESET_CODE</code> in config.js) and set a new password.</div>
-      <div style="margin-bottom:10px">
-        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Reset Code</label>
-        <input id="auth-recovery-code" type="text" placeholder="e.g. MANIRAM-RESET-2024"
-          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:13px;box-sizing:border-box;font-family:monospace"
-          onkeydown="if(event.key==='Enter')authRecovery()">
-      </div>
-      <div style="margin-bottom:10px">
-        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">New Password</label>
-        <input id="auth-recovery-pw1" type="password" placeholder="New password"
-          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box"
-          onkeydown="if(event.key==='Enter')authRecovery()">
-      </div>
-      <div style="margin-bottom:12px">
-        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Confirm Password</label>
-        <input id="auth-recovery-pw2" type="password" placeholder="Confirm password"
-          style="width:100%;padding:10px 12px;border:1.5px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box"
-          onkeydown="if(event.key==='Enter')authRecovery()">
-      </div>
-      <div id="auth-recovery-err" style="display:none;font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 12px;border-radius:6px;margin-bottom:12px"></div>
-      <div style="display:flex;gap:10px">
-        <button onclick="authRecovery()" style="flex:1;padding:11px;background:#042C53;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">🔑 Reset Password</button>
-        <button onclick="authShowMode('login')" style="padding:11px 16px;background:#F3F4F6;color:#374151;border:none;border-radius:8px;font-size:14px;cursor:pointer">Cancel</button>
-      </div>
     </div>
   </div>
 </div>
@@ -191,7 +116,6 @@
     <div class="topbar-title" id="page-title">Dashboard</div>
     <div class="topbar-date" id="topbar-date"></div>
     <div style="display:flex;gap:8px;align-items:center;margin-left:auto">
-      <button onclick="openChangePassword()" style="background:none;border:1px solid rgba(255,255,255,0.3);color:#fff;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;opacity:0.8" title="Change Password">🔑 Password</button>
       <button onclick="logout()" style="background:none;border:1px solid rgba(255,255,255,0.3);color:#fff;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;opacity:0.8" title="Logout">⏻ Logout</button>
     </div>
   </div>
