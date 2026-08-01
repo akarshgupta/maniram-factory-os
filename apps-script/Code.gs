@@ -67,6 +67,10 @@ function doPost(e) {
     // ── Production Register (in-app machine-stage entries) ──
     else if (action === 'prodlogAppend')      prodlogAppend(data);
     else if (action === 'gsmSet')             gsmSet(data);
+    // ── Frontend order contract (js/orders.js) ──
+    // New orders POST with NO action; edits POST action 'update' + rowIndex.
+    else if (action === 'update')             updateOrderRow(data);
+    else if (!action && data.id && data.customer) appendOrderRow(data);
 
     return ContentService
       .createTextOutput(JSON.stringify(Object.assign({ success: true }, responseData)))
@@ -127,7 +131,46 @@ function deleteOrder(data) {
   if (!sheet) return;
   var rows = sheet.getDataRange().getValues();
   for (var i = rows.length - 1; i >= 1; i--) {
-    if (rows[i][0] === data.id) { sheet.deleteRow(i + 1); return; }
+    if ((rows[i][0] || '').toString() === (data.id || '').toString()) { sheet.deleteRow(i + 1); return; }
+  }
+}
+
+// ── Live Orders tab layout (matches the deployed sheet's 15 columns) ──
+// Order ID | Customer | Product | Box Specs | Ply | Colour | Weight |
+// Quantity | Rate | Delivery Date | Status | Priority | Reel Size |
+// Reserved KG | Remarks
+function _orderRowVals(d) {
+  return [
+    d.id, d.customer, d.product || '', d.size || '', d.ply || '', d.colour || '',
+    d.weight || '', d.qty || '', d.rate || '', d.date || '', d.status || 'New',
+    d.priority || 'Normal', d.reelSize || '', d.reservedKg || 0, d.remarks || ''
+  ];
+}
+
+function appendOrderRow(data) {
+  var ss    = SpreadsheetApp.openById(ORDERS_SHEET_ID);
+  var sheet = ss.getSheetByName('Orders');
+  if (!sheet) return;
+  sheet.appendRow(_orderRowVals(data));
+}
+
+function updateOrderRow(data) {
+  var ss    = SpreadsheetApp.openById(ORDERS_SHEET_ID);
+  var sheet = ss.getSheetByName('Orders');
+  if (!sheet) return;
+  var vals = _orderRowVals(data);
+  var row  = parseInt(data.rowIndex);
+  if (row > 1) {
+    sheet.getRange(row, 1, 1, vals.length).setValues([vals]);
+    return;
+  }
+  // rowIndex missing/unknown — fall back to match by ID
+  var rows = sheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if ((rows[i][0] || '').toString() === (data.id || '').toString()) {
+      sheet.getRange(i + 1, 1, 1, vals.length).setValues([vals]);
+      return;
+    }
   }
 }
 
