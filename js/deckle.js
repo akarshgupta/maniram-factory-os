@@ -87,33 +87,29 @@ function deckleRun() {
     ? '' : `<div class="field-hint" style="margin-bottom:8px">⚠️ Live reel stock has not loaded — showing standard sizes. Open the Reel Stock page and come back.</div>`;
 
   out.innerHTML = liveTag + `
-    <div class="add-order-form" style="padding:0;overflow-x:auto">
-    <table class="data-table" style="width:100%;border-collapse:collapse">
-      <thead><tr style="text-align:left">
-        <th style="padding:9px 12px">Reel</th>
-        <th style="padding:9px 12px">Cutting</th>
-        <th style="padding:9px 12px">Used</th>
-        <th style="padding:9px 12px">Waste</th>
-        <th style="padding:9px 12px">Waste %</th>
-        ${rate ? '<th style="padding:9px 12px">Loss ₹/1000 kg</th>' : ''}
-        <th style="padding:9px 12px">Stock</th>
+    <div class="data-table-wrap"><div class="data-table-scroll">
+    <table class="data-table">
+      <thead><tr>
+        <th>Reel</th><th>Cutting</th><th class="num">Used</th><th class="num">Waste</th><th class="num">Waste %</th>
+        ${rate ? '<th class="num">Loss ₹/1000 kg</th>' : ''}
+        <th>Stock</th>
       </tr></thead>
       <tbody>` +
     results.map((r, i) => {
-      const pctCol = r.wastePct <= 3 ? 'var(--success,#27AE60)' : r.wastePct <= 8 ? '#E67E22' : '#E74C3C';
+      const pctCol = r.wastePct <= 3 ? 'var(--success)' : r.wastePct <= 8 ? 'var(--warn)' : 'var(--danger)';
       const combo  = r.n2 > 0 ? `${r.n1} × ${w1}" + ${r.n2} × ${w2}"` : `${r.n1} × ${w1}"`;
       const loss   = rate ? `₹${Math.round(1000 * (r.wastePct/100) * rate).toLocaleString('en-IN')}` : '';
-      return `<tr style="border-top:1px solid var(--border,#e5e7eb);${i===0?'background:rgba(39,174,96,.07);font-weight:600':''}">
-        <td style="padding:9px 12px">${i===0?'⭐ ':''}${r.size}"</td>
-        <td style="padding:9px 12px">${combo}</td>
-        <td style="padding:9px 12px">${r.used.toFixed(2)}"</td>
-        <td style="padding:9px 12px">${r.waste.toFixed(2)}"</td>
-        <td style="padding:9px 12px;color:${pctCol};font-weight:700">${r.wastePct.toFixed(1)}%</td>
-        ${rate ? `<td style="padding:9px 12px">${loss}</td>` : ''}
-        <td style="padding:9px 12px;font-size:12px;color:var(--muted,#888)">${r.live ? `${r.count} reels · ${Math.round(r.kg).toLocaleString('en-IN')} kg` : '—'}</td>
+      return `<tr style="${i===0?'background:rgba(14,159,110,.08);font-weight:600':''}">
+        <td>${i===0?'⭐ ':''}${r.size}"</td>
+        <td>${combo}</td>
+        <td class="num">${r.used.toFixed(2)}"</td>
+        <td class="num">${r.waste.toFixed(2)}"</td>
+        <td class="num" style="color:${pctCol};font-weight:700">${r.wastePct.toFixed(1)}%</td>
+        ${rate ? `<td class="num">${loss}</td>` : ''}
+        <td style="font-size:12px;color:var(--muted)">${r.live ? `${r.count} reels · ${Math.round(r.kg).toLocaleString('en-IN')} kg` : '—'}</td>
       </tr>`;
     }).join('') + `
-      </tbody></table></div>`;
+      </tbody></table></div></div>`;
 }
 
 // Called from showPage — make sure live reel data is available.

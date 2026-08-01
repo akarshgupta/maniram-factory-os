@@ -706,3 +706,87 @@ function setupSheets() {
   Logger.log('Paste these IDs into Code.gs (top) and js/config.js:\n\n' + out.join('\n'));
   return out.join('\n');
 }
+
+// ══════════════════════════════════════════════════════════════
+// ONE-TIME FORMATTING — run formatAllSheets() once from the Apps
+// Script editor (select it from the function dropdown → ▶ Run).
+// Makes every tab the app writes to look like a clean table: bold
+// frozen header row, sensible column widths, thin borders, and
+// alternating row banding in the app's blue. Only touches formatting
+// — never cell values — so it's safe to run on live data, and safe
+// to re-run any time (it clears old banding first so it never stacks).
+//
+// Includes the Register Responses sheet (Google Form) too — that
+// sheet isn't written by this script, but formatting a Form's
+// response sheet doesn't affect new form submissions, which always
+// just append a new row regardless of styling.
+// ══════════════════════════════════════════════════════════════
+function formatAllSheets() {
+  var SUPERVISOR_SHEET_ID = '1ArpIy-BTUzHAKmVlcX8_7LChLM8MRiWtO7lmRW2V3sk'; // Maniram — Register Responses
+
+  var jobs = [
+    { id: ORDERS_SHEET_ID, tabs: ['Orders', 'Purchases', 'Overheads', 'TallySync', 'ProdLog', 'GSMeta', 'SupvProdLog', 'WeightLog', 'ReadyStock'] },
+    { id: CUSTOMERS_SHEET_ID, tabs: ['Sheet1'] },
+    { id: PRODUCTS_SHEET_ID,  tabs: ['Sheet1'] },
+    { id: DISPATCH_SHEET_ID,  tabs: ['Sheet1'] },
+    { id: STAFF_LOG_SHEET_ID, tabs: ['Sheet1'] },
+    { id: PROD_PERF_SHEET_ID, tabs: ['Sheet1'] },
+    { id: REEL_SHEET_ID,      tabs: [REEL_STOCK_TAB] },
+    { id: INVOICES_SHEET_ID,    tabs: ['Invoices'] },
+    { id: EXPENSES_SHEET_ID,    tabs: ['Expenses'] },
+    { id: RECEIVABLES_SHEET_ID, tabs: ['Receivables'] },
+    { id: CHALLANS_SHEET_ID,    tabs: ['Challans'] },
+    { id: QUOTATIONS_SHEET_ID,  tabs: ['Quotations'] },
+    { id: SUPERVISOR_SHEET_ID,  tabs: ['Production', 'Dispatch'] },
+  ];
+
+  var done = [], skipped = [];
+  for (var j = 0; j < jobs.length; j++) {
+    var sheetId = jobs[j].id;
+    if (!sheetId) { skipped.push('(blank spreadsheet ID — run setupSheets() first)'); continue; }
+    var ss;
+    try { ss = SpreadsheetApp.openById(sheetId); }
+    catch (e) { skipped.push(sheetId + ' — could not open: ' + e); continue; }
+
+    for (var t = 0; t < jobs[j].tabs.length; t++) {
+      var tabName = jobs[j].tabs[t];
+      var sheet = ss.getSheetByName(tabName);
+      if (!sheet) { skipped.push(ss.getName() + ' / ' + tabName + ' — tab does not exist yet'); continue; }
+      try {
+        _formatTabElegant(sheet);
+        done.push(ss.getName() + ' / ' + tabName);
+      } catch (e) {
+        skipped.push(ss.getName() + ' / ' + tabName + ' — ' + e);
+      }
+    }
+  }
+
+  var summary = 'Formatted:\n' + done.join('\n') + '\n\nSkipped:\n' + skipped.join('\n');
+  Logger.log(summary);
+  return summary;
+}
+
+function _formatTabElegant(sheet) {
+  var lastCol = Math.max(sheet.getLastColumn(), 1);
+  var lastRow = Math.max(sheet.getLastRow(), 1);
+  if (lastRow < 1) return;
+
+  // Header row: bold, navy-on-white-blue tint, frozen
+  var header = sheet.getRange(1, 1, 1, lastCol);
+  header.setFontWeight('bold').setBackground('#E8F0FE').setFontColor('#042C53');
+  sheet.setFrozenRows(1);
+
+  // Thin borders around the used range
+  var used = sheet.getRange(1, 1, lastRow, lastCol);
+  used.setBorder(true, true, true, true, true, true, '#DEE8F3', SpreadsheetApp.BorderStyle.SOLID);
+
+  // Alternating row banding (clear any existing banding first so re-runs don't stack/error)
+  var existing = sheet.getBandings();
+  for (var b = 0; b < existing.length; b++) existing[b].remove();
+  if (lastRow > 1) {
+    used.applyRowBanding(SpreadsheetApp.BandingTheme.BLUE, true, false);
+  }
+
+  // Auto-size columns to fit content
+  sheet.autoResizeColumns(1, lastCol);
+}

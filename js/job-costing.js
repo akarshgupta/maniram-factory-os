@@ -86,9 +86,9 @@ function renderJobCosting() {
   const totMargin = totRevenue > 0 ? (totProfit / totRevenue) * 100 : 0;
 
   const marginBadge = (m) => {
-    if (m === null) return '<span style="color:var(--muted,#888)">no rate</span>';
-    const col = m >= 15 ? 'var(--success,#27AE60)' : m >= 5 ? '#E67E22' : '#E74C3C';
-    return `<span style="color:${col};font-weight:700">${m.toFixed(1)}%</span>`;
+    if (m === null) return '<span style="color:var(--muted)">no rate</span>';
+    const cls = m >= 15 ? 'margin-good' : m >= 5 ? 'margin-mid' : 'margin-bad';
+    return `<span class="margin-pill ${cls}">${m.toFixed(1)}%</span>`;
   };
 
   body.innerHTML = `
@@ -97,35 +97,29 @@ function renderJobCosting() {
       <div><div class="form-label">Boxes</div><div style="font-size:20px;font-weight:700">${totQty.toLocaleString('en-IN')}</div></div>
       <div><div class="form-label">Revenue</div><div style="font-size:20px;font-weight:700">₹${Math.round(totRevenue).toLocaleString('en-IN')}</div></div>
       <div><div class="form-label">Cost</div><div style="font-size:20px;font-weight:700">₹${Math.round(totCost).toLocaleString('en-IN')}</div></div>
-      <div><div class="form-label">Profit</div><div style="font-size:20px;font-weight:700;color:${totProfit >= 0 ? 'var(--success,#27AE60)' : '#E74C3C'}">₹${Math.round(totProfit).toLocaleString('en-IN')}</div></div>
+      <div><div class="form-label">Profit</div><div style="font-size:20px;font-weight:700;color:${totProfit >= 0 ? 'var(--success)' : 'var(--danger)'}">₹${Math.round(totProfit).toLocaleString('en-IN')}</div></div>
       <div><div class="form-label">Margin</div><div style="font-size:20px;font-weight:700">${marginBadge(totMargin)}</div></div>
     </div>
-    <div class="add-order-form" style="padding:0;overflow-x:auto">
-    <table class="data-table" style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead><tr style="text-align:left">
-        <th style="padding:8px 10px">Order</th>
-        <th style="padding:8px 10px">Customer / Product</th>
-        <th style="padding:8px 10px">Qty</th>
-        <th style="padding:8px 10px">Wt g/box</th>
-        <th style="padding:8px 10px">Cost/box</th>
-        <th style="padding:8px 10px">Rate/box</th>
-        <th style="padding:8px 10px">Profit/box</th>
-        <th style="padding:8px 10px">Total profit</th>
-        <th style="padding:8px 10px">Margin</th>
+    <div class="data-table-wrap"><div class="data-table-scroll">
+    <table class="data-table">
+      <thead><tr>
+        <th>Order</th><th>Customer / Product</th><th class="num">Qty</th><th class="num">Wt g/box</th>
+        <th class="num">Cost/box</th><th class="num">Rate/box</th><th class="num">Profit/box</th>
+        <th class="num">Total profit</th><th class="num">Margin</th>
       </tr></thead><tbody>` +
     rows.map(r => `
-      <tr style="border-top:1px solid var(--border,#e5e7eb)">
-        <td style="padding:8px 10px;font-weight:600">${r.o.id}</td>
-        <td style="padding:8px 10px">${r.o.customer}<span style="color:var(--muted,#888)"> · ${r.o.product || '—'}</span></td>
-        <td style="padding:8px 10px">${r.qty.toLocaleString('en-IN')}</td>
-        <td style="padding:8px 10px">${r.wtKg ? Math.round(r.wtKg * 1000) : '—'}</td>
-        <td style="padding:8px 10px">₹${r.costBox.toFixed(2)}</td>
-        <td style="padding:8px 10px">${r.rate ? '₹' + r.rate.toFixed(2) : '—'}</td>
-        <td style="padding:8px 10px;color:${r.profitBox >= 0 ? 'inherit' : '#E74C3C'}">${r.rate ? '₹' + r.profitBox.toFixed(2) : '—'}</td>
-        <td style="padding:8px 10px">${r.rate ? '₹' + Math.round(r.profitBox * r.qty).toLocaleString('en-IN') : '—'}</td>
-        <td style="padding:8px 10px">${marginBadge(r.marginPct)}</td>
+      <tr>
+        <td style="font-weight:600">${r.o.id}</td>
+        <td>${r.o.customer}<span style="color:var(--muted)"> · ${r.o.product || '—'}</span></td>
+        <td class="num">${r.qty.toLocaleString('en-IN')}</td>
+        <td class="num">${r.wtKg ? Math.round(r.wtKg * 1000) : '—'}</td>
+        <td class="num">₹${r.costBox.toFixed(2)}</td>
+        <td class="num">${r.rate ? '₹' + r.rate.toFixed(2) : '—'}</td>
+        <td class="num" style="color:${r.profitBox >= 0 ? 'inherit' : 'var(--danger)'}">${r.rate ? '₹' + r.profitBox.toFixed(2) : '—'}</td>
+        <td class="num">${r.rate ? '₹' + Math.round(r.profitBox * r.qty).toLocaleString('en-IN') : '—'}</td>
+        <td class="num">${marginBadge(r.marginPct)}</td>
       </tr>`).join('') + `
-    </tbody></table></div>
+    </tbody></table></div></div>
     <div class="field-hint" style="margin-top:8px">Cost/box = (weight × (paper + conversion)) + printing. Orders without a weight or rate show incomplete figures — set product weights on the Clients page.</div>`;
 }
 
