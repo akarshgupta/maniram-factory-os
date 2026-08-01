@@ -346,7 +346,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
    ══════════════════════════════════════════════════════════════ */
 .popup-overlay { position: fixed; inset: 0; background: rgba(13,27,74,0.4); backdrop-filter: blur(2px); z-index: 1000; display: none; align-items: center; justify-content: center; }
 .popup-overlay.show { display: flex; }
-.popup-box     { background: var(--white); border-radius: 14px; padding: 28px; max-width: 400px; width: 90%; box-shadow: 0 24px 60px rgba(13,27,74,0.18); }
+.popup-box     { background: var(--white); border-radius: 14px; padding: 28px; max-width: 400px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 24px 60px rgba(13,27,74,0.18); }
 .popup-title   { font-size: 17px; font-weight: 700; color: var(--navy); margin-bottom: 6px; }
 .wa-chip { display:inline-flex;align-items:center;gap:6px;background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:20px;padding:5px 13px;font-size:12px;font-weight:500;cursor:pointer;user-select:none;transition:background .15s,border-color .15s; }
 .wa-chip:hover { background:#D1FAE5;border-color:#6EE7B7; }
