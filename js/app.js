@@ -29,6 +29,7 @@ const pageTitles = {
   invoicing:   '🧾 Invoicing',
   expenses:    '💸 Expense Tracker',
   registers:   '📋 Production Register',
+  dailyreport: '🗓️ Daily Report',
   svlog:       '📝 Supervisor Register',
   ledger:      '📒 Party Ledger',
   pipeline:    '🚦 Pipeline Board',
@@ -59,6 +60,7 @@ function showPage(id) {
   if (id === 'invoicing')   renderInvoicingPage();
   if (id === 'expenses')    renderExpensesPage();
   if (id === 'registers')   loadRegisters();
+  if (id === 'dailyreport') loadDailyReport();
   if (id === 'svlog')       loadSupervisorLog();
   if (id === 'ledger')      renderLedger();
   if (id === 'pipeline')    renderPipelineBoard();

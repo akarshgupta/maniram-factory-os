@@ -174,6 +174,13 @@ function _svEntryKg(e) {
   return gramsPerPc * pcs / 1000;
 }
 
+// Normalize the form's M/D/YYYY date (no leading zeros) to YYYY-MM-DD,
+// so it can be compared against dates from the rest of the app.
+function _svNormDate(s) {
+  const m = String(s || '').match(/(\d+)\/(\d+)\/(\d+)/);
+  return m ? `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}` : (s || '');
+}
+
 // Group production + dispatch entries by date → daily totals.
 function _svDailySummary() {
   const days = {};
@@ -194,9 +201,8 @@ function _svDailySummary() {
     d.dispPcs += e.pcs || 0;
     d.dispKg  += (e.pcs * e.wtPc / 1000) || 0;
   });
-  // newest date first — dates are M/D/YYYY from the form
-  const key = s => { const m = String(s).match(/(\d+)\/(\d+)\/(\d+)/); return m ? `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}` : s; };
-  return Object.entries(days).sort((a, b) => key(b[0]).localeCompare(key(a[0])));
+  // newest date first
+  return Object.entries(days).sort((a, b) => _svNormDate(b[0]).localeCompare(_svNormDate(a[0])));
 }
 
 function _svDailySummaryHtml() {
