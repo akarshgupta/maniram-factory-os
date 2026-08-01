@@ -23,8 +23,16 @@ function _nextDcNum() {
 }
 
 // ── Dispatched qty helpers ──
+// This shadows dispatch.js's own getDispatchedQty (this file loads after
+// it), so it counts both entry points for "boxes out the door": Delivery
+// Challans (this file) and the older Record Dispatch flow (dispatch.js's
+// _dispatchCache, synced from the Dispatch sheet) — otherwise a dispatch
+// logged via Record Dispatch would be invisible to every page that calls
+// getDispatchedQty(), including the auto-complete check.
 function getDispatchedQty(orderId) {
-  return challanList.filter(c => c.orderId === orderId).reduce((s, c) => s + (c.qty || 0), 0);
+  const fromChallans = challanList.filter(c => c.orderId === orderId).reduce((s, c) => s + (c.qty || 0), 0);
+  const fromRecordDispatch = (typeof _dispatchCache !== 'undefined' && _dispatchCache[orderId]) || 0;
+  return fromChallans + fromRecordDispatch;
 }
 
 function getChallansByOrder(orderId) {
@@ -105,42 +113,12 @@ function saveAndPrintChallan() {
 
   const orderId = _challanOrderId;
   closeChallanModal();
-  _completeOrderIfFullyDispatched(o);
-  renderOrders();              // refresh progress bars
-  printDeliveryChallan(record);
-}
-
-// If challans issued for this order now cover its full quantity, move it
-// to Delivered so it drops out of Active Orders into History — mirrors the
-// same 95% threshold used by the Record Dispatch flow (dispatch.js).
-function _completeOrderIfFullyDispatched(o) {
-  if (!o || FINISHED_STATUSES.includes(o.status)) return;
-  const total      = parseInt(o.qty) || 0;
-  const dispatched = getDispatchedQty(o.id);
-  if (!total || dispatched < total * 0.95) return;
-
-  o.status = 'Delivered';
-  if (typeof recordDeliveredOrder === 'function') recordDeliveredOrder(o);
-  if (o.rowIndex && o.rowIndex !== 9999) {
-    const d   = new Date(o.date + 'T00:00:00');
-    const fmt = isNaN(d) ? o.date : `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
-    fetch(APPS_SCRIPT_URL, {
-      method: 'POST', mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'update', rowIndex: o.rowIndex,
-        id: o.id, customer: o.customer, product: o.product || '', size: o.size || '',
-        ply: o.ply || '', colour: o.colour || '', weight: o.weight || '',
-        qty: o.qty, rate: o.rate, date: fmt, status: 'Delivered',
-        priority: o.priority || 'Normal', reelSize: o.reelSize || '',
-        reservedKg: o.reservedKg || 0, remarks: o.remarks || ''
-      })
-    }).catch(() => {});
+  // If this challan covers every box still pending, close the order out —
+  // checkOrderFullyDispatched() (orders.js) also re-renders the orders list.
+  if (typeof checkOrderFullyDispatched !== 'function' || !checkOrderFullyDispatched(orderId)) {
+    renderOrders();             // refresh progress bars when not yet complete
   }
-
-  if (typeof updateDashboardOrders === 'function') updateDashboardOrders();
-  if (typeof renderCalendar === 'function') renderCalendar();
-  if (typeof renderProductionPlan === 'function') renderProductionPlan();
+  printDeliveryChallan(record);
 }
 
 // ── Print challan ──

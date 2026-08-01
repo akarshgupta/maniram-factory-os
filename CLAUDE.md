@@ -41,6 +41,8 @@ Login is a single fixed user: `js/auth.js` checks `authHash(username + '::' + pa
 
 **Page navigation:** pages are `#page-<id>` divs toggled by the `.active` class via `showPage()` in `js/app.js`. Never put inline `display:none` on a page div — inline styles beat the `.page.active` CSS rule and the page will never open (this was a real bug).
 
+**Order dispatch tracking:** there are two independent ways to log boxes leaving the factory — Delivery Challans (`js/challan.js`, `challanList`) and the older Record Dispatch modal (`js/dispatch.js`, `_dispatchCache`, opened from Calendar/Production Plan). Both files define a global `getDispatchedQty(orderId)`; since `challan.js` loads after `dispatch.js`, its version wins everywhere and deliberately sums *both* stores so neither entry point is invisible to the other. An order auto-completes (`checkOrderFullyDispatched()` in `js/orders.js`) the moment this combined total reaches the ordered quantity, called from both `saveAndPrintChallan()` and `confirmDispatch()`.
+
 **Service worker (`sw.js`):** bump the `CACHE` version string on every release that changes shell files, and add any new HTML/JS/asset to the SHELL list. Install tolerates missing files, but a stale cache version means clients keep old code.
 
 ## Domain math
