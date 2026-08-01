@@ -30,7 +30,7 @@ function renderPipelineBoard() {
   const all = (typeof orders !== 'undefined' ? orders : []).filter(o => o.status !== 'Cancelled');
 
   if (!all.length) {
-    root.innerHTML = '<div class="empty-state">Koi order nahi — Orders page se naya order banao.</div>';
+    root.innerHTML = '<div class="empty-state">No orders — create one from the Orders page.</div>';
     return;
   }
 

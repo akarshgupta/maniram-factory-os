@@ -175,7 +175,7 @@ function runRateCalculator() {
   const twoPartHTML = result.twoPart
     ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px 12px;border-radius:8px;background:#FFF7E6;border:1px solid #F5C06B;font-size:12px"><span>✂️</span><span><strong>Two-part box</strong> — sheet ${((L+W)*2+2)}" limit se bada, isliye 2 pieces + stitching margin ×2 (Sheet L = (L+W)×2+4)</span></div>`
     : result.special
-    ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px 12px;border-radius:8px;background:#FFF7E6;border:1px solid #F5C06B;font-size:12px"><span>⚠️</span><span><strong>Special case</strong> — 3-ply ${result.sheetL}" is above 80" (machine max 82"). Single-piece chalega par tight hai.</span></div>`
+    ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px 12px;border-radius:8px;background:#FFF7E6;border:1px solid #F5C06B;font-size:12px"><span>⚠️</span><span><strong>Special case</strong> — 3-ply ${result.sheetL}" is above 80" (machine max 82"). A single piece will work, but it is tight.</span></div>`
     : '';
 
   const mmBanner = isMM ? `

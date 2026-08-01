@@ -23,7 +23,7 @@ function deckleFromBox() {
   const H = parseFloat(document.getElementById('dk-h').value);
   const info = document.getElementById('dk-sheet-info');
   if (!W || !H) {
-    info.textContent = 'Box W aur H daalo — sheet width = W + H (+ margin).';
+    info.textContent = 'Enter box W and H — sheet width = W + H (+ margin).';
     return;
   }
   const heavy  = document.getElementById('dk-ply').value === 'heavy';
@@ -44,7 +44,7 @@ function deckleRun() {
   const rateHint = document.getElementById('dk-rate-hint');
 
   if (!w1 || w1 <= 0) {
-    out.innerHTML = '<div class="empty-state">Sheet width daalo ya box size se calculate karo — available reels waste % ke hisaab se rank ho jayenge.</div>';
+    out.innerHTML = '<div class="empty-state">Enter a sheet width, or calculate it from the box size — available reels will be ranked by waste %.</div>';
     rateHint.textContent = '';
     return;
   }
@@ -73,7 +73,7 @@ function deckleRun() {
   });
 
   if (results.length === 0) {
-    out.innerHTML = `<div class="empty-state">Koi reel ${w1}" sheet ke liye kaafi wide nahi hai.</div>`;
+    out.innerHTML = `<div class="empty-state">No reel is wide enough for a ${w1}" sheet.</div>`;
     return;
   }
 
@@ -84,7 +84,7 @@ function deckleRun() {
     : '';
 
   const liveTag = results.some(r => r.live)
-    ? '' : `<div class="field-hint" style="margin-bottom:8px">⚠️ Live reel stock load nahi hua — standard sizes dikha rahe hain. Reel Stock page kholke wapas aao.</div>`;
+    ? '' : `<div class="field-hint" style="margin-bottom:8px">⚠️ Live reel stock has not loaded — showing standard sizes. Open the Reel Stock page and come back.</div>`;
 
   out.innerHTML = liveTag + `
     <div class="add-order-form" style="padding:0;overflow-x:auto">

@@ -551,7 +551,7 @@ function renderOrders() {
 function removeOrder(orderId) {
   const o = orders.find(x => x.id === orderId);
   if (!o) return;
-  if (!confirm(`Order ${o.id} — ${o.customer} (${o.product || o.size || ''}) delete karna hai?\nYe sheet se bhi hat jayega. Wapas nahi aayega.`)) return;
+  if (!confirm(`Delete order ${o.id} — ${o.customer} (${o.product || o.size || ''})?\nIt will also be removed from the Google Sheet. This cannot be undone.`)) return;
 
   orders = orders.filter(x => x.id !== orderId);
   pendingOrderIds.delete(orderId);

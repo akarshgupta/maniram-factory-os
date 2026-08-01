@@ -58,13 +58,13 @@ function renderJobCosting() {
   const a = _costAssumptions();
 
   if (!a.paper && !a.conv) {
-    body.innerHTML = '<div class="empty-state">Upar paper aur conversion rate daalo — har order ka cost aur profit yahan dikh jayega.</div>';
+    body.innerHTML = '<div class="empty-state">Enter the paper and conversion rates above — cost and profit for every order will appear here.</div>';
     return;
   }
 
   const list = _costingOrders();
   if (!list.length) {
-    body.innerHTML = '<div class="empty-state">Is period mein koi order nahi mila.</div>';
+    body.innerHTML = '<div class="empty-state">No orders found in this period.</div>';
     return;
   }
 
@@ -86,7 +86,7 @@ function renderJobCosting() {
   const totMargin = totRevenue > 0 ? (totProfit / totRevenue) * 100 : 0;
 
   const marginBadge = (m) => {
-    if (m === null) return '<span style="color:var(--muted,#888)">rate nahi</span>';
+    if (m === null) return '<span style="color:var(--muted,#888)">no rate</span>';
     const col = m >= 15 ? 'var(--success,#27AE60)' : m >= 5 ? '#E67E22' : '#E74C3C';
     return `<span style="color:${col};font-weight:700">${m.toFixed(1)}%</span>`;
   };
@@ -126,7 +126,7 @@ function renderJobCosting() {
         <td style="padding:8px 10px">${marginBadge(r.marginPct)}</td>
       </tr>`).join('') + `
     </tbody></table></div>
-    <div class="field-hint" style="margin-top:8px">Cost/box = (weight × (paper + conversion)) + printing. Orders bina weight/rate ke incomplete dikhenge — Clients page pe product weight bharo.</div>`;
+    <div class="field-hint" style="margin-top:8px">Cost/box = (weight × (paper + conversion)) + printing. Orders without a weight or rate show incomplete figures — set product weights on the Clients page.</div>`;
 }
 
 function initJobCosting() {
