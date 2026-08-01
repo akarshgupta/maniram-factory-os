@@ -548,6 +548,55 @@ function renderOrders() {
   });
 }
 
+// ── Shared "order is Delivered" finish line — sheet push + re-renders.
+// Caller sets o.status/o.qty/o.remarks (and clears dispatch tracking if
+// relevant) before calling. Used by every completion path: manual Mark
+// Complete, and auto-complete when dispatch/challan quantity reaches the
+// full ordered amount. ──
+function _pushOrderUpdate(o) {
+  if (!o.rowIndex || o.rowIndex === 9999) return;
+  const d   = new Date(o.date + 'T00:00:00');
+  const fmt = isNaN(d) ? o.date : `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST', mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'update', rowIndex: o.rowIndex,
+      id: o.id, customer: o.customer, product: o.product || '', size: o.size || '',
+      ply: o.ply || '', colour: o.colour || '', weight: o.weight || '',
+      qty: o.qty, rate: o.rate, date: fmt, status: o.status,
+      priority: o.priority || 'Normal', reelSize: o.reelSize || '',
+      reservedKg: o.reservedKg || 0, remarks: o.remarks || ''
+    })
+  }).catch(() => {});
+}
+
+function _finalizeOrderDelivered(o) {
+  if (typeof recordDeliveredOrder === 'function') recordDeliveredOrder(o);
+  _pushOrderUpdate(o);
+  renderOrders();
+  if (typeof activeOrderTab !== 'undefined' && activeOrderTab === 'grouped') renderGroupedOrders();
+  if (typeof updateDashboardOrders === 'function') updateDashboardOrders();
+  if (typeof renderCalendar === 'function') renderCalendar();
+  if (typeof renderProductionPlan === 'function') renderProductionPlan();
+}
+
+// If every ordered box has now been dispatched (no boxes pending), close
+// the order out automatically. Call after any dispatch-quantity change —
+// a Delivery Challan save or a Record Dispatch confirm.
+function checkOrderFullyDispatched(orderId) {
+  const o = orders.find(x => x.id === orderId);
+  if (!o || FINISHED_STATUSES.includes(o.status)) return false;
+  const total      = parseInt(o.qty) || 0;
+  const dispatched = typeof getDispatchedQty === 'function' ? getDispatchedQty(orderId) : 0;
+  if (!total || dispatched < total) return false;
+
+  o.status = 'Delivered';
+  if (typeof clearDispatch === 'function') clearDispatch(orderId);
+  _finalizeOrderDelivered(o);
+  return true;
+}
+
 // ── Mark an order complete at less than (or equal to) its full ordered
 // quantity. Use when production/dispatch fell short but the order is
 // being closed out as-is (e.g. ordered 500, made 400 — close at 400). ──
@@ -579,30 +628,7 @@ function markOrderComplete(orderId) {
   o.status  = 'Delivered';
 
   if (typeof clearDispatch === 'function') clearDispatch(orderId);
-  if (typeof recordDeliveredOrder === 'function') recordDeliveredOrder(o);
-
-  if (o.rowIndex && o.rowIndex !== 9999) {
-    const d   = new Date(o.date + 'T00:00:00');
-    const fmt = isNaN(d) ? o.date : `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
-    fetch(APPS_SCRIPT_URL, {
-      method: 'POST', mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'update', rowIndex: o.rowIndex,
-        id: o.id, customer: o.customer, product: o.product || '', size: o.size || '',
-        ply: o.ply || '', colour: o.colour || '', weight: o.weight || '',
-        qty: actual, rate: o.rate, date: fmt, status: 'Delivered',
-        priority: o.priority || 'Normal', reelSize: o.reelSize || '',
-        reservedKg: o.reservedKg || 0, remarks: o.remarks || ''
-      })
-    }).catch(() => {});
-  }
-
-  renderOrders();
-  if (typeof activeOrderTab !== 'undefined' && activeOrderTab === 'grouped') renderGroupedOrders();
-  if (typeof updateDashboardOrders === 'function') updateDashboardOrders();
-  if (typeof renderCalendar === 'function') renderCalendar();
-  if (typeof renderProductionPlan === 'function') renderProductionPlan();
+  _finalizeOrderDelivered(o);
 }
 
 // ── Delete order (app + sheet) ──

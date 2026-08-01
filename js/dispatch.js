@@ -71,34 +71,14 @@ function confirmDispatch() {
   if (!o) { closeDispatchModal(); return; }
   if (qty <= 0) { alert('Enter number of boxes dispatched.'); return; }
 
-  const total      = parseInt(o.qty) || 0;
-  const dispatched = addDispatchQty(orderId, qty);
+  addDispatchQty(orderId, qty);
   closeDispatchModal();
 
-  if (dispatched >= total * 0.95) {
-    o.status = 'Delivered';
-    clearDispatch(orderId);
-    if (typeof recordDeliveredOrder === 'function') recordDeliveredOrder(o);
-    if (o.rowIndex && o.rowIndex !== 9999) {
-      const d   = new Date(o.date + 'T00:00:00');
-      const fmt = isNaN(d) ? o.date
-        : `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
-      fetch(APPS_SCRIPT_URL, {
-        method: 'POST', mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'update', rowIndex: o.rowIndex,
-          id: o.id, customer: o.customer, product: o.product || '', size: o.size || '',
-          ply: o.ply || '', colour: o.colour || '', weight: o.weight || '',
-          qty: o.qty, rate: o.rate, date: fmt, status: 'Delivered',
-          priority: o.priority || 'Normal', reelSize: o.reelSize || '',
-          reservedKg: o.reservedKg || 0, remarks: o.remarks || ''
-        })
-      });
-    }
+  // If nothing is left pending for this order, checkOrderFullyDispatched()
+  // (orders.js) closes it out and re-renders everything on its own.
+  if (typeof checkOrderFullyDispatched !== 'function' || !checkOrderFullyDispatched(orderId)) {
+    renderCalendar();
+    updateDashboardOrders();
+    if (typeof renderProductionPlan === 'function') renderProductionPlan();
   }
-
-  renderCalendar();
-  updateDashboardOrders();
-  if (typeof renderProductionPlan === 'function') renderProductionPlan();
 }
