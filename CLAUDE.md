@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Factory management SPA for Maniram Industries, a corrugated-box manufacturer in Jhansi. Vanilla JS — no framework, no bundler, no npm, no test suite. Deployed via GitHub Pages from `main` (squash-merge PRs to release). UI copy is intentionally Hindi/Hinglish — keep that style in user-facing text.
+Factory management SPA for Maniram Industries, a corrugated-box manufacturer in Jhansi. Vanilla JS — no framework, no bundler, no npm, no test suite. Deployed via GitHub Pages from `main` (squash-merge PRs to release). UI copy must be plain English — no Hindi/Hinglish in labels, messages, or placeholders (this was changed from an earlier Hinglish style; don't reintroduce it).
 
 ## Running locally
 

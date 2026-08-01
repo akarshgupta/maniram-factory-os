@@ -183,7 +183,7 @@ function saveRecordedPayment() {
   const note   = document.getElementById('pay-note').value.trim();
 
   if (!amount || amount <= 0) { alert('Please enter a valid amount (in ₹).'); return; }
-  if (!date) { alert('Date required hai.'); return; }
+  if (!date) { alert('Date is required.'); return; }
 
   const entry = {
     id:         generatePaymentId(),

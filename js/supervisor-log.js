@@ -79,7 +79,7 @@ function renderSupervisorLog(loading, error) {
   if (loading) {
     body = '<div class="empty-state">Loading supervisor register…</div>';
   } else if (error) {
-    body = '<div class="empty-state">⚠️ Register sheet load nahi hua — internet check karke ↻ Refresh dabao.</div>';
+    body = '<div class="empty-state">⚠️ Could not load the register sheet — check the internet connection and press ↻ Refresh.</div>';
   } else if (_svTab === 'dispatch') {
     body = _svDispatchHtml();
   } else {
@@ -95,7 +95,7 @@ function renderSupervisorLog(loading, error) {
 }
 
 function _svDispatchHtml() {
-  if (!_svDisp.length) return '<div class="empty-state">Abhi koi dispatch entry nahi. Supervisor form bharega to yahan dikhega.</div>';
+  if (!_svDisp.length) return '<div class="empty-state">No dispatch entries yet. They will appear here once the supervisor fills the form.</div>';
 
   const rows = _svDisp.map(e => {
     const totalKg = e.pcs && e.wtPc ? (e.pcs * e.wtPc / 1000) : 0;
@@ -137,14 +137,30 @@ function _svDispatchHtml() {
         <th style="padding:8px 10px">Total wt</th>
         <th style="padding:8px 10px" title="Measured vs product master weight">vs Master</th>
       </tr></thead><tbody>${rows}</tbody></table></div>
-    <div class="field-hint" style="margin-top:8px">vs Master = supervisor ka measured weight vs Clients page ka product weight. ±3% green, ±7% orange, zyada red — red matlab paper GSM ya size check karo.</div>`;
+    <div class="field-hint" style="margin-top:8px">vs Master compares the supervisor's measured weight against the product weight on the Clients page. Within ±3% green, ±7% orange, beyond that red — red means check the paper GSM or size.</div>`;
+}
+
+// Paper weight consumed by one entry, in kg.
+// One cut piece = (reel width × cutting size / 1550) sqm × GSM grams per layer.
+// On two-reel (corrugated 2-ply) entries, Reel 2 is treated as the fluted
+// layer, which consumes ~1.5× its length (flute take-up factor).
+function _svEntryKg(e) {
+  const cut = parseFloat(e.cutSize);
+  const pcs = parseInt(e.plyPcs) || parseInt(e.sheets) || 0;
+  if (!cut || !pcs) return 0;
+  const r1w = parseFloat(e.r1w), r1g = parseFloat(e.r1g);
+  const r2w = parseFloat(e.r2w), r2g = parseFloat(e.r2g);
+  let gramsPerPc = 0;
+  if (r1w && r1g) gramsPerPc += (r1w * cut / 1550) * r1g;
+  if (r2w && r2g) gramsPerPc += (r2w * cut / 1550) * r2g * 1.5;
+  return gramsPerPc * pcs / 1000;
 }
 
 // Group production + dispatch entries by date → daily totals.
 function _svDailySummary() {
   const days = {};
   const day = d => {
-    if (!days[d]) days[d] = { plyPcs: 0, sheets: 0, rolls: 0, prodEntries: 0, dispPcs: 0, dispKg: 0 };
+    if (!days[d]) days[d] = { plyPcs: 0, sheets: 0, rolls: 0, prodKg: 0, prodEntries: 0, dispPcs: 0, dispKg: 0 };
     return days[d];
   };
   _svProd.forEach(e => {
@@ -152,6 +168,7 @@ function _svDailySummary() {
     d.plyPcs += parseInt(e.plyPcs) || 0;
     d.sheets += parseInt(e.sheets) || 0;
     d.rolls  += parseInt(e.rolls) || 0;
+    d.prodKg += _svEntryKg(e);
     d.prodEntries++;
   });
   _svDisp.forEach(e => {
@@ -175,6 +192,7 @@ function _svDailySummaryHtml() {
         <th style="padding:8px 10px">Ply pieces cut</th>
         <th style="padding:8px 10px">Sheets cut</th>
         <th style="padding:8px 10px">Rolls</th>
+        <th style="padding:8px 10px" title="Paper consumed, computed from reel widths × GSM × cutting size">Production wt</th>
         <th style="padding:8px 10px">Dispatched</th>
         <th style="padding:8px 10px">Dispatch wt</th>
       </tr></thead><tbody>` +
@@ -184,20 +202,23 @@ function _svDailySummaryHtml() {
         <td style="padding:8px 10px;font-weight:600">${d.plyPcs ? d.plyPcs.toLocaleString('en-IN') : '—'}</td>
         <td style="padding:8px 10px">${d.sheets ? d.sheets.toLocaleString('en-IN') : '—'}</td>
         <td style="padding:8px 10px">${d.rolls || '—'}</td>
+        <td style="padding:8px 10px;font-weight:700;color:var(--accent,#2980B9)">${d.prodKg ? d.prodKg.toLocaleString('en-IN', {maximumFractionDigits:1}) + ' kg' : '—'}</td>
         <td style="padding:8px 10px">${d.dispPcs ? d.dispPcs.toLocaleString('en-IN') + ' pcs' : '—'}</td>
         <td style="padding:8px 10px">${d.dispKg ? d.dispKg.toLocaleString('en-IN', {maximumFractionDigits:1}) + ' kg' : '—'}</td>
       </tr>`).join('') + `
-    </tbody></table></div>`;
+    </tbody></table></div>
+    <div class="field-hint" style="margin-bottom:14px">Production weight = paper consumed, calculated per entry as reel width × cutting size × GSM (Reel 2 counted at 1.5× for flute take-up). Roll-only entries have no weight — length is unknown.</div>`;
 }
 
 function _svProductionHtml() {
-  if (!_svProd.length) return '<div class="empty-state">Abhi koi production entry nahi.</div>';
+  if (!_svProd.length) return '<div class="empty-state">No production entries yet.</div>';
 
   const rows = _svProd.map(e => {
     const reels = [
       e.r1w ? `${e.r1w}" @ ${e.r1g || '?'}g` : '',
       e.r2w ? `${e.r2w}" @ ${e.r2g || '?'}g` : '',
     ].filter(Boolean).join(' + ');
+    const kg = _svEntryKg(e);
     return `<tr style="border-top:1px solid var(--border,#e5e7eb)">
       <td style="padding:8px 10px;white-space:nowrap">${e.date}</td>
       <td style="padding:8px 10px">${reels || '—'}</td>
@@ -205,6 +226,7 @@ function _svProductionHtml() {
       <td style="padding:8px 10px">${e.plyPcs ? parseInt(e.plyPcs).toLocaleString('en-IN') : '—'}</td>
       <td style="padding:8px 10px">${e.sheets ? parseInt(e.sheets).toLocaleString('en-IN') : '—'}</td>
       <td style="padding:8px 10px">${e.rolls || '—'}</td>
+      <td style="padding:8px 10px;font-weight:600">${kg ? kg.toLocaleString('en-IN', {maximumFractionDigits:1}) + ' kg' : '—'}</td>
     </tr>`;
   }).join('');
 
@@ -219,5 +241,6 @@ function _svProductionHtml() {
         <th style="padding:8px 10px">Ply pieces</th>
         <th style="padding:8px 10px">Sheets</th>
         <th style="padding:8px 10px">Rolls</th>
+        <th style="padding:8px 10px">Paper used</th>
       </tr></thead><tbody>${rows}</tbody></table></div>`;
 }

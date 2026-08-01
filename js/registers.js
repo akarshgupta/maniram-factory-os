@@ -149,11 +149,11 @@ async function loadRegisters() {
   if (typeof REGISTERS_SHEET_ID === 'undefined' || !REGISTERS_SHEET_ID) {
     root.innerHTML = `<div class="card" style="padding:20px">
       <b>⚙️ Setup pending</b><br><br>
-      1. "Maniram Industries Database" folder mein naya blank Sheet banao — naam: <b>Registers</b><br>
+      1. Create a new blank Sheet named <b>Registers</b> in the "Maniram Industries Database" folder<br>
       2. Share → "Anyone with link → Viewer"<br>
-      3. Sheet ID <code>js/config.js</code> mein <code>REGISTERS_SHEET_ID</code> mein paste karo<br>
-      4. <code>apps-script/registers-prodlog.gs</code> ko us sheet ke Apps Script mein paste karke Web App deploy karo, URL <code>REGISTERS_SCRIPT_URL</code> mein daalo<br>
-      <span style="color:var(--muted);font-size:12px">Tabs (ProdLog, GSMeta) pehli entry pe khud ban jayenge.</span></div>`;
+      3. Paste the Sheet ID into <code>REGISTERS_SHEET_ID</code> in <code>js/config.js</code><br>
+      4. Paste <code>apps-script/registers-prodlog.gs</code> into that sheet's Apps Script, deploy it as a Web App and put the URL into <code>REGISTERS_SCRIPT_URL</code><br>
+      <span style="color:var(--muted);font-size:12px">The ProdLog and GSMeta tabs are created automatically on the first entry.</span></div>`;
     return;
   }
   root.innerHTML = `
@@ -194,7 +194,7 @@ function renderRegEntry() {
   const kg = _regTodayCorrugationKg();
   body.innerHTML = `
     <div class="card" style="padding:16px;max-width:560px">
-      <div style="font-weight:700;margin-bottom:10px">Machine chuno:</div>
+      <div style="font-weight:700;margin-bottom:10px">Choose a machine:</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:14px" id="reg-mbtns">
         ${REG_MACHINES.map(m => `<button onclick="_regPickMachine('${m.id}')" id="regm-${m.id}"
           style="padding:12px 8px;border-radius:10px;border:2px solid ${_selMachine===m.id?'var(--accent,#378ADD)':'var(--horizon,#B5D4F4)'};
@@ -203,7 +203,7 @@ function renderRegEntry() {
       </div>
       <div class="form-group"><label class="form-label">Order</label>
         <select class="form-input" id="reg-order">
-          <option value="">— Order chuno —</option>
+          <option value="">— Select order —</option>
           ${act.map(o => `<option value="${o.id}">${o.id} · ${o.customer} · ${o.size} (${o.ply}-ply) · ${o.qty} pcs</option>`).join('')}
         </select></div>
       <div class="form-group"><label class="form-label">Aaj kitne pieces bane?</label>
@@ -215,7 +215,7 @@ function renderRegEntry() {
     </div>
     <div class="card" style="padding:12px;max-width:560px;margin-top:10px;background:#EAF3FC">
       🌀 <b>Corrugation aaj (derived):</b> ~${kg.toLocaleString('en-IN')} kg
-      <span style="font-size:11px;color:var(--muted)"> — Sheeter pieces × per-sheet ply weight se auto-calculate. Alag entry ki zaroorat nahi.</span>
+      <span style="font-size:11px;color:var(--muted)"> — auto-calculated from sheeter pieces × per-sheet ply weight. No separate entry needed.</span>
     </div>`;
 }
 function _regPickMachine(id) { _selMachine = id; renderRegEntry(); }
@@ -225,9 +225,9 @@ function saveProdEntry() {
   const orderId = document.getElementById('reg-order').value;
   const qty = parseInt(document.getElementById('reg-qty').value) || 0;
   const remarks = document.getElementById('reg-remarks').value.trim();
-  if (!_selMachine) { msg.innerHTML = '⚠️ Machine chuno'; return; }
-  if (!orderId)     { msg.innerHTML = '⚠️ Order chuno'; return; }
-  if (qty <= 0)     { msg.innerHTML = '⚠️ Qty daalo'; return; }
+  if (!_selMachine) { msg.innerHTML = '⚠️ Choose a machine'; return; }
+  if (!orderId)     { msg.innerHTML = '⚠️ Select an order'; return; }
+  if (qty <= 0)     { msg.innerHTML = '⚠️ Enter a quantity'; return; }
   const entry = { date: todayStr, machine: _selMachine, orderId, qty, remarks, ts: new Date().toISOString() };
   _plEntries.push(entry); _plSaveLocal(_plEntries);
   _regPost('prodlogAppend', entry);
@@ -246,7 +246,7 @@ function saveProdEntry() {
 function renderRegProgress() {
   const body = document.getElementById('reg-body');
   const act = _regActiveOrders();
-  if (!act.length) { body.innerHTML = '<div class="card" style="padding:20px;color:var(--muted)">Koi active order nahi.</div>'; return; }
+  if (!act.length) { body.innerHTML = '<div class="card" style="padding:20px;color:var(--muted)">No active orders.</div>'; return; }
   body.innerHTML = act.map(o => {
     const qty = parseInt(o.qty) || 0;
     const cum = _regCum(o.id);
@@ -279,7 +279,7 @@ function renderRegProgress() {
         ${w ? `<span>🧻 Per-sheet ply: <b>${(w.plyKg*1000).toFixed(0)} gm</b> ${w.src==='sample'?'<i style="color:var(--muted)">(sample est.)</i>':''}</span>` : ''}
         <span>📦 Ready weight: <b>${outKg.toLocaleString('en-IN')} kg</b></span>
         <span style="cursor:pointer;color:var(--accent,#378ADD);font-weight:600" onclick="setOrderGsm('${o.id}')">
-          ${gsmSet ? '🏷️ GSM: '+gsmSet+' ✏️' : '🏷️ + GSM set karo (job card se)'}</span>
+          ${gsmSet ? '🏷️ GSM: '+gsmSet+' ✏️' : '🏷️ + Set GSM (from job card)'}</span>
       </div></div>`;
   }).join('');
 }
@@ -298,7 +298,7 @@ function setOrderGsm(orderId) {
 function renderRegLog() {
   const body = document.getElementById('reg-body');
   const rows = [..._plEntries].reverse().slice(0, 100);
-  if (!rows.length) { body.innerHTML = '<div class="card" style="padding:20px;color:var(--muted)">Abhi koi entry nahi.</div>'; return; }
+  if (!rows.length) { body.innerHTML = '<div class="card" style="padding:20px;color:var(--muted)">No entries yet.</div>'; return; }
   body.innerHTML = `<div class="card" style="padding:0;overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
     <tr style="background:var(--navy,#042C53);color:#fff"><th style="padding:8px;text-align:left">Date</th>
     <th style="padding:8px;text-align:left">Machine</th><th style="padding:8px;text-align:left">Order</th>

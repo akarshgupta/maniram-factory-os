@@ -71,6 +71,7 @@
     <div class="nav-section">Finance</div>
     <div class="nav-item" onclick="showPage('invoicing')"><span class="nav-icon">🧾</span> Invoicing</div>
     <div class="nav-item" onclick="showPage('receivables')"><span class="nav-icon">💰</span> Receivables</div>
+    <div class="nav-item" onclick="showPage('ledger')"><span class="nav-icon">📒</span> Ledger</div>
     <div class="nav-item" onclick="showPage('expenses')"><span class="nav-icon">💸</span> Expenses</div>
     <div class="nav-item" onclick="showPage('purchase')"><span class="nav-icon">🛒</span> Purchase Register</div>
     <div class="nav-item" onclick="showPage('registers')"><span class="nav-icon">📋</span> Production Register</div>
@@ -206,7 +207,7 @@
         <div class="section-title">Order Pipeline</div>
         <button class="btn-secondary" onclick="renderPipelineBoard()" style="font-size:11px;padding:5px 12px">↻ Refresh</button>
       </div>
-      <div class="field-hint" style="margin-bottom:12px">Card ke buttons se status aage-peeche move karo — seedha Orders sheet mein save hota hai (confirmed ✓).</div>
+      <div class="field-hint" style="margin-bottom:12px">Use the buttons on each card to move an order between stages — changes save directly to the Orders sheet.</div>
       <div id="kanban-root"><div class="empty-state">Loading…</div></div>
     </div>
 
@@ -214,7 +215,7 @@
     <div class="page" id="page-deckle">
       <div class="section-header"><div class="section-title">Deckle / Trim Waste Optimizer</div></div>
       <div class="add-order-form">
-        <div class="form-title">📏 Sheet width se best reel dhoondo</div>
+        <div class="form-title">📏 Find the best reel for a sheet width</div>
         <div class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">
           <div class="form-group"><label class="form-label">Box L (inch)</label><input class="form-input" type="number" id="dk-l" placeholder="50" step="0.1"></div>
           <div class="form-group"><label class="form-label">Box W (inch)</label><input class="form-input" type="number" id="dk-w" placeholder="35" step="0.1"></div>
@@ -222,21 +223,21 @@
           <div class="form-group"><label class="form-label">Ply</label><select class="form-select" id="dk-ply"><option value="heavy">5 / 7 / 9</option><option value="3">3 ply</option></select></div>
           <div class="form-group"><label class="form-label" style="justify-content:flex-start;gap:6px">Margin<input type="checkbox" id="dk-margin" checked style="width:auto"></label>
             <button class="btn-secondary" onclick="deckleFromBox()" style="padding:9px">Box → Sheet</button></div>
-          <div class="form-group"><label class="form-label">Sheet Width (inch)</label><input class="form-input" type="number" id="dk-sheet-w" placeholder="direct daalo" step="0.01" oninput="deckleRun()"></div>
+          <div class="form-group"><label class="form-label">Sheet Width (inch)</label><input class="form-input" type="number" id="dk-sheet-w" placeholder="or enter directly" step="0.01" oninput="deckleRun()"></div>
           <div class="form-group"><label class="form-label">2nd Width <span style="font-weight:400;text-transform:none">(combo)</span></label><input class="form-input" type="number" id="dk-sheet-w2" placeholder="optional" step="0.01" oninput="deckleRun()"></div>
           <div class="form-group"><label class="form-label">Paper Rate ₹/kg <span style="font-weight:400;text-transform:none">(optional)</span></label><input class="form-input" type="number" id="dk-rate" placeholder="32" step="0.5" oninput="deckleRun()"></div>
         </div>
         <div id="dk-sheet-info" class="field-hint"></div>
         <div id="dk-rate-hint" class="field-hint"></div>
       </div>
-      <div id="deckle-results"><div class="empty-state">Sheet width daalo ya box size se calculate karo — available reels waste % ke hisaab se rank ho jayenge.</div></div>
+      <div id="deckle-results"><div class="empty-state">Enter a sheet width, or calculate it from the box size — available reels will be ranked by waste %.</div></div>
     </div>
 
     <!-- ══ JOB COSTING ══ -->
     <div class="page" id="page-costing">
       <div class="section-header"><div class="section-title">Job Costing & Profitability</div></div>
       <div class="add-order-form">
-        <div class="form-title">🧮 Cost assumptions (₹) — sab par apply</div>
+        <div class="form-title">🧮 Cost assumptions (₹) — applied to all orders</div>
         <div class="cost-assume">
           <div class="form-group"><label class="form-label">Paper ₹/kg</label><input class="form-input" type="number" id="jc-paper" placeholder="32" step="0.5" oninput="saveCostAssumptions()"></div>
           <div class="form-group"><label class="form-label">Conversion ₹/kg</label><input class="form-input" type="number" id="jc-conv" placeholder="8" step="0.5" oninput="saveCostAssumptions()"></div>
@@ -248,7 +249,7 @@
               <option value="all">All orders</option>
             </select></div>
         </div>
-        <div class="field-hint">Conversion = corrugation + pasting + stitching + labour per kg. Assumptions auto-save hote hain.<span id="jc-rate-chip"></span></div>
+        <div class="field-hint">Conversion = corrugation + pasting + stitching + labour per kg. Assumptions save automatically.<span id="jc-rate-chip"></span></div>
       </div>
       <div id="costing-body"><div class="empty-state">Loading…</div></div>
     </div>
@@ -545,13 +546,23 @@
       <div id="registers-root"></div>
     </div>
 
+    <!-- ══ LEDGER (party account statements) ══ -->
+    <div id="page-ledger" class="page">
+      <div class="section-header">
+        <div class="section-title">Party Ledger</div>
+        <button class="btn-secondary" onclick="renderLedger()" style="font-size:11px;padding:5px 12px">↻ Refresh</button>
+      </div>
+      <div class="field-hint" style="margin-bottom:12px">Account statement per party — invoices raised vs payments received, with running balance.</div>
+      <div id="ledger-root"><div class="empty-state">Loading…</div></div>
+    </div>
+
     <!-- ══ SUPERVISOR LOG (Google Form register responses) ══ -->
     <div id="page-svlog" class="page">
       <div class="section-header">
         <div class="section-title">Supervisor Register</div>
         <button class="btn-secondary" onclick="loadSupervisorLog()" style="font-size:11px;padding:5px 12px">↻ Refresh</button>
       </div>
-      <div class="field-hint" style="margin-bottom:12px">Supervisor phone se Google Form bharta hai — entries yahan live dikhti hain (read-only).</div>
+      <div class="field-hint" style="margin-bottom:12px">The supervisor fills a Google Form on their phone — entries appear here live (read-only).</div>
       <div id="svlog-root"><div class="empty-state">Loading…</div></div>
     </div>
 
@@ -1595,6 +1606,7 @@
 <script src="js/analytics.js"></script>
 <script src="js/registers.js"></script>
 <script src="js/supervisor-log.js"></script>
+<script src="js/ledger.js"></script>
 <script src="js/app.js"></script>
 
 </body>
