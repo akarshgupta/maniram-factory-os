@@ -530,7 +530,7 @@ function renderOrders() {
         ${dispBar}
         ${invBar}
       </div>
-      <div style="font-size:12px;font-family:monospace">${o.size || '—'}</div>
+      <div style="font-size:12px;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${o.size || ''}">${o.size || '—'}</div>
       <div style="font-size:12px">${colourDot(o.colour)}${o.colour || '—'}</div>
       <div style="font-size:12px">${o.weight ? o.weight + 'gm' : '—'}</div>
       <div style="font-size:12px;font-weight:500">${dateDisp}</div>
@@ -684,7 +684,7 @@ function renderOrderHistory() {
         <div style="font-weight:600;font-size:13px">${o.customer}</div>
         <div style="font-size:11px;color:var(--muted)">${o.product || '—'}</div>
       </div>
-      <div style="font-size:12px;font-family:monospace">${o.size || '—'}</div>
+      <div style="font-size:12px;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${o.size || ''}">${o.size || '—'}</div>
       <div style="font-size:12px">${colourDot(o.colour)}${o.colour || '—'}</div>
       <div style="font-size:12px">${o.weight ? o.weight + 'gm' : '—'}</div>
       <div style="font-size:12px">${dateDisp}</div>
@@ -752,7 +752,7 @@ function renderGroupedOrders() {
           <div style="font-weight:600;font-size:12px">${o.product || '—'}</div>
           ${stockBadgeHtml(o)}
         </div>
-        <div style="font-size:11px;font-family:monospace">${o.size || '—'}</div>
+        <div style="font-size:11px;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${o.size || ''}">${o.size || '—'}</div>
         <div style="font-size:12px">${colourDot(o.colour)}${o.colour || '—'}</div>
         <div style="font-size:11px">${o.weight ? o.weight + 'gm' : '—'}</div>
         <div style="font-size:12px">${dateDisp}</div>
