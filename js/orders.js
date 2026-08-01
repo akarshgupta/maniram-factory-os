@@ -540,10 +540,34 @@ function renderOrders() {
         <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();openChallanModal('${o.id}')" title="Issue Delivery Challan">🚚</button>
         <button class="btn-sm" style="font-size:10px;padding:2px 8px;font-weight:600" onclick="event.stopPropagation();quickPrintJobCard('${o.id}')" title="Print Job Card (holds print spec if saved)">📋 Job Card</button>
         <button class="btn-sm" style="font-size:10px;padding:2px 6px;color:var(--muted)" onclick="event.stopPropagation();openPrintSpecModal('${o.id}')" title="Edit Print Spec">✏️</button>
+        <button class="btn-sm" style="font-size:10px;padding:2px 6px;color:var(--danger)" onclick="event.stopPropagation();removeOrder('${o.id}')" title="Delete Order">🗑</button>
       </div>
     `;
     list.appendChild(row);
   });
+}
+
+// ── Delete order (app + sheet) ──
+function removeOrder(orderId) {
+  const o = orders.find(x => x.id === orderId);
+  if (!o) return;
+  if (!confirm(`Order ${o.id} — ${o.customer} (${o.product || o.size || ''}) delete karna hai?\nYe sheet se bhi hat jayega. Wapas nahi aayega.`)) return;
+
+  orders = orders.filter(x => x.id !== orderId);
+  pendingOrderIds.delete(orderId);
+  try {
+    fetch(APPS_SCRIPT_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'deleteOrder', id: orderId }),
+    }).catch(() => {});
+  } catch (e) { /* offline — sheet row stays until next delete attempt */ }
+
+  renderOrders();
+  if (typeof activeOrderTab !== 'undefined' && activeOrderTab === 'grouped') renderGroupedOrders();
+  if (typeof updateDashboardOrders === 'function') updateDashboardOrders();
+  if (typeof renderCalendar === 'function') renderCalendar();
+  if (typeof renderProductionPlan === 'function') renderProductionPlan();
 }
 
 // ── Render Order History (completed orders) ──
