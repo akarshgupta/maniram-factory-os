@@ -70,20 +70,20 @@ function _drDispatchSection() {
   const svKg        = svDisp.reduce((s, e) => s + ((e.pcs * e.wtPc / 1000) || 0), 0);
 
   const challanRows = challans.length ? challans.map(c => `
-    <tr style="border-top:1px solid var(--border,#e5e7eb)">
-      <td style="padding:7px 10px;font-family:monospace;font-size:12px">${c.dcNum}</td>
-      <td style="padding:7px 10px;font-weight:600">${c.customer}</td>
-      <td style="padding:7px 10px">${c.product || '—'}</td>
-      <td style="padding:7px 10px;text-align:right;font-weight:600">${(c.qty||0).toLocaleString('en-IN')}</td>
-    </tr>`).join('') : `<tr><td colspan="4" style="padding:12px 10px;color:var(--muted,#888)">No delivery challans issued this day.</td></tr>`;
+    <tr>
+      <td style="font-family:var(--font-mono);font-size:12px">${c.dcNum}</td>
+      <td style="font-weight:600">${c.customer}</td>
+      <td>${c.product || '—'}</td>
+      <td class="num" style="font-weight:600">${(c.qty||0).toLocaleString('en-IN')}</td>
+    </tr>`).join('') : `<tr><td colspan="4" style="color:var(--muted)">No delivery challans issued this day.</td></tr>`;
 
   const svRows = svDisp.length ? svDisp.map(e => `
-    <tr style="border-top:1px solid var(--border,#e5e7eb)">
-      <td style="padding:7px 10px;font-weight:600">${e.party || '—'}</td>
-      <td style="padding:7px 10px">${e.product || '—'}</td>
-      <td style="padding:7px 10px;text-align:right">${e.pcs.toLocaleString('en-IN')}</td>
-      <td style="padding:7px 10px;text-align:right">${e.wtPc ? e.wtPc + ' gm' : '—'}</td>
-    </tr>`).join('') : `<tr><td colspan="4" style="padding:12px 10px;color:var(--muted,#888)">No supervisor dispatch entries this day.</td></tr>`;
+    <tr>
+      <td style="font-weight:600">${e.party || '—'}</td>
+      <td>${e.product || '—'}</td>
+      <td class="num">${e.pcs.toLocaleString('en-IN')}</td>
+      <td class="num">${e.wtPc ? e.wtPc + ' gm' : '—'}</td>
+    </tr>`).join('') : `<tr><td colspan="4" style="color:var(--muted)">No supervisor dispatch entries this day.</td></tr>`;
 
   return `
     <div class="section-header" style="margin-top:4px"><div class="section-title">🚚 Dispatch — Output This Day</div></div>
@@ -94,20 +94,20 @@ function _drDispatchSection() {
       <div><div class="form-label">Supervisor-logged weight</div><div style="font-size:20px;font-weight:700">${svKg ? svKg.toLocaleString('en-IN',{maximumFractionDigits:1}) + ' kg' : '—'}</div></div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:8px" class="dr-grid">
+    <div class="dr-grid" style="margin-bottom:8px">
       <div>
-        <div style="font-size:12px;font-weight:700;color:var(--muted,#888);margin-bottom:6px">DELIVERY CHALLANS (app)</div>
-        <div class="add-order-form" style="padding:0;overflow-x:auto">
-        <table class="data-table" style="width:100%;border-collapse:collapse;font-size:13px">
-          <thead><tr style="text-align:left"><th style="padding:7px 10px">DC#</th><th style="padding:7px 10px">Customer</th><th style="padding:7px 10px">Product</th><th style="padding:7px 10px;text-align:right">Qty</th></tr></thead>
-          <tbody>${challanRows}</tbody></table></div>
+        <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px">DELIVERY CHALLANS (app)</div>
+        <div class="data-table-wrap"><div class="data-table-scroll">
+        <table class="data-table">
+          <thead><tr><th>DC#</th><th>Customer</th><th>Product</th><th class="num">Qty</th></tr></thead>
+          <tbody>${challanRows}</tbody></table></div></div>
       </div>
       <div>
-        <div style="font-size:12px;font-weight:700;color:var(--muted,#888);margin-bottom:6px">SUPERVISOR LOG (weighed on dispatch)</div>
-        <div class="add-order-form" style="padding:0;overflow-x:auto">
-        <table class="data-table" style="width:100%;border-collapse:collapse;font-size:13px">
-          <thead><tr style="text-align:left"><th style="padding:7px 10px">Party</th><th style="padding:7px 10px">Product</th><th style="padding:7px 10px;text-align:right">Pieces</th><th style="padding:7px 10px;text-align:right">Wt/pc</th></tr></thead>
-          <tbody>${svRows}</tbody></table></div>
+        <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px">SUPERVISOR LOG (weighed on dispatch)</div>
+        <div class="data-table-wrap"><div class="data-table-scroll">
+        <table class="data-table">
+          <thead><tr><th>Party</th><th>Product</th><th class="num">Pieces</th><th class="num">Wt/pc</th></tr></thead>
+          <tbody>${svRows}</tbody></table></div></div>
       </div>
     </div>
     <div class="field-hint" style="margin-bottom:20px">Two independent logs, shown side by side — the app's Delivery Challans and the supervisor's own weighed dispatch entries. They usually cover the same physical dispatch from two different entry points, so don't add the two totals together.</div>`;
@@ -135,15 +135,15 @@ function _drCorrugationPart(svProd) {
 
   const rows = svProd.length ? svProd.map(e => {
     const reels = [e.r1w ? `${e.r1w}" @ ${e.r1g||'?'}g` : '', e.r2w ? `${e.r2w}" @ ${e.r2g||'?'}g` : ''].filter(Boolean).join(' + ');
-    return `<tr style="border-top:1px solid var(--border,#e5e7eb)">
-      <td style="padding:7px 10px">${reels || '—'}</td>
-      <td style="padding:7px 10px">${e.cutSize ? e.cutSize + '"' : '—'}</td>
-      <td style="padding:7px 10px;text-align:right">${e.plyPcs ? parseInt(e.plyPcs).toLocaleString('en-IN') : '—'}</td>
-      <td style="padding:7px 10px;text-align:right">${e.sheets ? parseInt(e.sheets).toLocaleString('en-IN') : '—'}</td>
-      <td style="padding:7px 10px;text-align:right">${e.rolls || '—'}</td>
-      <td style="padding:7px 10px;text-align:right;font-weight:600">${_svEntryKg(e) ? _svEntryKg(e).toLocaleString('en-IN',{maximumFractionDigits:1}) + ' kg' : '—'}</td>
+    return `<tr>
+      <td>${reels || '—'}</td>
+      <td>${e.cutSize ? e.cutSize + '"' : '—'}</td>
+      <td class="num">${e.plyPcs ? parseInt(e.plyPcs).toLocaleString('en-IN') : '—'}</td>
+      <td class="num">${e.sheets ? parseInt(e.sheets).toLocaleString('en-IN') : '—'}</td>
+      <td class="num">${e.rolls || '—'}</td>
+      <td class="num" style="font-weight:600">${_svEntryKg(e) ? _svEntryKg(e).toLocaleString('en-IN',{maximumFractionDigits:1}) + ' kg' : '—'}</td>
     </tr>`;
-  }).join('') : `<tr><td colspan="6" style="padding:12px 10px;color:var(--muted,#888)">No corrugation entries logged this day.</td></tr>`;
+  }).join('') : `<tr><td colspan="6" style="color:var(--muted)">No corrugation entries logged this day.</td></tr>`;
 
   return `
     <div style="font-size:13px;font-weight:700;margin:14px 0 6px">PART 1 — CORRUGATION (Board Making)</div>
@@ -151,15 +151,15 @@ function _drCorrugationPart(svProd) {
       <div><div class="form-label">Ply pieces cut</div><div style="font-size:18px;font-weight:700">${plyPcs ? plyPcs.toLocaleString('en-IN') : '—'}</div></div>
       <div><div class="form-label">Sheets cut</div><div style="font-size:18px;font-weight:700">${sheets ? sheets.toLocaleString('en-IN') : '—'}</div></div>
       <div><div class="form-label">Rolls made</div><div style="font-size:18px;font-weight:700">${rolls || '—'}</div></div>
-      <div><div class="form-label">Paper consumed</div><div style="font-size:18px;font-weight:700;color:var(--accent,#2980B9)">${kg ? kg.toLocaleString('en-IN',{maximumFractionDigits:1}) + ' kg' : '—'}</div></div>
+      <div><div class="form-label">Paper consumed</div><div style="font-size:18px;font-weight:700;color:var(--accent)">${kg ? kg.toLocaleString('en-IN',{maximumFractionDigits:1}) + ' kg' : '—'}</div></div>
     </div>
-    <div class="add-order-form" style="padding:0;overflow-x:auto;margin-bottom:16px">
-    <table class="data-table" style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead><tr style="text-align:left">
-        <th style="padding:7px 10px">Reels (width @ GSM)</th><th style="padding:7px 10px">Cutting size</th>
-        <th style="padding:7px 10px;text-align:right">Ply pcs</th><th style="padding:7px 10px;text-align:right">Sheets</th>
-        <th style="padding:7px 10px;text-align:right">Rolls</th><th style="padding:7px 10px;text-align:right">Paper used</th>
-      </tr></thead><tbody>${rows}</tbody></table></div>`;
+    <div class="data-table-wrap" style="margin-bottom:16px"><div class="data-table-scroll">
+    <table class="data-table">
+      <thead><tr>
+        <th>Reels (width @ GSM)</th><th>Cutting size</th>
+        <th class="num">Ply pcs</th><th class="num">Sheets</th>
+        <th class="num">Rolls</th><th class="num">Paper used</th>
+      </tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 
 function _drFinishingPart(entries) {
@@ -176,23 +176,23 @@ function _drFinishingPart(entries) {
   const rows = entries.length ? entries.map(e => {
     const o = (typeof orders !== 'undefined' ? orders : []).find(x => x.id === e.orderId);
     const m = REG_MACHINES.find(x => x.id === e.machine);
-    return `<tr style="border-top:1px solid var(--border,#e5e7eb)">
-      <td style="padding:7px 10px">${m ? m.label : e.machine}</td>
-      <td style="padding:7px 10px;font-family:monospace;font-size:12px">${e.orderId}</td>
-      <td style="padding:7px 10px">${o ? `${o.customer} · ${o.product||o.size||''}` : '—'}</td>
-      <td style="padding:7px 10px;text-align:right;font-weight:600">${(e.qty||0).toLocaleString('en-IN')}</td>
+    return `<tr>
+      <td>${m ? m.label : e.machine}</td>
+      <td style="font-family:var(--font-mono);font-size:12px">${e.orderId}</td>
+      <td>${o ? `${o.customer} · ${o.product||o.size||''}` : '—'}</td>
+      <td class="num" style="font-weight:600">${(e.qty||0).toLocaleString('en-IN')}</td>
     </tr>`;
-  }).join('') : `<tr><td colspan="4" style="padding:12px 10px;color:var(--muted,#888)">No converting/finishing entries logged this day in the Production Register.</td></tr>`;
+  }).join('') : `<tr><td colspan="4" style="color:var(--muted)">No converting/finishing entries logged this day in the Production Register.</td></tr>`;
 
   return `
     <div style="font-size:13px;font-weight:700;margin:18px 0 6px">PART 2 — CONVERTING / FINISHING (Boxes Ready)</div>
     <div class="add-order-form" style="margin-bottom:10px;display:flex;gap:24px;flex-wrap:wrap">
-      <div><div class="form-label">✅ Boxes finished (stitched)</div><div style="font-size:20px;font-weight:700;color:var(--success,#27AE60)">${stitched ? stitched.toLocaleString('en-IN') : '—'}</div></div>
+      <div><div class="form-label">✅ Boxes finished (stitched)</div><div style="font-size:20px;font-weight:700;color:var(--success)">${stitched ? stitched.toLocaleString('en-IN') : '—'}</div></div>
       ${tiles}
     </div>
-    <div class="add-order-form" style="padding:0;overflow-x:auto">
-    <table class="data-table" style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead><tr style="text-align:left"><th style="padding:7px 10px">Machine</th><th style="padding:7px 10px">Order</th><th style="padding:7px 10px">Customer / Product</th><th style="padding:7px 10px;text-align:right">Pieces</th></tr></thead>
-      <tbody>${rows}</tbody></table></div>
+    <div class="data-table-wrap"><div class="data-table-scroll">
+    <table class="data-table">
+      <thead><tr><th>Machine</th><th>Order</th><th>Customer / Product</th><th class="num">Pieces</th></tr></thead>
+      <tbody>${rows}</tbody></table></div></div>
     <div class="field-hint" style="margin-top:8px">Enter these via Production Register → Daily Entry as boxes move through printing, pasting, rotary and stitching.</div>`;
 }

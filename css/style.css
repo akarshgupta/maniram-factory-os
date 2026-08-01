@@ -245,6 +245,29 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .table-row:last-child { border-bottom: none; }
 
 /* ══════════════════════════════════════════════════════════════
+   DATA TABLE — generic <table>-based listing used by Ledger,
+   Job Costing, Daily Report, Deckle, Supervisor Log, Registers Log.
+   Mirrors the look of the CSS-grid Orders table above (same header
+   tint, hover, borders) so every sheet-backed listing in the app
+   reads consistently regardless of which markup built it.
+   ══════════════════════════════════════════════════════════════ */
+.data-table-wrap { background: var(--white); border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow); overflow: hidden; margin-bottom: 14px; }
+.data-table-scroll { overflow-x: auto; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.data-table caption { text-align: left; padding: 12px 16px 0; font-weight: 600; color: var(--navy); }
+.data-table thead th {
+  background: var(--bg); color: var(--muted); text-align: left;
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;
+  padding: 10px 16px; border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.data-table tbody td { padding: 10px 16px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: middle; }
+.data-table tbody tr:last-child td { border-bottom: none; }
+.data-table tbody tr:hover { background: #F8FBFF; }
+.data-table tfoot td { padding: 10px 16px; font-weight: 700; border-top: 2px solid var(--border); }
+.data-table .num { font-family: var(--font-mono); text-align: right; }
+[data-theme="dark"] .data-table tbody tr:hover { background: #10283F; }
+
+/* ══════════════════════════════════════════════════════════════
    CLIENT GROUP
    ══════════════════════════════════════════════════════════════ */
 .client-group { margin-bottom: 18px; }
@@ -674,6 +697,10 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
    ═══════════════════════════════════════════════════════════════════ */
 .cost-assume { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 @media (max-width: 900px) { .cost-assume { grid-template-columns: repeat(2, 1fr); } }
+
+/* Daily Report — side-by-side dispatch tables, stacked on mobile */
+.dr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 700px) { .dr-grid { grid-template-columns: 1fr; } }
 .margin-pill { font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; padding: 3px 9px; border-radius: 20px; }
 .margin-good { background: #E7F6EE; color: #0B7A54; }
 .margin-mid  { background: #FEF3C7; color: #92400E; }

@@ -71,26 +71,22 @@ function _ledgerSummaryHtml() {
       <div><div class="form-label">Parties</div><div style="font-size:20px;font-weight:700">${rows.length}</div></div>
       <div><div class="form-label">Total invoiced</div><div style="font-size:20px;font-weight:700">${_inr(totInv)}</div></div>
       <div><div class="form-label">Total received</div><div style="font-size:20px;font-weight:700">${_inr(totRec)}</div></div>
-      <div><div class="form-label">Outstanding</div><div style="font-size:20px;font-weight:700;color:${totInv - totRec > 0 ? '#E74C3C' : 'var(--success,#27AE60)'}">${_inr(totInv - totRec)}</div></div>
+      <div><div class="form-label">Outstanding</div><div style="font-size:20px;font-weight:700;color:${totInv - totRec > 0 ? 'var(--danger)' : 'var(--success)'}">${_inr(totInv - totRec)}</div></div>
     </div>
-    <div class="add-order-form" style="padding:0;overflow-x:auto">
-    <table class="data-table" style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead><tr style="text-align:left">
-        <th style="padding:8px 10px">Party</th>
-        <th style="padding:8px 10px">Invoiced</th>
-        <th style="padding:8px 10px">Received</th>
-        <th style="padding:8px 10px">Balance</th>
-        <th style="padding:8px 10px">Last activity</th>
+    <div class="data-table-wrap"><div class="data-table-scroll">
+    <table class="data-table">
+      <thead><tr>
+        <th>Party</th><th class="num">Invoiced</th><th class="num">Received</th><th class="num">Balance</th><th>Last activity</th>
       </tr></thead><tbody>` +
     rows.map(r => `
-      <tr style="border-top:1px solid var(--border,#e5e7eb);cursor:pointer" onclick="ledgerSelectParty('${r.name.replace(/'/g, "\\'")}')">
-        <td style="padding:8px 10px;font-weight:600">${r.name}</td>
-        <td style="padding:8px 10px">${_inr(r.invoiced)}</td>
-        <td style="padding:8px 10px">${_inr(r.received)}</td>
-        <td style="padding:8px 10px;font-weight:700;color:${r.balance > 0 ? '#E74C3C' : r.balance < 0 ? '#E67E22' : 'var(--success,#27AE60)'}">${_inr(r.balance)}</td>
-        <td style="padding:8px 10px;color:var(--muted,#888)">${r.last ? formatDate(r.last) : '—'}</td>
+      <tr style="cursor:pointer" onclick="ledgerSelectParty('${r.name.replace(/'/g, "\\'")}')">
+        <td style="font-weight:600">${r.name}</td>
+        <td class="num">${_inr(r.invoiced)}</td>
+        <td class="num">${_inr(r.received)}</td>
+        <td class="num" style="font-weight:700;color:${r.balance > 0 ? 'var(--danger)' : r.balance < 0 ? 'var(--warn)' : 'var(--success)'}">${_inr(r.balance)}</td>
+        <td style="color:var(--muted)">${r.last ? formatDate(r.last) : '—'}</td>
       </tr>`).join('') + `
-    </tbody></table></div>
+    </tbody></table></div></div>
     <div class="field-hint" style="margin-top:8px">Click a party to open their full statement. Red balance = party owes you; orange = advance / excess payment.</div>`;
 }
 
@@ -122,12 +118,12 @@ function _ledgerStatementHtml(party) {
   let bal = 0;
   const rowsHtml = entries.map(e => {
     bal += e.debit - e.credit;
-    return `<tr style="border-top:1px solid var(--border,#e5e7eb)">
-      <td style="padding:8px 10px;white-space:nowrap">${e.date ? formatDate(e.date) : '—'}</td>
-      <td style="padding:8px 10px">${e.particulars}</td>
-      <td style="padding:8px 10px;text-align:right">${e.debit ? _inr(e.debit) : ''}</td>
-      <td style="padding:8px 10px;text-align:right">${e.credit ? _inr(e.credit) : ''}</td>
-      <td style="padding:8px 10px;text-align:right;font-weight:600;color:${bal > 0 ? '#E74C3C' : 'inherit'}">${_inr(bal)}</td>
+    return `<tr>
+      <td style="white-space:nowrap">${e.date ? formatDate(e.date) : '—'}</td>
+      <td>${e.particulars}</td>
+      <td class="num">${e.debit ? _inr(e.debit) : ''}</td>
+      <td class="num">${e.credit ? _inr(e.credit) : ''}</td>
+      <td class="num" style="font-weight:600;color:${bal > 0 ? 'var(--danger)' : 'inherit'}">${_inr(bal)}</td>
     </tr>`;
   }).join('');
 
@@ -139,16 +135,12 @@ function _ledgerStatementHtml(party) {
       <div style="font-size:16px;font-weight:700">${party}</div>
       <div><div class="form-label">Invoiced</div><div style="font-size:18px;font-weight:700">${_inr(totD)}</div></div>
       <div><div class="form-label">Received</div><div style="font-size:18px;font-weight:700">${_inr(totC)}</div></div>
-      <div><div class="form-label">Balance</div><div style="font-size:18px;font-weight:700;color:${totD - totC > 0 ? '#E74C3C' : 'var(--success,#27AE60)'}">${_inr(totD - totC)} ${totD - totC > 0 ? 'receivable' : totD - totC < 0 ? 'advance' : '✓ settled'}</div></div>
+      <div><div class="form-label">Balance</div><div style="font-size:18px;font-weight:700;color:${totD - totC > 0 ? 'var(--danger)' : 'var(--success)'}">${_inr(totD - totC)} ${totD - totC > 0 ? 'receivable' : totD - totC < 0 ? 'advance' : '✓ settled'}</div></div>
       <button class="btn-secondary" style="font-size:11px;padding:5px 12px;margin-left:auto" onclick="window.print()">🖨 Print</button>
     </div>
-    <div class="add-order-form" style="padding:0;overflow-x:auto">
-    <table class="data-table" style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead><tr style="text-align:left">
-        <th style="padding:8px 10px">Date</th>
-        <th style="padding:8px 10px">Particulars</th>
-        <th style="padding:8px 10px;text-align:right">Debit</th>
-        <th style="padding:8px 10px;text-align:right">Credit</th>
-        <th style="padding:8px 10px;text-align:right">Balance</th>
-      </tr></thead><tbody>${rowsHtml}</tbody></table></div>`;
+    <div class="data-table-wrap"><div class="data-table-scroll">
+    <table class="data-table">
+      <thead><tr>
+        <th>Date</th><th>Particulars</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Balance</th>
+      </tr></thead><tbody>${rowsHtml}</tbody></table></div></div>`;
 }
