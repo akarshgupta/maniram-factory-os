@@ -1,10 +1,19 @@
 // ══════════════════════════════════════════════════════════════
 // AUTH.JS — Admin login · Must be first script loaded
+// Single fixed user. Credentials are checked against AUTH_CRED_HASH
+// (salted hash of "username::password") — no setup / self-service
+// password creation, no recovery code.
+//
+// To change the username or password: open the browser console on
+// the app and run  authHash('newusername::newpassword')  — paste the
+// output into AUTH_CRED_HASH below, commit and deploy.
 // ══════════════════════════════════════════════════════════════
 
-const AUTH_HASH_KEY    = 'mi_auth_hash_v1';
 const AUTH_SESSION_KEY = 'mi_auth_session_v1';
 const SESSION_TTL_MS   = 24 * 60 * 60 * 1000; // 24 hours
+
+// authHash('maniram::' + password) — username is case-insensitive
+const AUTH_CRED_HASH = 'v2:0dc8d2d4bbb87f5e';
 
 // ── Synchronous hash — works on HTTP, HTTPS, file://, everywhere ──
 function authHash(str) {
@@ -39,7 +48,6 @@ function isLoggedIn() {
 }
 function setSession()   { authSave(AUTH_SESSION_KEY, JSON.stringify({ ok: true, expires: Date.now() + SESSION_TTL_MS })); }
 function clearSession() { authRemove(AUTH_SESSION_KEY); }
-function hasPassword()  { return !!authRead(AUTH_HASH_KEY); }
 
 // ── App shell — hidden until auth passes ──
 function showApp()  {
@@ -51,17 +59,14 @@ function hideApp()  {
   if (shell) shell.style.display = 'none';
 }
 
-// ── Auth overlay panels ──
-function authShowMode(mode) {
+// ── Auth overlay ──
+function authShowLogin() {
   const overlay = document.getElementById('auth-overlay');
   if (!overlay) return;
   overlay.style.display = 'flex';
-  ['setup','login','change','recovery'].forEach(m => {
-    const el = document.getElementById('auth-' + m + '-panel');
-    if (el) el.style.display = m === mode ? 'block' : 'none';
-  });
-  const focusIds = { setup:'auth-new-pw', login:'auth-pw', change:'auth-cur-pw', recovery:'auth-recovery-code' };
-  setTimeout(() => { const el = document.getElementById(focusIds[mode]); if (el) el.focus(); }, 80);
+  const panel = document.getElementById('auth-login-panel');
+  if (panel) panel.style.display = 'block';
+  setTimeout(() => { const el = document.getElementById('auth-user'); if (el) el.focus(); }, 80);
 }
 
 function authHideOverlay() {
@@ -79,105 +84,31 @@ function authErr(id, msg) {
 // ── Check on load — runs synchronously ──
 function checkAuth() {
   hideApp();
+  authRemove('mi_auth_hash_v1'); // legacy self-set password — no longer honoured
   if (isLoggedIn()) {
     authHideOverlay();
     showApp();
     return;
   }
-  authShowMode(hasPassword() ? 'login' : 'setup');
+  authShowLogin();
 }
 
 // ── Login ──
 function authLogin() {
-  const pw = (document.getElementById('auth-pw')?.value || '').trim();
+  const user = (document.getElementById('auth-user')?.value || '').trim().toLowerCase();
+  const pw   = (document.getElementById('auth-pw')?.value   || '').trim();
   authErr('auth-login-err', '');
-  if (!pw) { authErr('auth-login-err', 'Please enter your password.'); return; }
+  if (!user || !pw) { authErr('auth-login-err', 'Enter username and password.'); return; }
 
-  const stored = authRead(AUTH_HASH_KEY);
-  if (!stored) { authShowMode('setup'); return; } // no password set yet
-
-  if (authHash(pw) === stored) {
+  if (authHash(user + '::' + pw) === AUTH_CRED_HASH) {
     setSession();
     authHideOverlay();
     showApp();
   } else {
-    authErr('auth-login-err', 'Incorrect password. Please try again.');
+    authErr('auth-login-err', 'Wrong username or password.');
     document.getElementById('auth-pw').value = '';
     document.getElementById('auth-pw').focus();
   }
-}
-
-// ── First-time setup ──
-function authSetup() {
-  const pw1 = (document.getElementById('auth-new-pw')?.value  || '').trim();
-  const pw2 = (document.getElementById('auth-new-pw2')?.value || '').trim();
-  authErr('auth-setup-err', '');
-
-  if (pw1.length < 4) { authErr('auth-setup-err', 'Password must be at least 4 characters.'); return; }
-  if (pw1 !== pw2)    { authErr('auth-setup-err', 'Passwords do not match.'); return; }
-
-  const hash = authHash(pw1);
-  if (!authSave(AUTH_HASH_KEY, hash)) {
-    authErr('auth-setup-err', 'Browser blocked the save. Check if Private/Incognito mode is on.'); return;
-  }
-  setSession();
-  authHideOverlay();
-  showApp();
-}
-
-// ── Change password (from topbar) ──
-function authChangePassword() {
-  const cur = (document.getElementById('auth-cur-pw')?.value  || '').trim();
-  const pw1 = (document.getElementById('auth-ch-pw1')?.value  || '').trim();
-  const pw2 = (document.getElementById('auth-ch-pw2')?.value  || '').trim();
-  authErr('auth-change-err', '');
-
-  const stored = authRead(AUTH_HASH_KEY);
-  if (authHash(cur) !== stored) { authErr('auth-change-err', 'Current password is incorrect.'); return; }
-  if (pw1.length < 4)           { authErr('auth-change-err', 'New password must be at least 4 characters.'); return; }
-  if (pw1 !== pw2)              { authErr('auth-change-err', 'New passwords do not match.'); return; }
-
-  authSave(AUTH_HASH_KEY, authHash(pw1));
-  ['auth-cur-pw','auth-ch-pw1','auth-ch-pw2'].forEach(id => {
-    const el = document.getElementById(id); if (el) el.value = '';
-  });
-  closeChangePassword();
-  alert('Password changed successfully! ✅');
-}
-
-function openChangePassword()  {
-  authErr('auth-change-err', '');
-  ['auth-cur-pw','auth-ch-pw1','auth-ch-pw2'].forEach(id => {
-    const el = document.getElementById(id); if (el) el.value = '';
-  });
-  authShowMode('change');
-}
-function closeChangePassword() { authHideOverlay(); }
-
-// ── Forgot password / Recovery ──
-function openRecovery() {
-  authErr('auth-recovery-err', '');
-  const el = document.getElementById('auth-recovery-code'); if (el) el.value = '';
-  authShowMode('recovery');
-}
-
-function authRecovery() {
-  const code   = (document.getElementById('auth-recovery-code')?.value || '').trim();
-  const newPw1 = (document.getElementById('auth-recovery-pw1')?.value  || '').trim();
-  const newPw2 = (document.getElementById('auth-recovery-pw2')?.value  || '').trim();
-  authErr('auth-recovery-err', '');
-
-  // ADMIN_RESET_CODE is defined in config.js (loaded before this file's functions run)
-  const resetCode = (typeof ADMIN_RESET_CODE !== 'undefined') ? ADMIN_RESET_CODE : '';
-  if (!resetCode || code !== resetCode) { authErr('auth-recovery-err', 'Invalid reset code.'); return; }
-  if (newPw1.length < 4) { authErr('auth-recovery-err', 'Password must be at least 4 characters.'); return; }
-  if (newPw1 !== newPw2) { authErr('auth-recovery-err', 'Passwords do not match.'); return; }
-
-  authSave(AUTH_HASH_KEY, authHash(newPw1));
-  setSession();
-  authHideOverlay();
-  showApp();
-  alert('Password reset successfully! ✅');
 }
 
 // ── Logout ──
@@ -185,8 +116,9 @@ function logout() {
   if (!confirm('Are you sure you want to logout?')) return;
   clearSession();
   hideApp();
-  const el = document.getElementById('auth-pw'); if (el) el.value = '';
-  authShowMode('login');
+  const u = document.getElementById('auth-user'); if (u) u.value = '';
+  const p = document.getElementById('auth-pw');   if (p) p.value = '';
+  authShowLogin();
 }
 
 // ── Auto-run ──
@@ -198,7 +130,7 @@ function logout() {
       console.error('Auth error:', e);
       const overlay = document.getElementById('auth-overlay');
       if (overlay) { overlay.style.display = 'flex'; }
-      authShowMode(hasPassword() ? 'login' : 'setup');
+      authShowLogin();
     }
   }
   if (document.readyState === 'loading') {
