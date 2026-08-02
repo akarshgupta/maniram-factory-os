@@ -72,6 +72,48 @@ const PLY_LAYERS = {
   ],
 };
 
+// ── Suggest Weight & Reel Size from box dimensions ──
+// Sheet Length = (L+W)×2+2, Sheet Width (= reel size) = W+H+0.5, Area = SheetL×SheetW/1550
+// (skills/rate-calculator.md). Picks the narrowest available reel that fits; falls back
+// to standard stocked widths when live reel data hasn't loaded. Fills are just a starting
+// point — both fields stay plain number inputs, editable like any other value.
+function suggestWeightAndReel() {
+  const hint = document.getElementById('pm-suggest-hint');
+  const dims = typeof _parseDims === 'function' ? _parseDims(document.getElementById('pm-size')?.value || '') : null;
+  if (!dims || !dims.l || !dims.w || !dims.h) {
+    if (hint) hint.textContent = 'Enter box size as L×W×H (all three dimensions) first.';
+    return;
+  }
+  const { l, w, h } = dims;
+  const ply    = parseInt(document.getElementById('pm-ply')?.value) || 3;
+  const layers = PLY_LAYERS[ply] || PLY_LAYERS[3];
+
+  const sheetLen = (l + w) * 2 + 2;
+  const reqWidth = w + h + 0.5;
+
+  const known = (typeof _deckleReelSizes === 'function' ? _deckleReelSizes() : [])
+    .map(r => r.size).filter(s => s > 0);
+  const pool  = known.length ? known : [30, 32, 33, 35, 35.5, 36, 38, 40, 42, 44, 46, 48];
+  const fits  = pool.filter(s => s >= reqWidth).sort((a, b) => a - b);
+  const reelSize = fits.length ? fits[0] : Math.ceil(reqWidth * 2) / 2;
+
+  const area = (sheetLen * reelSize) / 1550; // sqm
+  let weight = 0;
+  const gsmUsed = layers.map((layer, i) => {
+    const entered = parseInt(document.getElementById('pm-gsm-' + (i + 1))?.value) || 0;
+    const gsm = entered > 0 ? entered : (layer.type === 'fluting' ? 120 : 150);
+    weight += gsm * area * (layer.type === 'fluting' ? 1.5 : 1);
+    return gsm;
+  });
+
+  document.getElementById('pm-reelsize').value = reelSize;
+  document.getElementById('pm-weight').value   = weight.toFixed(1);
+
+  if (hint) {
+    hint.innerHTML = `Suggested from ${_fmtN(l)}×${_fmtN(w)}×${_fmtN(h)}" box, ${ply}-ply: sheet ${_fmtN(sheetLen)}×${_fmtN(reqWidth)}" → nearest reel <b>${reelSize}"</b> → est. weight <b>${weight.toFixed(1)} gm</b> (GSM ${gsmUsed.join('/')}${gsmUsed.some((_, i) => !parseInt(document.getElementById('pm-gsm-' + (i + 1))?.value)) ? ', defaults used where blank' : ''}). Edit either field above if actuals differ.`;
+  }
+}
+
 // ── State ──
 let CLIENTS       = [];
 let acSelectedIdx = -1;

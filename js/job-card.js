@@ -20,8 +20,13 @@ function getPrintSpec(clientName, productName) {
   return map[_specKey(clientName, productName)] || null;
 }
 
-// ── Quick print: plain (non-printed) products never need a spec; printed
-// products print directly once a spec is saved, otherwise open the modal ──
+// ── Quick print: plain (non-printed) products never need a spec. Printed
+// products print directly whenever there's already print info to show —
+// a saved spec, or the colour/design already recorded on the product itself
+// (entered once, on the Clients page) — since asking again would just repeat
+// what's already on file. The spec modal only appears when there's truly
+// nothing on record yet; "✏️ Edit Print Spec" is still there to add or
+// change block ref / colour breakdown / notes whenever wanted. ──
 function quickPrintJobCard(orderId) {
   const o = orders.find(x => x.id === orderId);
   if (!o) return;
@@ -29,7 +34,8 @@ function quickPrintJobCard(orderId) {
   const product  = client ? (client.products || []).find(p => p.name === o.product) : null;
   const needsPrint = product ? !!product.hasPrint : false;
   const spec = getPrintSpec(o.customer, o.product);
-  if (!needsPrint || spec) {
+  const hasPrintInfoOnFile = !!spec || !!(product && (product.printColour || product.printDesign)) || !!o.colour;
+  if (!needsPrint || hasPrintInfoOnFile) {
     printJobCard(orderId);
   } else {
     openPrintSpecModal(orderId);
@@ -149,13 +155,20 @@ function printJobCard(orderId) {
   const printPhotoKey   = `mi_print_photo_${o.customer}__${o.product}`;
   const printPhotoData  = localStorage.getItem(printPhotoKey);
 
-  // Colour spec rows
-  const colourRows = (spec.colourDetails || []).map((c, i) => `
+  // Colour spec rows — use the saved spec if there is one, otherwise fall back
+  // to whatever's already recorded on the product itself (Colour + Text on Box)
+  const colourDetails = (spec.colourDetails && spec.colourDetails.length)
+    ? spec.colourDetails
+    : (product?.printColour ? [{ name: product.printColour, desc: product.printDesign || '' }] : []);
+  const colourRows = colourDetails.map((c, i) => `
     <tr>
       <td style="padding:5px 8px;font-weight:700;color:#042C53;width:50px">C${i + 1}</td>
       <td style="padding:5px 8px">${c.name || '—'}</td>
       <td style="padding:5px 8px;color:#444">${c.desc || '—'}</td>
     </tr>`).join('');
+  const effColours   = spec.colours || (colourDetails.length || 0);
+  const effBlockRef  = spec.blockRef  || '';
+  const effPrintDesc = spec.printDesc || product?.printDesign || '';
 
   const gsmBfRows = layers.length ? layers.map((layer, i) => {
     const gsm = product && product.gsm ? (product.gsm[i] || '') : '';
@@ -179,18 +192,18 @@ function printJobCard(orderId) {
   ];
 
   const sigCell = (required) => required
-    ? `<div style="font-size:10px;color:#888;margin-bottom:10px">Sign:</div><div style="border-bottom:1px solid #ccc;min-height:22px"></div>`
-    : `<div style="font-size:10px;color:#ccc;text-align:center;padding-top:8px">N/A</div>`;
+    ? `<div style="font-size:10.5px;color:#888;margin-bottom:18px">Sign:</div><div style="border-bottom:1px solid #ccc;min-height:36px"></div>`
+    : `<div style="font-size:10.5px;color:#ccc;text-align:center;padding-top:16px">N/A</div>`;
 
   const stageRows = stages.map((s, i) => `
     <tr>
-      <td style="padding:8px 10px;width:38px;vertical-align:top;text-align:center;font-weight:800;color:#888;border-right:1px solid #e5e7eb">${i + 1}</td>
-      <td style="padding:8px 10px;width:150px;vertical-align:top;border-right:1px solid #e5e7eb">
-        <div style="font-weight:800;font-size:12px;color:#042C53">${s.icon} ${s.name}</div>
+      <td style="padding:14px 12px;width:38px;vertical-align:top;text-align:center;font-weight:800;color:#888;border-right:1px solid #e5e7eb">${i + 1}</td>
+      <td style="padding:14px 12px;width:160px;vertical-align:top;border-right:1px solid #e5e7eb">
+        <div style="font-weight:800;font-size:13px;color:#042C53">${s.icon} ${s.name}</div>
       </td>
-      <td style="padding:8px 10px;vertical-align:top;border-right:1px solid #e5e7eb;font-size:11px;color:#444">${s.detail}</td>
-      <td style="padding:8px 10px;vertical-align:top;width:110px;border-right:1px solid #e5e7eb">${sigCell(s.signers.includes('Supervisor'))}</td>
-      <td style="padding:8px 10px;vertical-align:top;width:110px">${sigCell(s.signers.includes('Technician'))}</td>
+      <td style="padding:14px 12px;vertical-align:top;border-right:1px solid #e5e7eb;font-size:11.5px;color:#444">${s.detail}</td>
+      <td style="padding:14px 12px;vertical-align:top;width:120px;border-right:1px solid #e5e7eb">${sigCell(s.signers.includes('Supervisor'))}</td>
+      <td style="padding:14px 12px;vertical-align:top;width:120px">${sigCell(s.signers.includes('Technician'))}</td>
     </tr>`).join('');
 
   const html = `<!DOCTYPE html>
@@ -301,29 +314,35 @@ function printJobCard(orderId) {
     </table>` : `<span style="font-size:11px;color:#888">No layer GSM/BF on file for this product — set it on the Clients page.</span>`}
   </div>
 
-  <!-- Print Specification (only meaningful when this product is printed) -->
-  <div class="section-title">🖨️ ${isPrint ? 'Flexographic Print Specification' : 'Print Specification — PLAIN BOX, NO PRINTING'}</div>
+  <!-- Box Schematic — flat-blank cutting diagram, shown for every order regardless of print status -->
+  <div class="section-title">📐 Box Schematic — Flat Blank</div>
+  <div class="bordered schematic-wrap" style="flex-direction:column;gap:10px;align-items:center;padding:10px">
+    ${schematic || '<span style="font-size:11px;color:#888">No box dimensions detected.</span>'}
+  </div>
+
+  <!-- Print Specification — omitted entirely for plain (non-printed) boxes -->
+  ${isPrint ? `
+  <div class="section-title">🖨️ Flexographic Print Specification</div>
   <div class="bordered">
     <div class="spec-grid">
       <div class="spec-half">
-        ${isPrint ? `
-        <div class="spec-row"><span class="spec-label">No. of Colours:</span><span class="spec-val">${spec.colours || '—'}</span></div>
-        <div class="spec-row"><span class="spec-label">Block Ref:</span><span class="spec-val">${spec.blockRef || '—'}</span></div>
-        <div class="spec-row"><span class="spec-label">Print Description:</span><span class="spec-val">${spec.printDesc || '—'}</span></div>
+        <div class="spec-row"><span class="spec-label">No. of Colours:</span><span class="spec-val">${effColours || '—'}</span></div>
+        <div class="spec-row"><span class="spec-label">Block Ref:</span><span class="spec-val">${effBlockRef || '—'}</span></div>
+        <div class="spec-row"><span class="spec-label">Print Description:</span><span class="spec-val">${effPrintDesc || '—'}</span></div>
         ${spec.notes ? `<div class="spec-row"><span class="spec-label">Notes:</span><span class="spec-val">${spec.notes}</span></div>` : ''}
-        ` : `<span style="font-size:11px;color:#888">This box is not printed — no block, colours, or plate needed.</span>`}
       </div>
-      <div class="spec-half schematic-wrap" style="flex-direction:column;gap:10px;align-items:center">
-        ${schematic || '<span style="font-size:11px;color:#888">No box dimensions detected.</span>'}
-        ${isPrint && printPhotoData ? `
-        <div style="text-align:center;margin-top:4px">
+      <div class="spec-half" style="display:flex;flex-direction:column;align-items:center;justify-content:center">
+        ${printPhotoData ? `
+        <div style="text-align:center">
           <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#888;margin-bottom:4px">Print Reference Photo</div>
-          <img src="${printPhotoData}" style="max-width:100%;max-height:160px;object-fit:contain;border:1px solid #e5e7eb;border-radius:4px">
-        </div>` : ''}
+          <div style="width:200px;height:96px;margin:0 auto;display:flex;align-items:center;justify-content:center;border:1px solid #e5e7eb;border-radius:4px;overflow:hidden;background:#fafafa">
+            <img id="jc-ref-photo" src="${printPhotoData}" style="border-radius:2px">
+          </div>
+        </div>` : `<span style="font-size:11px;color:#888">No reference photo on file.</span>`}
       </div>
     </div>
 
-    ${isPrint && colourRows ? `
+    ${colourRows ? `
     <div style="border-top:1px solid #e2e8f0;padding:8px 10px">
       <table class="colours-table">
         <thead><tr><th style="width:50px">Colour</th><th style="width:120px">Ink Name</th><th>What is Printed</th></tr></thead>
@@ -331,6 +350,7 @@ function printJobCard(orderId) {
       </table>
     </div>` : ''}
   </div>
+  ` : ''}
 
   <!-- Stage sign-off table -->
   <div class="section-title">📋 Process Sign-Off</div>
@@ -350,6 +370,29 @@ function printJobCard(orderId) {
   </div>
 
 </div>
+<script>
+(function(){
+  var img = document.getElementById('jc-ref-photo');
+  if (!img) return;
+  function fit(){
+    var w0 = img.naturalWidth, h0 = img.naturalHeight;
+    if (!w0 || !h0) return;
+    var boxW = 200, boxH = 96;
+    if (h0 > w0) {
+      // portrait photo — rotate onto its side so it always reads landscape
+      var scale = Math.min(boxW / h0, boxH / w0);
+      img.style.width  = (w0 * scale) + 'px';
+      img.style.height = (h0 * scale) + 'px';
+      img.style.transform = 'rotate(90deg)';
+    } else {
+      var scale2 = Math.min(boxW / w0, boxH / h0);
+      img.style.width  = (w0 * scale2) + 'px';
+      img.style.height = (h0 * scale2) + 'px';
+    }
+  }
+  if (img.complete && img.naturalWidth) fit(); else img.onload = fit;
+})();
+</script>
 </body>
 </html>`;
 
@@ -376,10 +419,14 @@ function _buildSchematic(dims, spec) {
   if (!l || !w) return '';
   const H = h || w;
 
-  const stitch  = Math.max(w * 0.15, 1.5);  // stitch tab width
+  const stitch  = 2;                         // stitch/joint allowance — matches the "+2" in the cutting-size formula
   const flapH   = w / 2;                     // all flaps = W/2 deep
-  const totalW  = 2 * l + 2 * w + stitch;
+  const totalW  = 2 * l + 2 * w + stitch;    // == (l+w)×2+2 — same as the Cutting Size sheet length
   const totalH  = H + 2 * flapH;
+
+  // Authoritative cutting-size numbers — always match the order-grid "Cutting Size" cell exactly
+  const sheetLenLabel = (l + w) * 2 + 2;
+  const sheetWidLabel = w + h + 0.5;
 
   // Scale to fit 460 × 182 px canvas
   const MAX_W = 460, MAX_H = 182;
@@ -389,8 +436,10 @@ function _buildSchematic(dims, spec) {
   const sf = flapH * sc, ss = stitch * sc;
 
   const PAD = 2;
-  const VW = Math.ceil(totalW * sc + PAD * 2 + 18);  // extra right margin for annotation
-  const VH = Math.ceil(totalH * sc + PAD * 2);
+  const DIM_TOP   = 20; // room for the overall-length dimension line above the drawing
+  const DIM_RIGHT = 32; // room for the overall-width dimension line to the right
+  const VW = Math.ceil(totalW * sc + PAD * 2 + 18 + DIM_RIGHT);
+  const VH = Math.ceil(totalH * sc + PAD * 2 + DIM_TOP);
 
   // Panel x-origins
   const xSt = PAD;
@@ -435,12 +484,34 @@ function _buildSchematic(dims, spec) {
     }).join('');
   };
 
+  // Dimension line — solid rule with end-ticks and a bold label, drawn outside the box group
+  const dimLine = (x1, y1, x2, y2, label, vertical) => {
+    const tk = 5;
+    const ticks = vertical
+      ? `<line x1="${r(x1-tk)}" y1="${r(y1)}" x2="${r(x1+tk)}" y2="${r(y1)}" stroke="#042C53" stroke-width="1"/>` +
+        `<line x1="${r(x2-tk)}" y1="${r(y2)}" x2="${r(x2+tk)}" y2="${r(y2)}" stroke="#042C53" stroke-width="1"/>`
+      : `<line x1="${r(x1)}" y1="${r(y1-tk)}" x2="${r(x1)}" y2="${r(y1+tk)}" stroke="#042C53" stroke-width="1"/>` +
+        `<line x1="${r(x2)}" y1="${r(y2-tk)}" x2="${r(x2)}" y2="${r(y2+tk)}" stroke="#042C53" stroke-width="1"/>`;
+    const line = `<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="#042C53" stroke-width="1"/>`;
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    const label_ = vertical
+      ? `<text x="${r(mx)}" y="${r(my)}" text-anchor="middle" font-size="9.5" font-weight="800" fill="#042C53" transform="rotate(-90 ${r(mx)} ${r(my)})">${label}</text>`
+      : `<text x="${r(mx)}" y="${r(my - 4)}" text-anchor="middle" font-size="9.5" font-weight="800" fill="#042C53">${label}</text>`;
+    return ticks + line + label_;
+  };
+
   const parts = [
     `<svg width="${VW}" height="${VH}" viewBox="0 0 ${VW} ${VH}" xmlns="http://www.w3.org/2000/svg" style="font-family:Arial,sans-serif;display:block;max-width:100%">`,
 
+    // Overall dimensions — always match the "Cutting Size" figure on the order-grid exactly
+    dimLine(xSt, 11, xL2 + sl, 11, `SHEET LENGTH ${fmtN(sheetLenLabel)}"`, false),
+    dimLine(VW - 12, PAD + DIM_TOP, VW - 12, PAD + DIM_TOP + totalH * sc, `SHEET WIDTH ${fmtN(sheetWidLabel)}"`, true),
+
+    `<g transform="translate(0,${DIM_TOP})">`,
+
     // Stitch tab
     `<rect x="${r(xSt)}" y="${r(yBody)}" width="${r(ss)}" height="${r(sH)}" fill="#f3f4f6" stroke="#9ca3af" stroke-width="1" stroke-dasharray="3,2"/>`,
-    ss > 10 ? `<text x="${r(xSt+ss/2)}" y="${r(yBody+sH/2+3)}" text-anchor="middle" font-size="6" fill="#6b7280" transform="rotate(-90 ${r(xSt+ss/2)} ${r(yBody+sH/2)})">STITCH</text>` : '',
+    ss > 5 ? `<text x="${r(xSt+ss/2)}" y="${r(yBody+sH/2+3)}" text-anchor="middle" font-size="6" fill="#6b7280" transform="rotate(-90 ${r(xSt+ss/2)} ${r(yBody+sH/2)})">2"</text>` : '',
 
     // W1
     bRect(xW1, yBody, sw, sH),
@@ -476,11 +547,12 @@ function _buildSchematic(dims, spec) {
     sf > 14 ? t(xL2+sl+3, yTop+sf/2+3,  'start', 7, '#1d4ed8', 'normal', 'W/2') : '',
     sf > 14 ? t(xL2+sl+3, yBot+sf/2+3,  'start', 7, '#1d4ed8', 'normal', 'W/2') : '',
 
+    '</g>',
     '</svg>',
   ];
 
   return `<div style="overflow-x:auto">${parts.join('')}</div>
     <div style="font-size:9px;color:#888;text-align:center;margin-top:4px">
-      Flat Blank · L=${fmtN(l)} × W=${fmtN(w)} × H=${fmtN(H)} · Print areas on both Length panels
+      Flat Blank · L=${fmtN(l)} × W=${fmtN(w)} × H=${fmtN(H)} · Cutting size ${fmtN(sheetLenLabel)}" × ${fmtN(sheetWidLabel)}" · Print areas on both Length panels
     </div>`;
 }
