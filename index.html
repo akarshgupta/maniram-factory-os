@@ -1292,17 +1292,21 @@
           onkeydown="if(event.key==='Escape')closeProductModal()"
           oninput="_updatePmColourEcho()">
       </div>
+      <div class="form-group" style="grid-column:span 2;margin:2px 0 -2px">
+        <button type="button" class="btn-secondary" style="font-size:12px;padding:6px 12px" onclick="suggestWeightAndReel()">🧮 Suggest Weight &amp; Reel Size from Box Size</button>
+        <div id="pm-suggest-hint" class="field-hint" style="margin-top:6px;min-height:14px"></div>
+      </div>
       <div class="form-group">
         <label class="form-label">Weight (gm)</label>
         <input class="form-input" type="number" id="pm-weight" placeholder="e.g. 648" step="0.1"
           onkeydown="if(event.key==='Escape')closeProductModal()">
-        <div class="field-hint">Weight of one empty box in grams — used to estimate paper usage</div>
+        <div class="field-hint">Weight of one empty box in grams — used to estimate paper usage. Suggested value is editable.</div>
       </div>
       <div class="form-group">
         <label class="form-label">Reel Size (inch)</label>
         <input class="form-input" type="number" id="pm-reelsize" placeholder="e.g. 35.5" step="0.5"
           onkeydown="if(event.key==='Escape')closeProductModal()">
-        <div class="field-hint">Width of paper roll used on the machine — check with supervisor</div>
+        <div class="field-hint">Width of paper roll used on the machine — check with supervisor. Suggested value is editable.</div>
       </div>
       <div class="form-group">
         <label class="form-label">Rate (₹/pc) <span style="font-size:10px;font-weight:400;color:var(--muted)">optional — auto-fills order form</span></label>
