@@ -132,8 +132,17 @@ function _photoKey(clientName, productName) {
 function toggleProductPrintFields() {
   const hasPrint = !!document.getElementById('pm-has-print')?.checked;
   const div = document.getElementById('pm-print-fields');
-  if (div) div.style.display = hasPrint ? 'grid' : 'none';
+  if (div) div.style.display = hasPrint ? 'block' : 'none';
+  _updatePmColourEcho();
   updateProductSchematic();
+}
+
+// Print colour is entered once, in the main Colour field — the printing
+// section just echoes it back so it's never asked for twice.
+function _updatePmColourEcho() {
+  const echo = document.getElementById('pm-print-colour-echo');
+  if (!echo) return;
+  echo.textContent = document.getElementById('pm-colour')?.value.trim() || '—';
 }
 
 // ── Box blank schematic preview in product modal ──
@@ -155,24 +164,32 @@ function updateProductSchematic() {
   }
 }
 
-// ── GSM Grid ──
-function updateGsmFields(existingGsm) {
+// ── GSM + BF Grid (per paper layer — top to bottom) ──
+function updateGsmFields(existingGsm, existingBf) {
   const grid = document.getElementById('pm-gsm-grid');
   if (!grid) return;
   const ply    = parseInt(document.getElementById('pm-ply')?.value) || 3;
   const layers = PLY_LAYERS[ply] || PLY_LAYERS[3];
   grid.innerHTML = layers.map((layer, i) => {
-    const val         = Array.isArray(existingGsm) ? (existingGsm[i] || '') : '';
+    const gsmVal      = Array.isArray(existingGsm) ? (existingGsm[i] || '') : '';
+    const bfVal       = Array.isArray(existingBf) ? (existingBf[i] || '') : '';
     const isFluting   = layer.type === 'fluting';
     const accent      = isFluting ? '#FFA500' : '#2980B9';
     const placeholder = isFluting ? '100–150' : '120–200';
     return `<div style="display:flex;flex-direction:column;gap:3px">
       <label style="font-size:10px;font-weight:600;color:${accent}">${layer.label}</label>
-      <input class="form-input" type="number" id="pm-gsm-${i+1}"
-        placeholder="${placeholder}" min="60" max="400" step="5"
-        value="${val}"
-        style="border-left:3px solid ${accent};padding-left:8px"
-        onkeydown="if(event.key==='Escape')closeProductModal()">
+      <div style="display:flex;gap:4px">
+        <input class="form-input" type="number" id="pm-gsm-${i+1}"
+          placeholder="GSM ${placeholder}" title="GSM" min="60" max="400" step="5"
+          value="${gsmVal}"
+          style="border-left:3px solid ${accent};padding-left:8px;flex:1;min-width:0"
+          onkeydown="if(event.key==='Escape')closeProductModal()">
+        <input class="form-input" type="number" id="pm-bf-${i+1}"
+          placeholder="BF" title="Bursting Factor" min="10" max="40" step="1"
+          value="${bfVal}"
+          style="width:56px;flex:none"
+          onkeydown="if(event.key==='Escape')closeProductModal()">
+      </div>
     </div>`;
   }).join('');
 }
@@ -184,7 +201,7 @@ function updateGsmFields(existingGsm) {
 async function fetchClients() {
   try {
     const cUrl = `https://sheets.googleapis.com/v4/spreadsheets/${CUSTOMERS_SHEET_ID}/values/${encodeURIComponent(CUSTOMERS_TAB + '!A1:D500')}?key=${API_KEY}`;
-    const pUrl = `https://sheets.googleapis.com/v4/spreadsheets/${PRODUCTS_SHEET_ID}/values/${encodeURIComponent(PRODUCTS_TAB + '!A1:S2000')}?key=${API_KEY}`;
+    const pUrl = `https://sheets.googleapis.com/v4/spreadsheets/${PRODUCTS_SHEET_ID}/values/${encodeURIComponent(PRODUCTS_TAB + '!A1:AB2000')}?key=${API_KEY}`;
 
     const [cRes, pRes]   = await Promise.all([fetch(cUrl), fetch(pUrl)]);
     const [cJson, pJson] = await Promise.all([cRes.json(), pRes.json()]);
@@ -211,10 +228,12 @@ async function fetchClients() {
             colour:      p[4] || '',
             weight:      p[5] || '',
             reelSize:    p[6] || '',
-            gsm:         [p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]].map(Number).filter(v => v > 0),
+            // Zero-padded, NOT filtered — index i must line up with PLY_LAYERS[ply][i]
+            gsm:         [p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]].map(v => Number(v) || 0),
             hasPrint:    String(p[16] || '').toUpperCase() === 'TRUE' || p[16] === '1' || p[16] === true,
             printColour: p[17] || '',
             printDesign: p[18] || '',
+            bf:          [p[19],p[20],p[21],p[22],p[23],p[24],p[25],p[26],p[27]].map(v => Number(v) || 0),
           })),
       }));
 
@@ -679,13 +698,12 @@ function openProductModal(ci, pi, callback) {
   document.getElementById('pm-reelsize').value = p ? p.reelSize : '';
   const pmRate = document.getElementById('pm-rate');
   if (pmRate) pmRate.value = p ? (p.rate || '') : '';
-  // Print fields
+  // Print fields — print colour reuses the Colour field above, never asked twice
   const hpEl = document.getElementById('pm-has-print');
   if (hpEl) hpEl.checked = p ? !!p.hasPrint : false;
-  const pcEl = document.getElementById('pm-print-colour');
-  if (pcEl) pcEl.value = p ? (p.printColour || '') : '';
   const pdEl = document.getElementById('pm-print-design');
   if (pdEl) pdEl.value = p ? (p.printDesign || '') : '';
+  _updatePmColourEcho();
   // Print photo
   _pmCurrentPhoto = null;
   if (p) {
@@ -697,7 +715,7 @@ function openProductModal(ci, pi, callback) {
   if (inp) inp.value = '';
   toggleProductPrintFields();
   document.getElementById('product-modal-overlay').style.display = 'flex';
-  updateGsmFields(p ? p.gsm : null);
+  updateGsmFields(p ? p.gsm : null, p ? p.bf : null);
   if (typeof convertSizeCmIn === 'function') convertSizeCmIn('pm-size', 'pm-size-in');
   setTimeout(updateProductSchematic, 60);
   document.getElementById('pm-name').focus();
@@ -717,24 +735,26 @@ function saveProductModal() {
   const reelSize = document.getElementById('pm-reelsize').value.trim();
   const rate     = document.getElementById('pm-rate')?.value.trim() || '';
   const layers   = PLY_LAYERS[parseInt(ply)] || PLY_LAYERS[3];
-  const gsm      = layers.map((_, i) => parseInt(document.getElementById('pm-gsm-' + (i+1))?.value) || 0).filter(v => v > 0);
+  // gsm/bf keep one slot per layer (including zeros) so index i always lines up with PLY_LAYERS[i]
+  const gsm      = layers.map((_, i) => parseInt(document.getElementById('pm-gsm-' + (i+1))?.value) || 0);
+  const bf       = layers.map((_, i) => parseInt(document.getElementById('pm-bf-'  + (i+1))?.value) || 0);
 
   if (!name) { document.getElementById('pm-name').focus(); return; }
   if (!size) { document.getElementById('pm-size').focus(); return; }
 
   const hasPrint    = !!document.getElementById('pm-has-print')?.checked;
-  const printColour = hasPrint ? (document.getElementById('pm-print-colour')?.value.trim() || '') : '';
+  const printColour = hasPrint ? colour : ''; // same value as the Colour field — never asked twice
   const printDesign = hasPrint ? (document.getElementById('pm-print-design')?.value || '') : '';
-  const product = { name, size, ply, colour, weight, reelSize, rate, gsm, hasPrint, printColour, printDesign };
+  const product = { name, size, ply, colour, weight, reelSize, rate, gsm, bf, hasPrint, printColour, printDesign };
   const ci      = _productModalCi;
 
   if (_productModalPi >= 0) {
     const originalName = CLIENTS[ci].products[_productModalPi].name;
     CLIENTS[ci].products[_productModalPi] = product;
-    postClient({ action: 'saveProduct', clientName: CLIENTS[ci].name, ...product, gsm, originalName });
+    postClient({ action: 'saveProduct', clientName: CLIENTS[ci].name, ...product, gsm, bf, originalName });
   } else {
     CLIENTS[ci].products.push(product);
-    postClient({ action: 'saveProduct', clientName: CLIENTS[ci].name, ...product, gsm });
+    postClient({ action: 'saveProduct', clientName: CLIENTS[ci].name, ...product, gsm, bf });
   }
 
   // Save / remove print reference photo in localStorage

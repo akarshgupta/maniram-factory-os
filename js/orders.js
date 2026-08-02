@@ -1073,5 +1073,5 @@ function openJobCardFromWa() {
   if (!waCurrentOrder) return;
   const id = waCurrentOrder.id;
   closeWaModal();
-  if (typeof openPrintSpecModal === 'function') openPrintSpecModal(id);
+  if (typeof quickPrintJobCard === 'function') quickPrintJobCard(id);
 }
