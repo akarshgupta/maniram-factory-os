@@ -198,16 +198,26 @@ function saveClient(data) {
 // PRODUCTS  →  ORDERS_SHEET_ID / "Products" tab
 // ══════════════════════════════════════════════════════════════
 
+var PRODUCT_HEADERS = ['ClientName','Product','Size','Ply','Colour','Weight','ReelSize',
+                        'GSM1','GSM2','GSM3','GSM4','GSM5','GSM6','GSM7','GSM8','GSM9',
+                        'HasPrint','PrintColour','PrintDesign',
+                        'BF1','BF2','BF3','BF4','BF5','BF6','BF7','BF8','BF9'];
+
 function saveProduct(data) {
   var ss    = SpreadsheetApp.openById(PRODUCTS_SHEET_ID);
   var sheet = ss.getSheetByName('Sheet1') || ss.getSheets()[0];
   if (sheet.getLastRow() === 0) {
-    sheet.appendRow(['ClientName','Product','Size','Ply','Colour','Weight','ReelSize',
-                     'GSM1','GSM2','GSM3','GSM4','GSM5','GSM6','GSM7','GSM8','GSM9',
-                     'HasPrint','PrintColour','PrintDesign']);
+    sheet.appendRow(PRODUCT_HEADERS);
+  } else {
+    // Sheet already exists from before BF columns were added — extend its header in place.
+    var curHeader = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
+    if (curHeader.indexOf('BF1') < 0) {
+      sheet.getRange(1, 20, 1, 9).setValues([PRODUCT_HEADERS.slice(19)]);
+    }
   }
 
   var gsm  = Array.isArray(data.gsm) ? data.gsm : [];
+  var bf   = Array.isArray(data.bf)  ? data.bf  : [];
   var row  = [
     data.clientName, data.name, data.size || '', data.ply || '',
     data.colour || '', data.weight || '', data.reelSize || '',
@@ -215,14 +225,16 @@ function saveProduct(data) {
     gsm[5]||'', gsm[6]||'', gsm[7]||'', gsm[8]||'',
     data.hasPrint ? 'TRUE' : 'FALSE',
     data.printColour || '',
-    data.printDesign || ''
+    data.printDesign || '',
+    bf[0]||'', bf[1]||'', bf[2]||'', bf[3]||'', bf[4]||'',
+    bf[5]||'', bf[6]||'', bf[7]||'', bf[8]||''
   ];
 
   var rows       = sheet.getDataRange().getValues();
   var searchProd = data.originalName || data.name;
   for (var i = 1; i < rows.length; i++) {
     if ((rows[i][0]||'').trim() === data.clientName.trim() && (rows[i][1]||'').trim() === searchProd.trim()) {
-      sheet.getRange(i + 1, 1, 1, 19).setValues([row]);
+      sheet.getRange(i + 1, 1, 1, row.length).setValues([row]);
       return;
     }
   }

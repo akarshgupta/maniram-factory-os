@@ -5,6 +5,8 @@
 const LS_PRINT_SPECS = 'mi_print_specs_v1';
 let _printSpecOrderId = null;
 
+function _fmtN(n) { return n % 1 === 0 ? String(n) : n.toFixed(1); }
+
 // ── Storage ──
 function _loadPrintSpecs() { try { return JSON.parse(localStorage.getItem(LS_PRINT_SPECS) || '{}'); } catch { return {}; } }
 function _savePrintSpecs(map) { localStorage.setItem(LS_PRINT_SPECS, JSON.stringify(map)); }
@@ -18,12 +20,16 @@ function getPrintSpec(clientName, productName) {
   return map[_specKey(clientName, productName)] || null;
 }
 
-// ── Quick print: use saved spec if available, else open spec modal ──
+// ── Quick print: plain (non-printed) products never need a spec; printed
+// products print directly once a spec is saved, otherwise open the modal ──
 function quickPrintJobCard(orderId) {
   const o = orders.find(x => x.id === orderId);
   if (!o) return;
+  const client   = (typeof CLIENTS !== 'undefined' ? CLIENTS : []).find(c => c.name === o.customer);
+  const product  = client ? (client.products || []).find(p => p.name === o.product) : null;
+  const needsPrint = product ? !!product.hasPrint : false;
   const spec = getPrintSpec(o.customer, o.product);
-  if (spec) {
+  if (!needsPrint || spec) {
     printJobCard(orderId);
   } else {
     openPrintSpecModal(orderId);
@@ -128,6 +134,17 @@ function printJobCard(orderId) {
   const dims = _parseDims(o.size);
   const schematic = dims ? _buildSchematic(dims, spec) : '';
 
+  // Cutting (sheet) size — Sheet L = (L+W)×2+2, Sheet W = W+H+0.5 (skills/rate-calculator.md)
+  const cutSizeStr = dims
+    ? `${_fmtN((dims.l + dims.w) * 2 + 2)}" × ${_fmtN(dims.w + dims.h + 0.5)}"`
+    : '______ × ______';
+
+  // Product master lookup — GSM/BF per layer + print flag
+  const client  = (typeof CLIENTS !== 'undefined' ? CLIENTS : []).find(c => c.name === o.customer);
+  const product = client ? (client.products || []).find(p => p.name === o.product) : null;
+  const isPrint = product ? !!product.hasPrint : (!!o.colour && o.colour.trim().toLowerCase() !== 'none');
+  const layers  = (typeof PLY_LAYERS !== 'undefined' ? PLY_LAYERS[parseInt(o.ply) || 3] : null) || [];
+
   // Print reference photo (stored in localStorage by product modal)
   const printPhotoKey   = `mi_print_photo_${o.customer}__${o.product}`;
   const printPhotoData  = localStorage.getItem(printPhotoKey);
@@ -140,90 +157,40 @@ function printJobCard(orderId) {
       <td style="padding:5px 8px;color:#444">${c.desc || '—'}</td>
     </tr>`).join('');
 
-  // Stage sign-off rows
+  const gsmBfRows = layers.length ? layers.map((layer, i) => {
+    const gsm = product && product.gsm ? (product.gsm[i] || '') : '';
+    const bf  = product && product.bf  ? (product.bf[i]  || '') : '';
+    return `<tr>
+      <td style="padding:5px 8px;font-weight:600">${layer.label}</td>
+      <td style="padding:5px 8px;text-align:center">${gsm || '______'}</td>
+      <td style="padding:5px 8px;text-align:center">${bf || '______'}</td>
+    </tr>`;
+  }).join('') : '';
+
+  // ── Stage sign-off — fixed shop-floor sequence, each with its required signers ──
   const stages = [
-    {
-      num: 1, name: 'Corrugation', icon: '📐',
-      checks: [
-        'Reel size verified: ' + (o.reelSize ? o.reelSize + '"' : '______'),
-        'Cutting size checked (L+W+0.5" × W+H+0.5")',
-        'Flute type correct',
-        'Sheet count: ' + (o.qty || '______') + ' pcs',
-        'No moisture / delamination',
-      ]
-    },
-    {
-      num: 2, name: 'Pasting', icon: '🔲',
-      checks: [
-        'Ply count: ' + (o.ply ? o.ply + ' Ply' : '______'),
-        'Paste coverage uniform',
-        'Sheet alignment correct',
-        'No air bubbles / separation',
-        'Stack weight / pressure OK',
-      ]
-    },
-    {
-      num: 3, name: 'Printing (Flexo)', icon: '🖨️',
-      checks: [
-        'Block mounted correctly · Ref: ' + (spec.blockRef || '______'),
-        'Colour proof approved',
-        'Print register aligned',
-        'Ink density correct',
-        'All ' + (spec.colours || '—') + ' colour(s) printed',
-      ]
-    },
-    {
-      num: 4, name: 'Rotary / RS4', icon: '✂️',
-      checks: [
-        'Box dimensions: ' + (o.size || '______'),
-        'Die cut / crease correct',
-        'Score positions verified',
-        'Slot depth correct',
-        'No burr / rough edges',
-      ]
-    },
-    {
-      num: 5, name: 'Stitching', icon: '📎',
-      checks: [
-        'Joint type: Wire stitch',
-        'Overlap: min 30 mm',
-        'Stitch strength OK',
-        'Count: ' + (o.qty || '______') + ' pcs verified',
-        'No open/loose joints',
-      ]
-    },
-    {
-      num: 6, name: 'QC Final', icon: '✅',
-      checks: [
-        'Sample qty checked (min 5 pcs)',
-        'Dimensions match: ' + (o.size || '______'),
-        'Print quality: PASS / FAIL',
-        'Reject count: ______',
-        'FINAL RELEASE: PASS / FAIL',
-      ]
-    },
+    { name: 'Paper Cutting Size Check', icon: '📏', detail: 'Cutting size: ' + cutSizeStr, signers: ['Supervisor'] },
+    { name: 'Corrugation — Ply Size Check', icon: '🌀', detail: (o.ply ? o.ply + ' Ply' : '______') + ' · Reel: ' + (o.reelSize ? o.reelSize + '"' : '______'), signers: ['Technician', 'Supervisor'] },
+    { name: 'Pasting — ' + (o.ply ? o.ply + ' Ply' : '___ Ply') + ' Check', icon: '🩹', detail: 'Layer count and alignment', signers: ['Technician'] },
+    { name: 'Print Check', icon: '🖨️', detail: isPrint ? ('Colour: ' + (product?.printColour || o.colour || '______')) : 'PLAIN — NO PRINT', signers: ['Supervisor', 'Technician'] },
+    { name: 'Rotary — Size Check', icon: '🔄', detail: 'Box size: ' + (o.size || '______'), signers: ['Supervisor', 'Technician'] },
+    { name: 'RS4 / Slotter — Size Check', icon: '⚙️', detail: 'Score / slot positions', signers: ['Supervisor', 'Technician'] },
+    { name: 'Stitching Ready — Bundle Count', icon: '📦', detail: 'Boxes/bundle: ______ · Bundles: ______', signers: ['Supervisor'] },
   ];
 
-  const stageRows = stages.map(s => `
+  const sigCell = (required) => required
+    ? `<div style="font-size:10px;color:#888;margin-bottom:10px">Sign:</div><div style="border-bottom:1px solid #ccc;min-height:22px"></div>`
+    : `<div style="font-size:10px;color:#ccc;text-align:center;padding-top:8px">N/A</div>`;
+
+  const stageRows = stages.map((s, i) => `
     <tr>
-      <td style="padding:8px 10px;width:130px;vertical-align:top;border-right:2px solid #e5e7eb">
-        <div style="font-weight:800;font-size:13px;color:#042C53">${s.icon} ${s.name}</div>
-        <div style="font-size:10px;color:#888;margin-top:1px">Stage ${s.num}</div>
+      <td style="padding:8px 10px;width:38px;vertical-align:top;text-align:center;font-weight:800;color:#888;border-right:1px solid #e5e7eb">${i + 1}</td>
+      <td style="padding:8px 10px;width:150px;vertical-align:top;border-right:1px solid #e5e7eb">
+        <div style="font-weight:800;font-size:12px;color:#042C53">${s.icon} ${s.name}</div>
       </td>
-      <td style="padding:8px 10px;vertical-align:top;border-right:1px solid #e5e7eb">
-        ${s.checks.map(c => `<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px">
-          <span style="display:inline-block;width:14px;height:14px;border:1.5px solid #999;border-radius:2px;flex-shrink:0;margin-top:1px"></span>
-          <span style="font-size:11px;line-height:1.5">${c}</span>
-        </div>`).join('')}
-      </td>
-      <td style="padding:8px 10px;vertical-align:top;width:140px;font-size:11px">
-        <div style="margin-bottom:6px"><strong>Operator:</strong></div>
-        <div style="border-bottom:1px solid #ccc;min-height:18px;margin-bottom:8px"></div>
-        <div style="margin-bottom:6px"><strong>Signature:</strong></div>
-        <div style="border-bottom:1px solid #ccc;min-height:24px;margin-bottom:8px"></div>
-        <div style="margin-bottom:6px"><strong>Date / Time:</strong></div>
-        <div style="border-bottom:1px solid #ccc;min-height:18px"></div>
-      </td>
+      <td style="padding:8px 10px;vertical-align:top;border-right:1px solid #e5e7eb;font-size:11px;color:#444">${s.detail}</td>
+      <td style="padding:8px 10px;vertical-align:top;width:110px;border-right:1px solid #e5e7eb">${sigCell(s.signers.includes('Supervisor'))}</td>
+      <td style="padding:8px 10px;vertical-align:top;width:110px">${sigCell(s.signers.includes('Technician'))}</td>
     </tr>`).join('');
 
   const html = `<!DOCTYPE html>
@@ -309,12 +276,14 @@ function printJobCard(orderId) {
   <!-- Order details grid -->
   <div class="order-grid">
     <div class="order-cell"><div class="order-cell-label">Order ID</div><div class="order-cell-val">${o.id}</div></div>
-    <div class="order-cell"><div class="order-cell-label">Customer</div><div class="order-cell-val">${o.customer}</div></div>
+    <div class="order-cell"><div class="order-cell-label">Party (Customer)</div><div class="order-cell-val">${o.customer}</div></div>
     <div class="order-cell"><div class="order-cell-label">Product</div><div class="order-cell-val">${o.product || '—'}</div></div>
     <div class="order-cell"><div class="order-cell-label">Qty</div><div class="order-cell-val">${(o.qty || 0).toLocaleString('en-IN')} pcs</div></div>
     <div class="order-cell"><div class="order-cell-label">Box Size</div><div class="order-cell-val">${o.size || '—'}</div></div>
+    <div class="order-cell"><div class="order-cell-label">Cutting Size</div><div class="order-cell-val">${cutSizeStr}</div></div>
     <div class="order-cell"><div class="order-cell-label">Ply</div><div class="order-cell-val">${o.ply ? o.ply + ' Ply' : '—'}</div></div>
-    <div class="order-cell"><div class="order-cell-label">Colour</div><div class="order-cell-val">${o.colour || '—'}</div></div>
+    <div class="order-cell"><div class="order-cell-label">Print?</div><div class="order-cell-val" style="color:${isPrint ? '#C0392B' : '#0E9F6E'}">${isPrint ? '🖨️ PRINT' : '⬜ PLAIN'}</div></div>
+    <div class="order-cell"><div class="order-cell-label">Print Colour</div><div class="order-cell-val">${isPrint ? (product?.printColour || o.colour || '—') : '—'}</div></div>
     <div class="order-cell"><div class="order-cell-label">Weight</div><div class="order-cell-val">${o.weight ? o.weight + ' gm' : '—'}</div></div>
     <div class="order-cell"><div class="order-cell-label">Reel Size</div><div class="order-cell-val">${o.reelSize ? o.reelSize + '"' : '—'}</div></div>
     <div class="order-cell"><div class="order-cell-label">Order Date</div><div class="order-cell-val">${orderStr}</div></div>
@@ -322,19 +291,31 @@ function printJobCard(orderId) {
     <div class="order-cell"><div class="order-cell-label">Status</div><div class="order-cell-val">${o.status || '—'}</div></div>
   </div>
 
-  <!-- Print Specification -->
-  <div class="section-title">🖨️ Flexographic Print Specification</div>
+  <!-- Paper Layer Specification: GSM + BF per layer, always shown -->
+  <div class="section-title">📄 Paper Specification — GSM &amp; BF per Layer (${o.ply ? o.ply + ' Ply' : '—'})</div>
+  <div class="bordered" style="padding:8px 10px">
+    ${gsmBfRows ? `
+    <table class="colours-table">
+      <thead><tr><th>Layer</th><th style="width:90px;text-align:center">GSM</th><th style="width:90px;text-align:center">BF</th></tr></thead>
+      <tbody>${gsmBfRows}</tbody>
+    </table>` : `<span style="font-size:11px;color:#888">No layer GSM/BF on file for this product — set it on the Clients page.</span>`}
+  </div>
+
+  <!-- Print Specification (only meaningful when this product is printed) -->
+  <div class="section-title">🖨️ ${isPrint ? 'Flexographic Print Specification' : 'Print Specification — PLAIN BOX, NO PRINTING'}</div>
   <div class="bordered">
     <div class="spec-grid">
       <div class="spec-half">
+        ${isPrint ? `
         <div class="spec-row"><span class="spec-label">No. of Colours:</span><span class="spec-val">${spec.colours || '—'}</span></div>
         <div class="spec-row"><span class="spec-label">Block Ref:</span><span class="spec-val">${spec.blockRef || '—'}</span></div>
         <div class="spec-row"><span class="spec-label">Print Description:</span><span class="spec-val">${spec.printDesc || '—'}</span></div>
         ${spec.notes ? `<div class="spec-row"><span class="spec-label">Notes:</span><span class="spec-val">${spec.notes}</span></div>` : ''}
+        ` : `<span style="font-size:11px;color:#888">This box is not printed — no block, colours, or plate needed.</span>`}
       </div>
       <div class="spec-half schematic-wrap" style="flex-direction:column;gap:10px;align-items:center">
         ${schematic || '<span style="font-size:11px;color:#888">No box dimensions detected.</span>'}
-        ${printPhotoData ? `
+        ${isPrint && printPhotoData ? `
         <div style="text-align:center;margin-top:4px">
           <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#888;margin-bottom:4px">Print Reference Photo</div>
           <img src="${printPhotoData}" style="max-width:100%;max-height:160px;object-fit:contain;border:1px solid #e5e7eb;border-radius:4px">
@@ -342,7 +323,7 @@ function printJobCard(orderId) {
       </div>
     </div>
 
-    ${colourRows ? `
+    ${isPrint && colourRows ? `
     <div style="border-top:1px solid #e2e8f0;padding:8px 10px">
       <table class="colours-table">
         <thead><tr><th style="width:50px">Colour</th><th style="width:120px">Ink Name</th><th>What is Printed</th></tr></thead>
@@ -357,20 +338,15 @@ function printJobCard(orderId) {
     <table class="stages">
       <thead>
         <tr style="background:#f8fafc">
-          <td style="padding:6px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#666;border:1px solid #e2e8f0;width:130px">Stage</td>
-          <td style="padding:6px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#666;border:1px solid #e2e8f0">Checkpoints</td>
-          <td style="padding:6px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#666;border:1px solid #e2e8f0;width:140px">Operator Sign-off</td>
+          <td style="padding:6px 8px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#666;border:1px solid #e2e8f0;width:38px">#</td>
+          <td style="padding:6px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#666;border:1px solid #e2e8f0;width:150px">Stage</td>
+          <td style="padding:6px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#666;border:1px solid #e2e8f0">Check</td>
+          <td style="padding:6px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#666;border:1px solid #e2e8f0;width:110px">Supervisor</td>
+          <td style="padding:6px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#666;border:1px solid #e2e8f0;width:110px">Technician</td>
         </tr>
       </thead>
       <tbody>${stageRows}</tbody>
     </table>
-  </div>
-
-  <!-- Signatures -->
-  <div class="sig-grid">
-    <div class="sig-block"><div class="sig-line">Production Supervisor</div></div>
-    <div class="sig-block"><div class="sig-line">QC Manager</div></div>
-    <div class="sig-block"><div class="sig-line">Dispatch In-Charge</div></div>
   </div>
 
 </div>
