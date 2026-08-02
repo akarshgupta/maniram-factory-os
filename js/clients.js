@@ -75,8 +75,10 @@ const PLY_LAYERS = {
 // ── Suggest Weight & Reel Size from box dimensions ──
 // Sheet Length = (L+W)×2+2, Sheet Width (= reel size) = W+H+0.5, Area = SheetL×SheetW/1550
 // (skills/rate-calculator.md). Picks the narrowest available reel that fits; falls back
-// to standard stocked widths when live reel data hasn't loaded. Fills are just a starting
-// point — both fields stay plain number inputs, editable like any other value.
+// to standard stocked widths when live reel data hasn't loaded. Reel size only needs the
+// box dimensions, but weight depends on the actual paper — so this asks for GSM on each
+// layer first (focuses the first blank one) rather than guessing a default and calculating
+// on top of a guess. Both fields stay plain number inputs, editable like any other value.
 function suggestWeightAndReel() {
   const hint = document.getElementById('pm-suggest-hint');
   const dims = typeof _parseDims === 'function' ? _parseDims(document.getElementById('pm-size')?.value || '') : null;
@@ -96,21 +98,29 @@ function suggestWeightAndReel() {
   const pool  = known.length ? known : [30, 32, 33, 35, 35.5, 36, 38, 40, 42, 44, 46, 48];
   const fits  = pool.filter(s => s >= reqWidth).sort((a, b) => a - b);
   const reelSize = fits.length ? fits[0] : Math.ceil(reqWidth * 2) / 2;
+  document.getElementById('pm-reelsize').value = reelSize;
+
+  // Weight needs real GSM per layer — ask for it instead of assuming a default.
+  const gsmInputs  = layers.map((_, i) => document.getElementById('pm-gsm-' + (i + 1)));
+  const firstBlank = gsmInputs.find(inp => !inp || !(parseInt(inp.value) > 0));
+  if (firstBlank) {
+    if (hint) hint.innerHTML = `Reel size suggested: <b>${reelSize}"</b>. Now enter the <b>GSM</b> for each paper layer above, then click Suggest again to calculate weight.`;
+    firstBlank.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    firstBlank.focus();
+    return;
+  }
 
   const area = (sheetLen * reelSize) / 1550; // sqm
   let weight = 0;
   const gsmUsed = layers.map((layer, i) => {
-    const entered = parseInt(document.getElementById('pm-gsm-' + (i + 1))?.value) || 0;
-    const gsm = entered > 0 ? entered : (layer.type === 'fluting' ? 120 : 150);
+    const gsm = parseInt(gsmInputs[i].value);
     weight += gsm * area * (layer.type === 'fluting' ? 1.5 : 1);
     return gsm;
   });
-
-  document.getElementById('pm-reelsize').value = reelSize;
-  document.getElementById('pm-weight').value   = weight.toFixed(1);
+  document.getElementById('pm-weight').value = weight.toFixed(1);
 
   if (hint) {
-    hint.innerHTML = `Suggested from ${_fmtN(l)}×${_fmtN(w)}×${_fmtN(h)}" box, ${ply}-ply: sheet ${_fmtN(sheetLen)}×${_fmtN(reqWidth)}" → nearest reel <b>${reelSize}"</b> → est. weight <b>${weight.toFixed(1)} gm</b> (GSM ${gsmUsed.join('/')}${gsmUsed.some((_, i) => !parseInt(document.getElementById('pm-gsm-' + (i + 1))?.value)) ? ', defaults used where blank' : ''}). Edit either field above if actuals differ.`;
+    hint.innerHTML = `Sheet ${_fmtN(sheetLen)}×${_fmtN(reqWidth)}" (${ply}-ply) → reel <b>${reelSize}"</b> → est. weight <b>${weight.toFixed(1)} gm</b> from GSM ${gsmUsed.join('/')}. Edit either field above if actuals differ.`;
   }
 }
 
