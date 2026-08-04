@@ -437,7 +437,7 @@ function _buildSchematic(dims, spec) {
 
   const PAD = 2;
   const DIM_TOP   = 20; // room for the overall-length dimension line above the drawing
-  const DIM_RIGHT = 32; // room for the overall-width dimension line to the right
+  const DIM_RIGHT = 48; // room for the "W/2 = n.n"" flap labels + the overall-width dimension line
   const VW = Math.ceil(totalW * sc + PAD * 2 + 18 + DIM_RIGHT);
   const VH = Math.ceil(totalH * sc + PAD * 2 + DIM_TOP);
 
@@ -543,9 +543,9 @@ function _buildSchematic(dims, spec) {
     fRect(xL2, yBot, sl, sf),
     sH > 14 ? t(xL2+sl/2, yBody+9, 'middle', 7, '#042C53', 'bold', `L=${fmtN(l)}`) : '',
 
-    // Right-side annotations
-    sf > 14 ? t(xL2+sl+3, yTop+sf/2+3,  'start', 7, '#1d4ed8', 'normal', 'W/2') : '',
-    sf > 14 ? t(xL2+sl+3, yBot+sf/2+3,  'start', 7, '#1d4ed8', 'normal', 'W/2') : '',
+    // Right-side annotations — flap depth is always W/2, show the actual inches too
+    sf > 14 ? t(xL2+sl+3, yTop+sf/2+3,  'start', 7, '#1d4ed8', 'normal', `W/2 = ${fmtN(flapH)}"`) : '',
+    sf > 14 ? t(xL2+sl+3, yBot+sf/2+3,  'start', 7, '#1d4ed8', 'normal', `W/2 = ${fmtN(flapH)}"`) : '',
 
     '</g>',
     '</svg>',

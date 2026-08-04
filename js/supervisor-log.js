@@ -2,15 +2,17 @@
 // SUPERVISOR-LOG.JS — Live view of the supervisor's Google Form
 // register ("Maniram — Register Responses" sheet).
 //   Production tab: reel widths/GSM, cutting size, pieces/sheets/rolls
-//   Dispatch tab:   party, product, pieces, size, measured weight/piece
+//   Dispatch tab:   party, product, order ID, pieces, size, measured weight/piece
 // Read-only in the app — supervisor enters data via the form on phone.
 //
-// Dispatch column F ("Product Name") is optional — Google Forms
-// appends a NEW question as a new column at the END of the response
-// sheet, not inline, so older rows (and the sheet before that
-// question is added) simply have it blank. Everything below falls
-// back to fuzzy-matching the combined party/item column when the
-// product column is empty, so this works either way.
+// Dispatch column G ("Product Name") and H ("Order ID") are optional —
+// Google Forms appends a NEW question as a new column at the END of the
+// response sheet, not inline, so older rows (and the sheet before those
+// questions existed) simply have them blank. Product Name falls back to
+// fuzzy-matching the combined party/item column when empty. Order ID has
+// no fallback — it's what lets a dispatch entry auto-generate a Delivery
+// Challan (see _svAutoCreateChallans below); entries without it just sit
+// in the log for the office to challan manually, same as before.
 // ══════════════════════════════════════════════════════════════
 
 let _svProd = [];
@@ -39,8 +41,11 @@ async function fetchSupervisorLog() {
       ts: r[0] || '', date: r[1] || '', party: r[2] || '',
       pcs: parseInt(r[3]) || 0, size: r[4] || '',
       wtPc: parseFloat(r[5]) || 0,
-      product: r[6] || '', // new "Product Name" question — appended column F, blank on older rows
+      product: r[6] || '',  // "Product Name" question — appended column G, blank on older rows
+      orderId: (r[7] || '').toString().trim(), // "Order ID" question — appended column H, blank on older rows
     })).reverse();
+    _svAutoCreateChallans();
+    if (document.getElementById('svlog-root')) renderSupervisorLog(false); // keep the register live if it's the open page
     return true;
   } catch (e) {
     console.error('fetchSupervisorLog:', e);
@@ -69,6 +74,55 @@ function _svExpectedWeight(party, product) {
     }
   }
   return null;
+}
+
+// Turn dispatch entries that carry an Order ID into real Delivery Challans,
+// automatically. Idempotent: each form response's own timestamp (e.ts) is
+// stamped onto the challan as svTs, so re-fetching never double-creates one.
+// Entries with no Order ID, an ID that matches no known order, or no piece
+// count are left alone — they show up flagged in the dispatch table instead
+// so the office can fix the entry or challan it by hand.
+function _svAutoCreateChallans() {
+  if (typeof challanList === 'undefined' || typeof orders === 'undefined') return;
+  let created = 0;
+  _svDisp.forEach(e => {
+    if (!e.orderId || !e.ts || !e.pcs) return;
+    if (challanList.some(c => c.svTs === e.ts)) return;
+    const o = orders.find(x => (x.id || '').toLowerCase() === e.orderId.toLowerCase());
+    if (!o) return;
+
+    const record = {
+      dcNum:     _nextDcNum(),
+      orderId:   o.id,
+      customer:  o.customer,
+      product:   o.product || o.size || '',
+      size:      o.size || '',
+      ply:       o.ply  || '',
+      colour:    o.colour || '',
+      weight:    o.weight || '',
+      rate:      o.rate   || 0,
+      qty:       e.pcs,
+      date:      _svNormDate(e.date) || todayStr,
+      note:      'Auto-generated from Supervisor Dispatch Log',
+      createdAt: new Date().toISOString(),
+      svTs:      e.ts,
+    };
+    challanList.push(record);
+    created++;
+    if (typeof mirrorToSheet === 'function') {
+      mirrorToSheet('saveChallan', {
+        id: record.dcNum, date: record.date, orderId: record.orderId,
+        customer: record.customer, product: record.product,
+        qty: record.qty, vehicle: '', notes: record.note,
+      });
+    }
+    if (typeof checkOrderFullyDispatched === 'function') checkOrderFullyDispatched(record.orderId);
+  });
+  if (created > 0) {
+    saveChallans();
+    if (typeof renderOrders === 'function') renderOrders();
+    if (typeof renderChallansTab === 'function') renderChallansTab();
+  }
 }
 
 function svShowTab(tab) {
@@ -121,6 +175,18 @@ function _svDispatchHtml() {
       const col = Math.abs(d) <= 3 ? 'var(--success,#27AE60)' : Math.abs(d) <= 7 ? '#E67E22' : '#E74C3C';
       deltaHtml = `<span style="color:${col};font-weight:700" title="Master: ${exp.weight} gm (${exp.client} / ${exp.product})">${d > 0 ? '+' : ''}${d.toFixed(1)}%</span>`;
     }
+    let dcHtml = '<span style="color:var(--muted,#888)">—</span>';
+    if (e.orderId) {
+      const matchedOrder = typeof orders !== 'undefined' ? orders.find(x => (x.id || '').toLowerCase() === e.orderId.toLowerCase()) : null;
+      const dc = typeof challanList !== 'undefined' ? challanList.find(c => c.svTs === e.ts) : null;
+      if (dc) {
+        dcHtml = `<span style="color:var(--success,#27AE60);font-weight:700" title="Auto-generated ${dc.dcNum}">✓ ${dc.dcNum}</span>`;
+      } else if (matchedOrder) {
+        dcHtml = `<span style="color:var(--muted,#888)" title="Will challan on next refresh">${e.orderId} · pending</span>`;
+      } else {
+        dcHtml = `<span style="color:var(--danger,#E74C3C);font-weight:600" title="No order with this ID — fix the Order ID on the form response">⚠ ${e.orderId}</span>`;
+      }
+    }
     return `<tr style="border-top:1px solid var(--border,#e5e7eb)">
       <td style="padding:8px 10px;white-space:nowrap">${e.date}</td>
       <td style="padding:8px 10px;font-weight:600">${e.party || '—'}</td>
@@ -130,6 +196,7 @@ function _svDispatchHtml() {
       <td style="padding:8px 10px;font-weight:700">${e.wtPc ? e.wtPc + ' gm' : '—'}</td>
       <td style="padding:8px 10px">${totalKg ? totalKg.toLocaleString('en-IN', {maximumFractionDigits:1}) + ' kg' : '—'}</td>
       <td style="padding:8px 10px">${deltaHtml}</td>
+      <td style="padding:8px 10px;font-family:monospace;font-size:11px">${dcHtml}</td>
     </tr>`;
   }).join('');
 
@@ -153,8 +220,9 @@ function _svDispatchHtml() {
         <th style="padding:8px 10px">Wt / piece</th>
         <th style="padding:8px 10px">Total wt</th>
         <th style="padding:8px 10px" title="Measured vs product master weight">vs Master</th>
+        <th style="padding:8px 10px" title="Auto-generates a Delivery Challan once the Order ID matches a real order">Order ID / DC</th>
       </tr></thead><tbody>${rows}</tbody></table></div>
-    <div class="field-hint" style="margin-top:8px">vs Master compares the supervisor's measured weight against the product weight on the Clients page. Within ±3% green, ±7% orange, beyond that red — red means check the paper GSM or size.
+    <div class="field-hint" style="margin-top:8px">vs Master compares the supervisor's measured weight against the product weight on the Clients page. Within ±3% green, ±7% orange, beyond that red — red means check the paper GSM or size. Order ID / DC: a ✓ means a Delivery Challan was auto-created from this entry (see the Challans tab); a red ⚠ means the Order ID typed on the form doesn't match any order — fix it on the response sheet and it'll challan on the next refresh.
     ${_svDisp.some(e => !e.product) ? '<br>⚠️ Older entries have no separate Product Name — see the note below on adding that question to the form.' : ''}</div>`;
 }
 
