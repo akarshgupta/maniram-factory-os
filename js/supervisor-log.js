@@ -42,7 +42,10 @@ async function fetchSupervisorLog() {
       pcs: parseInt(r[3]) || 0, size: r[4] || '',
       wtPc: parseFloat(r[5]) || 0,
       product: r[6] || '',  // "Product Name" question — appended column G, blank on older rows
-      orderId: (r[7] || '').toString().trim(), // "Order ID" question — appended column H, blank on older rows
+      // "Order ID" question — appended column H, blank on older rows. The dropdown (Code.gs
+      // refreshOrderIdDropdown) shows choices as "MIORD019 — Party — Product" so the supervisor
+      // can recognise the right order; only the leading ID token is what matters here.
+      orderId: (r[7] || '').toString().split('—')[0].trim(),
     })).reverse();
     _svAutoCreateChallans();
     if (document.getElementById('svlog-root')) renderSupervisorLog(false); // keep the register live if it's the open page
