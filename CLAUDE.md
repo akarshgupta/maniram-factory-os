@@ -43,6 +43,8 @@ Login is a single fixed user: `js/auth.js` checks `authHash(username + '::' + pa
 
 **Order dispatch tracking:** there are two independent ways to log boxes leaving the factory — Delivery Challans (`js/challan.js`, `challanList`) and the older Record Dispatch modal (`js/dispatch.js`, `_dispatchCache`, opened from Calendar/Production Plan). Both files define a global `getDispatchedQty(orderId)`; since `challan.js` loads after `dispatch.js`, its version wins everywhere and deliberately sums *both* stores so neither entry point is invisible to the other. An order auto-completes (`checkOrderFullyDispatched()` in `js/orders.js`) the moment this combined total reaches the ordered quantity, called from both `saveAndPrintChallan()` and `confirmDispatch()`.
 
+Challans also get created a **third** way, automatically: the Dispatch Google Form has an "Order ID" question (column H, appended after the existing "Product Name" question — same append-only-at-the-end behavior as every other Form question). `_svAutoCreateChallans()` in `js/supervisor-log.js` runs on every `fetchSupervisorLog()` (on load and every 5 min, `js/app.js`) and turns any dispatch entry whose Order ID matches a real order into a challan, stamping the form response's own timestamp onto the record as `svTs` so re-fetching never double-creates one. An Order ID that matches no order is left alone and flagged red in the Supervisor Register's Dispatch table rather than silently dropped.
+
 **Service worker (`sw.js`):** bump the `CACHE` version string on every release that changes shell files, and add any new HTML/JS/asset to the SHELL list. Install tolerates missing files, but a stale cache version means clients keep old code.
 
 ## Domain math
