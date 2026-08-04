@@ -26,6 +26,14 @@ var RECEIVABLES_SHEET_ID = '';
 var CHALLANS_SHEET_ID    = '';
 var QUOTATIONS_SHEET_ID  = '';
 
+// ── Supervisor Dispatch form — Order ID dropdown ──
+// This is the FORM's own editable ID (from its /edit URL — Extensions >
+// Apps Script inside the form editor also shows it), NOT the public
+// viewform/e/... link. Paste it in, then run installOrderIdDropdownTrigger()
+// once from this editor (function dropdown at top > select it > Run).
+var SUPERVISOR_FORM_ID     = '';
+var ORDER_ID_QUESTION_TITLE = 'Order ID'; // must exactly match the question title on the form
+
 // ── Entry point ──
 function doPost(e) {
   try {
@@ -801,4 +809,61 @@ function _formatTabElegant(sheet) {
 
   // Auto-size columns to fit content
   sheet.autoResizeColumns(1, lastCol);
+}
+
+// ══════════════════════════════════════════════════════════════
+// SUPERVISOR DISPATCH FORM — Order ID dropdown, synced from pending orders
+// ══════════════════════════════════════════════════════════════
+
+// Rebuilds the "Order ID" dropdown's choice list from every order that
+// isn't Delivered/Dispatched/Cancelled yet. Choice text is
+// "<OrderID> — <Customer> — <Product>" so the supervisor can recognise the
+// right order by name, not just the code; js/supervisor-log.js on the app
+// side splits on " — " and only keeps the first token.
+function refreshOrderIdDropdown() {
+  if (!SUPERVISOR_FORM_ID) throw new Error('Set SUPERVISOR_FORM_ID at the top of Code.gs first — see the comment above it.');
+
+  var ordersSheet = SpreadsheetApp.openById(ORDERS_SHEET_ID).getSheetByName('Orders');
+  var rows = ordersSheet ? ordersSheet.getDataRange().getValues() : [];
+  var FINISHED_STATUSES = ['Delivered', 'Dispatched', 'Cancelled'];
+
+  var choices = [];
+  for (var i = 1; i < rows.length; i++) {
+    var id       = (rows[i][0]  || '').toString().trim();  // col A
+    var customer = (rows[i][1]  || '').toString().trim();  // col B
+    var product  = (rows[i][2]  || '').toString().trim();  // col C
+    var status   = (rows[i][10] || '').toString().trim();  // col K
+    if (!id || FINISHED_STATUSES.indexOf(status) !== -1) continue;
+    var label = id;
+    if (customer) label += ' — ' + customer;
+    if (product)  label += ' — ' + product;
+    choices.push(label);
+  }
+  if (choices.length === 0) choices = ['(no pending orders right now)'];
+
+  var form  = FormApp.openById(SUPERVISOR_FORM_ID);
+  var items = form.getItems(FormApp.ItemType.LIST); // "Dropdown" question type
+  var target = null;
+  for (var j = 0; j < items.length; j++) {
+    if (items[j].getTitle().trim() === ORDER_ID_QUESTION_TITLE) { target = items[j]; break; }
+  }
+  if (!target) {
+    throw new Error('No Dropdown question titled "' + ORDER_ID_QUESTION_TITLE +
+      '" found on the form. Check the question type is set to Dropdown (not Short answer) ' +
+      'and its title matches exactly.');
+  }
+  target.asListItem().setChoiceValues(choices);
+  Logger.log('Order ID dropdown refreshed — ' + choices.length + ' choice(s).');
+}
+
+// One-time setup: run this once from the Apps Script editor (pick it in the
+// function dropdown at the top of the editor, click Run) to populate the
+// dropdown immediately and install a 15-minute auto-refresh trigger.
+function installOrderIdDropdownTrigger() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var t = 0; t < triggers.length; t++) {
+    if (triggers[t].getHandlerFunction() === 'refreshOrderIdDropdown') ScriptApp.deleteTrigger(triggers[t]);
+  }
+  ScriptApp.newTrigger('refreshOrderIdDropdown').timeBased().everyMinutes(15).create();
+  refreshOrderIdDropdown();
 }
