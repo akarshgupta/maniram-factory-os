@@ -101,11 +101,17 @@ async function init() {
   // Safe to render now — CLIENTS and purchases arrays are populated
   renderClients();
 
+  // Supervisor log — after initChallans() so auto-created challans (see
+  // _svAutoCreateChallans in supervisor-log.js) land on top of the loaded
+  // list instead of being overwritten by it.
+  if (typeof fetchSupervisorLog === 'function') fetchSupervisorLog();
+
   // Auto-refresh intervals
   setInterval(fetchReelStock,    10 * 60 * 1000); // every 10 min
   setInterval(fetchOrders,        5 * 60 * 1000); // every 5 min
   setInterval(fetchClients,      10 * 60 * 1000); // every 10 min
   setInterval(computeReminders,  60 * 60 * 1000); // every 1 hr
+  if (typeof fetchSupervisorLog === 'function') setInterval(fetchSupervisorLog, 5 * 60 * 1000); // every 5 min — also drives auto-challan creation
 }
 
 // Run after DOM ready
