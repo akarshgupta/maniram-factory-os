@@ -1517,6 +1517,18 @@
 </div>
 
 <!-- Challan Modal -->
+<!-- Supervisor Dispatch — Link to Order -->
+<div class="popup-overlay" id="sv-link-overlay" style="display:none" onclick="if(event.target===this)closeSvLinkModal()">
+  <div class="popup-box" style="width:min(480px,95vw);padding:24px;max-height:85vh;display:flex;flex-direction:column" onclick="event.stopPropagation()" onkeydown="if(event.key==='Escape')closeSvLinkModal()">
+    <div class="popup-title">🔗 Link Dispatch to an Order</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px" id="sv-link-info"></div>
+    <input class="form-input" type="text" id="sv-link-search" placeholder="Search by order ID, party, or product…"
+      style="margin-bottom:10px" oninput="renderSvLinkResults(this.value)" onkeydown="if(event.key==='Escape')closeSvLinkModal()">
+    <div id="sv-link-results" style="overflow-y:auto;flex:1;border:1px solid var(--border);border-radius:8px"></div>
+    <button class="btn-secondary" style="margin-top:12px" onclick="closeSvLinkModal()">Cancel</button>
+  </div>
+</div>
+
 <div class="popup-overlay" id="challan-modal-overlay" style="display:none" onclick="if(event.target===this)closeChallanModal()">
   <div class="popup-box" style="width:min(460px,95vw);padding:24px" onclick="event.stopPropagation()">
     <div class="popup-title">🚚 Issue Delivery Challan</div>

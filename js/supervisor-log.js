@@ -84,46 +84,99 @@ function _svExpectedWeight(party, product) {
   return null;
 }
 
+// Plain substring match, plus a second pass with spaces/punctuation stripped —
+// real entries are typed as "N D S" vs "NDS", "S S D" vs "SSD", "Eagle ( small)"
+// vs "Eagle (Big)", etc.
 function _svFuzzyEq(a, b) {
   a = (a || '').toString().trim().toLowerCase();
   b = (b || '').toString().trim().toLowerCase();
   if (!a || !b) return false;
-  return a === b || a.includes(b) || b.includes(a);
+  if (a === b || a.includes(b) || b.includes(a)) return true;
+  const na = a.replace(/[\s.,()]/g, ''), nb = b.replace(/[\s.,()]/g, '');
+  return !!na && !!nb && (na === nb || na.includes(nb) || nb.includes(na));
 }
 
 // Find which pending order a dispatch entry belongs to, when it has no
 // Order ID (or one that didn't match). Tries product name first, narrowing
-// by party if more than one order shares that product; falls back to party
-// alone when there's no usable product text (common — the supervisor's
-// Product Name question is still optional/newer, and today's real data
-// mostly has it blank). Only ever returns a match when it's unambiguous —
-// two candidate orders means "don't guess", not "pick one".
+// by party if more than one order shares that product. When there's no
+// usable Product Name text (common — that question is newer/still optional,
+// and most real entries predate it), falls back to the "Party Name" field —
+// but tries it against BOTH order.customer and order.product, because real
+// data shows the supervisor very often types the box/design name into that
+// field instead of an actual customer name (e.g. "Madhubala", "Tower", "Jio"
+// are product names, not parties). Only ever returns a match when it's
+// unambiguous — two candidate orders means "don't guess", not "pick one".
 function _svMatchOrderByProduct(e) {
   if (typeof orders === 'undefined' || typeof FINISHED_STATUSES === 'undefined') return { order: null, reason: 'none' };
   const pending = orders.filter(o => !FINISHED_STATUSES.includes(o.status));
   if (!pending.length) return { order: null, reason: 'none' };
 
-  const byProduct = e.product ? pending.filter(o => _svFuzzyEq(o.product, e.product)) : [];
-  if (byProduct.length === 1) return { order: byProduct[0], reason: 'product' };
-  if (byProduct.length > 1) {
-    const narrowed = e.party ? byProduct.filter(o => _svFuzzyEq(o.customer, e.party)) : [];
-    return narrowed.length === 1 ? { order: narrowed[0], reason: 'product+party' } : { order: null, reason: 'ambiguous' };
+  if (e.product) {
+    const byProduct = pending.filter(o => _svFuzzyEq(o.product, e.product));
+    if (byProduct.length === 1) return { order: byProduct[0], reason: 'product' };
+    if (byProduct.length > 1) {
+      const narrowed = e.party ? byProduct.filter(o => _svFuzzyEq(o.customer, e.party)) : [];
+      return narrowed.length === 1 ? { order: narrowed[0], reason: 'product+party' } : { order: null, reason: 'ambiguous' };
+    }
   }
   if (e.party) {
-    const byParty = pending.filter(o => _svFuzzyEq(o.customer, e.party));
-    if (byParty.length === 1) return { order: byParty[0], reason: 'party' };
-    if (byParty.length > 1) return { order: null, reason: 'ambiguous' };
+    const byCustomer = pending.filter(o => _svFuzzyEq(o.customer, e.party));
+    const byProdText = pending.filter(o => _svFuzzyEq(o.product, e.party));
+    const combined   = [...new Set([...byCustomer, ...byProdText])];
+    if (combined.length === 1) return { order: combined[0], reason: byCustomer.length ? 'party' : 'party-as-product' };
+    if (combined.length > 1) return { order: null, reason: 'ambiguous' };
   }
   return { order: null, reason: 'none' };
 }
 
+// Build + save one challan for a dispatch entry matched to an order, shared
+// by the automatic sweep below and the manual "Link to Order" picker.
+// Returns the created record.
+function _svCreateChallanFor(e, o, matchedBy) {
+  const record = {
+    dcNum:     _nextDcNum(),
+    orderId:   o.id,
+    customer:  o.customer,
+    product:   o.product || o.size || '',
+    size:      o.size || '',
+    ply:       o.ply  || '',
+    colour:    o.colour || '',
+    weight:    o.weight || '',
+    rate:      o.rate   || 0,
+    qty:       e.pcs,
+    date:      _svNormDate(e.date) || todayStr,
+    note:      `Auto-generated from Supervisor Dispatch Log (matched by ${matchedBy})`,
+    createdAt: new Date().toISOString(),
+    svTs:      e.ts,
+  };
+  challanList.push(record);
+  saveChallans();
+  if (typeof mirrorToSheet === 'function') {
+    mirrorToSheet('saveChallan', {
+      id: record.dcNum, date: record.date, orderId: record.orderId,
+      customer: record.customer, product: record.product,
+      qty: record.qty, vehicle: '', notes: record.note,
+    });
+  }
+  if (typeof checkOrderFullyDispatched === 'function') checkOrderFullyDispatched(record.orderId);
+  if (typeof renderOrders === 'function') renderOrders();
+  if (typeof renderChallansTab === 'function') renderChallansTab();
+  if (typeof autoInvoiceChallans === 'function') autoInvoiceChallans();
+  return record;
+}
+
 // Turn dispatch entries into real Delivery Challans, automatically —
 // matched by Order ID when present, otherwise by product/party (see
-// _svMatchOrderByProduct). Idempotent: each form response's own timestamp
+// _svMatchOrderByProduct), restricted to orders still open (not yet
+// Delivered/Dispatched/Cancelled) since this path never has a human
+// double-checking it. Idempotent: each form response's own timestamp
 // (e.ts) is stamped onto the challan as svTs, so re-fetching never
 // double-creates one. Entries that can't be matched at all, or match more
 // than one pending order, are left alone and flagged in the dispatch table
-// instead of guessed at.
+// — with a "Link to Order" picker (any order, any status) to resolve by
+// hand instead, since real supervisor data is often too messy (product
+// names typed into the party field, plain box sizes, etc.) for automatic
+// matching to safely guess.
 function _svAutoCreateChallans() {
   if (typeof challanList === 'undefined' || typeof orders === 'undefined') return;
   let created = 0;
@@ -142,41 +195,67 @@ function _svAutoCreateChallans() {
     }
     if (!o) return;
 
-    const record = {
-      dcNum:     _nextDcNum(),
-      orderId:   o.id,
-      customer:  o.customer,
-      product:   o.product || o.size || '',
-      size:      o.size || '',
-      ply:       o.ply  || '',
-      colour:    o.colour || '',
-      weight:    o.weight || '',
-      rate:      o.rate   || 0,
-      qty:       e.pcs,
-      date:      _svNormDate(e.date) || todayStr,
-      note:      `Auto-generated from Supervisor Dispatch Log (matched by ${matchedBy})`,
-      createdAt: new Date().toISOString(),
-      svTs:      e.ts,
-    };
-    challanList.push(record);
+    _svCreateChallanFor(e, o, matchedBy);
     created++;
-    if (typeof mirrorToSheet === 'function') {
-      mirrorToSheet('saveChallan', {
-        id: record.dcNum, date: record.date, orderId: record.orderId,
-        customer: record.customer, product: record.product,
-        qty: record.qty, vehicle: '', notes: record.note,
-      });
-    }
-    if (typeof checkOrderFullyDispatched === 'function') checkOrderFullyDispatched(record.orderId);
   });
-  if (created > 0) {
-    saveChallans();
-    if (typeof renderOrders === 'function') renderOrders();
-    if (typeof renderChallansTab === 'function') renderChallansTab();
-  }
-  // Every challan (this batch or already-existing) gets invoiced if it isn't yet —
-  // see autoInvoiceChallans() in js/invoices.js.
-  if (typeof autoInvoiceChallans === 'function') autoInvoiceChallans();
+  if (created > 0 && document.getElementById('svlog-root')) renderSupervisorLog(false);
+}
+
+// ── Manual "Link to Order" — for dispatch entries automatic matching can't
+// safely resolve (ambiguous, or no product/party text that matches anything).
+// Unlike the automatic sweep, this searches every order regardless of status
+// — a human is explicitly confirming the match, so there's no guessing risk,
+// and it's the only way to backfill a dispatch against an order that was
+// already marked Delivered by hand without ever being formally challaned. ──
+let _svLinkTs = null;
+
+function openSvLinkModal(ts) {
+  _svLinkTs = ts;
+  const overlay = document.getElementById('sv-link-overlay');
+  if (!overlay) return;
+  const e = _svDisp.find(x => x.ts === ts);
+  document.getElementById('sv-link-info').textContent = e
+    ? `${e.party || '—'}${e.product ? ' · ' + e.product : ''} · ${e.pcs.toLocaleString('en-IN')} pcs · ${_svFmtDate(e.date)}`
+    : '';
+  const search = document.getElementById('sv-link-search');
+  search.value = '';
+  renderSvLinkResults('');
+  overlay.style.display = 'flex';
+  search.focus();
+}
+
+function closeSvLinkModal() {
+  document.getElementById('sv-link-overlay').style.display = 'none';
+  _svLinkTs = null;
+}
+
+function renderSvLinkResults(q) {
+  const el = document.getElementById('sv-link-results');
+  if (!el) return;
+  const needle = q.trim().toLowerCase();
+  const list = (typeof orders !== 'undefined' ? orders : [])
+    .filter(o => !needle ||
+      (o.id || '').toLowerCase().includes(needle) ||
+      (o.customer || '').toLowerCase().includes(needle) ||
+      (o.product || '').toLowerCase().includes(needle))
+    .slice(0, 40);
+  if (!list.length) { el.innerHTML = '<div class="empty-state">No matching orders.</div>'; return; }
+  el.innerHTML = list.map(o => `
+    <div onclick="linkDispatchToOrder('${o.id}')"
+      style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border)"
+      onmouseover="this.style.background='var(--hover-bg,#f5f7fa)'" onmouseout="this.style.background=''">
+      <div style="font-weight:700;font-size:13px">${o.id} — ${o.customer}</div>
+      <div style="font-size:11px;color:var(--muted)">${o.product || '—'} · ${o.size || '—'} · ${o.status || '—'}</div>
+    </div>`).join('');
+}
+
+function linkDispatchToOrder(orderId) {
+  const e = _svDisp.find(x => x.ts === _svLinkTs);
+  const o = typeof orders !== 'undefined' ? orders.find(x => x.id === orderId) : null;
+  closeSvLinkModal();
+  if (!e || !o) return;
+  _svCreateChallanFor(e, o, 'manual link');
+  renderSupervisorLog(false);
 }
 
 function svShowTab(tab) {
@@ -246,6 +325,11 @@ function _svDispatchHtml() {
         dcHtml = `<span style="color:#E67E22;font-weight:600" title="More than one pending order matches this product/party — add an Order ID to disambiguate">⚠ ambiguous</span>`;
       }
     }
+    // No challan yet for this entry — offer a manual picker regardless of why
+    // (unmatched, ambiguous, or a mistyped Order ID) so nothing has to stay stuck.
+    if (!dc) {
+      dcHtml += ` <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="openSvLinkModal('${e.ts.replace(/'/g, "\\'")}')" title="Pick the order this dispatch belongs to">🔗 Link</button>`;
+    }
     return `<tr style="border-top:1px solid var(--border,#e5e7eb)">
       <td style="padding:8px 10px;white-space:nowrap">${_svFmtDate(e.date)}</td>
       <td style="padding:8px 10px;font-weight:600">${e.party || '—'}</td>
@@ -281,7 +365,7 @@ function _svDispatchHtml() {
         <th style="padding:8px 10px" title="Measured vs product master weight">vs Master</th>
         <th style="padding:8px 10px" title="Auto-generates a Delivery Challan — by Order ID if present, otherwise by matching product/party against pending orders">Order / DC</th>
       </tr></thead><tbody>${rows}</tbody></table></div>
-    <div class="field-hint" style="margin-top:8px">vs Master compares the supervisor's measured weight against the product weight on the Clients page. Within ±3% green, ±7% orange, beyond that red — red means check the paper GSM or size. Order / DC: a ✓ means a Delivery Challan was auto-created from this entry, reducing that order's pending quantity (see the Challans tab). With no Order ID, it's matched by product name (falling back to party) against pending orders — orange "ambiguous" means more than one pending order matches and nothing was guessed; a red ⚠ means a typed Order ID matches no order. Either way, fix the entry (or add/clarify an Order ID) and it'll challan on the next refresh.
+    <div class="field-hint" style="margin-top:8px">vs Master compares the supervisor's measured weight against the product weight on the Clients page. Within ±3% green, ±7% orange, beyond that red — red means check the paper GSM or size. Order / DC: a ✓ means a Delivery Challan was auto-created from this entry, reducing that order's pending quantity (see the Challans tab). With no Order ID, it's matched by product name (falling back to party) against pending orders — orange "ambiguous" means more than one pending order matches and nothing was guessed; a red ⚠ means a typed Order ID matches no order. Anything not yet matched shows a <strong>🔗 Link</strong> button — pick the right order by hand (any order, any status) and it'll challan immediately, no need to wait for a form fix.
     ${_svDisp.some(e => !e.product) ? '<br>⚠️ Older entries have no separate Product Name — see the note below on adding that question to the form.' : ''}</div>`;
 }
 
