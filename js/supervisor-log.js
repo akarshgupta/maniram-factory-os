@@ -169,6 +169,9 @@ function _svAutoCreateChallans() {
     if (typeof renderOrders === 'function') renderOrders();
     if (typeof renderChallansTab === 'function') renderChallansTab();
   }
+  // Every challan (this batch or already-existing) gets invoiced if it isn't yet —
+  // see autoInvoiceChallans() in js/invoices.js.
+  if (typeof autoInvoiceChallans === 'function') autoInvoiceChallans();
 }
 
 function svShowTab(tab) {
