@@ -32,11 +32,16 @@ async function fetchSupervisorLog() {
       get(SUPERVISOR_PROD_TAB, 'A1:P500'),
       get(SUPERVISOR_DISP_TAB, 'A1:L500'),
     ]);
+    // Sort by the entry's own Date field (not just submission order) — a late-
+    // filed entry for an earlier date should still land in date order, newest
+    // first, with submission timestamp as the tie-breaker for same-day entries.
+    const byDateDesc = (a, b) => _svNormDate(b.date).localeCompare(_svNormDate(a.date)) || b.ts.localeCompare(a.ts);
+
     _svProd = prod.map(r => ({
       ts: r[0] || '', date: r[1] || '',
       r1w: r[2] || '', r1g: r[3] || '', r2w: r[4] || '', r2g: r[5] || '',
       cutSize: r[6] || '', plyPcs: r[7] || '', sheets: r[8] || '', rolls: r[9] || '',
-    })).reverse(); // newest first
+    })).sort(byDateDesc);
     _svDisp = disp.map(r => ({
       ts: r[0] || '', date: r[1] || '', party: r[2] || '',
       pcs: parseInt(r[3]) || 0, size: r[4] || '',
@@ -46,7 +51,7 @@ async function fetchSupervisorLog() {
       // refreshOrderIdDropdown) shows choices as "MIORD019 — Party — Product" so the supervisor
       // can recognise the right order; only the leading ID token is what matters here.
       orderId: (r[7] || '').toString().split('—')[0].trim(),
-    })).reverse();
+    })).sort(byDateDesc);
     _svAutoCreateChallans();
     if (document.getElementById('svlog-root')) renderSupervisorLog(false); // keep the register live if it's the open page
     return true;
@@ -242,7 +247,7 @@ function _svDispatchHtml() {
       }
     }
     return `<tr style="border-top:1px solid var(--border,#e5e7eb)">
-      <td style="padding:8px 10px;white-space:nowrap">${e.date}</td>
+      <td style="padding:8px 10px;white-space:nowrap">${_svFmtDate(e.date)}</td>
       <td style="padding:8px 10px;font-weight:600">${e.party || '—'}</td>
       <td style="padding:8px 10px">${e.product || '<span style="color:var(--muted,#888)">—</span>'}</td>
       <td style="padding:8px 10px">${e.size || '—'}</td>
@@ -303,6 +308,12 @@ function _svNormDate(s) {
   return m ? `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}` : (s || '');
 }
 
+// Display-format the form's M/D/YYYY date as DD/MM/YY.
+function _svFmtDate(s) {
+  const m = String(s || '').match(/(\d+)\/(\d+)\/(\d+)/);
+  return m ? `${m[2].padStart(2,'0')}/${m[1].padStart(2,'0')}/${m[3].slice(-2)}` : (s || '—');
+}
+
 // Group production + dispatch entries by date → daily totals.
 function _svDailySummary() {
   const days = {};
@@ -344,7 +355,7 @@ function _svDailySummaryHtml() {
       </tr></thead><tbody>` +
     days.map(([date, d]) => `
       <tr style="border-top:1px solid var(--border,#e5e7eb)">
-        <td style="padding:8px 10px;font-weight:700;white-space:nowrap">${date}</td>
+        <td style="padding:8px 10px;font-weight:700;white-space:nowrap">${_svFmtDate(date)}</td>
         <td style="padding:8px 10px;font-weight:600">${d.plyPcs ? d.plyPcs.toLocaleString('en-IN') : '—'}</td>
         <td style="padding:8px 10px">${d.sheets ? d.sheets.toLocaleString('en-IN') : '—'}</td>
         <td style="padding:8px 10px">${d.rolls || '—'}</td>
@@ -366,7 +377,7 @@ function _svProductionHtml() {
     ].filter(Boolean).join(' + ');
     const kg = _svEntryKg(e);
     return `<tr style="border-top:1px solid var(--border,#e5e7eb)">
-      <td style="padding:8px 10px;white-space:nowrap">${e.date}</td>
+      <td style="padding:8px 10px;white-space:nowrap">${_svFmtDate(e.date)}</td>
       <td style="padding:8px 10px">${reels || '—'}</td>
       <td style="padding:8px 10px">${e.cutSize ? e.cutSize + '"' : '—'}</td>
       <td style="padding:8px 10px">${e.plyPcs ? parseInt(e.plyPcs).toLocaleString('en-IN') : '—'}</td>
