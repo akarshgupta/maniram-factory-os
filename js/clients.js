@@ -811,10 +811,15 @@ function saveProductModal() {
 
   // Save / remove print reference photo in localStorage
   const key = _photoKey(CLIENTS[ci].name, name);
+  let photoSaveFailed = false;
   if (hasPrint && _pmCurrentPhoto) {
-    try { localStorage.setItem(key, _pmCurrentPhoto); } catch (e) { /* quota */ }
+    try { localStorage.setItem(key, _pmCurrentPhoto); }
+    catch (e) { photoSaveFailed = true; } // storage full — everything else in this save still went through
   } else if (!hasPrint || !_pmCurrentPhoto) {
     localStorage.removeItem(key);
+  }
+  if (photoSaveFailed) {
+    alert('Product saved, but the reference photo is too large to store — storage is full. Everything else was saved; try a smaller photo or clear old ones (Clients page → open another product → Remove Photo).');
   }
 
   const cb    = _productModalCb;
