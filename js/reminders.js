@@ -14,6 +14,98 @@ function patternKey(customer, product, size) {
   return [customer.trim(), product.trim(), size.trim()].join('||').toLowerCase();
 }
 
+// ── Lapsed customers — no repeat order in 30+ days ──
+// Separate from the cycle-based reminders above: this catches EVERY
+// customer whose most recent order has gone quiet, even a one-time buyer
+// with no established pattern (buildReminderObjects requires 2+ orders,
+// so it can never flag them). "Snoozing" (via the Check-In send, or the
+// explicit Snooze button) hides an entry for 14 days rather than
+// permanently — unlike a cyclic reminder's dismiss, there's no future
+// predicted date to naturally roll it off the list.
+const LS_LAPSED_SNOOZE  = 'mi_lapsed_snoozed_v1';
+const LAPSED_SNOOZE_DAYS = 14;
+const LAPSED_THRESHOLD_DAYS = 30;
+
+function loadLapsedSnooze()  { try { return JSON.parse(localStorage.getItem(LS_LAPSED_SNOOZE) || '{}'); } catch { return {}; } }
+function saveLapsedSnooze(s) { localStorage.setItem(LS_LAPSED_SNOOZE, JSON.stringify(s)); }
+
+function buildLapsedCustomers() {
+  if (typeof orders === 'undefined') return [];
+  const byCustomer = {};
+  orders.forEach(o => {
+    if (!o.customer || !o.date || o.status === 'Cancelled') return;
+    const key = o.customer.trim();
+    if (!key) return;
+    if (!byCustomer[key] || o.date > byCustomer[key].date) {
+      byCustomer[key] = { customer: o.customer, date: o.date, product: o.product || '', size: o.size || '' };
+    }
+  });
+
+  const snooze = loadLapsedSnooze();
+  return Object.values(byCustomer)
+    .map(c => ({ ...c, daysSince: -daysFromToday(c.date) }))
+    .filter(c => c.daysSince > LAPSED_THRESHOLD_DAYS)
+    .filter(c => {
+      const s = snooze[c.customer.trim().toLowerCase()];
+      return !s || (Date.now() - s.at) / 86400000 >= LAPSED_SNOOZE_DAYS;
+    })
+    .sort((a, b) => b.daysSince - a.daysSince);
+}
+
+function snoozeLapsedCustomer(customer) {
+  const s = loadLapsedSnooze();
+  s[customer.trim().toLowerCase()] = { at: Date.now() };
+  saveLapsedSnooze(s);
+  computeReminders();
+}
+
+// ── Lapsed customer WhatsApp popup — same overlay as cyclic reminders,
+// routed through confirmSendWA()'s '__lapsed__' branch below ──
+let _lapsedByCustomer = {};
+
+function renderLapsedCustomers(list) {
+  const el = document.getElementById('lapsed-customers-list');
+  if (!el) return;
+  _lapsedByCustomer = {};
+  list.forEach(c => { _lapsedByCustomer[c.customer.trim().toLowerCase()] = c; });
+
+  if (!list.length) { el.innerHTML = '<div class="empty-state">✅ Everyone has ordered within the last month.</div>'; return; }
+  el.innerHTML = '';
+  list.forEach(c => {
+    const card = document.createElement('div');
+    card.className = 'reminder-card';
+    card.style.borderLeftColor = 'var(--danger)';
+    card.innerHTML = `
+      <div class="reminder-icon">⏰</div>
+      <div class="reminder-info">
+        <div class="reminder-customer">${c.customer}</div>
+        <div class="reminder-product">${c.product || 'Last order'}${c.size ? ' · ' + c.size : ''}</div>
+        <div class="reminder-due">📅 Last ordered: ${formatDate(c.date)} · <strong style="color:var(--danger)">${c.daysSince} days ago</strong></div>
+      </div>
+      <div class="reminder-actions">
+        <button class="btn-wa" onclick="openLapsedWAPopup('${escStr(c.customer)}')">📲 Check In</button>
+        <button class="btn-dismiss" onclick="snoozeLapsedCustomer('${escStr(c.customer)}')">Snooze 14d</button>
+      </div>
+    `;
+    el.appendChild(card);
+  });
+}
+
+function openLapsedWAPopup(customer) {
+  const c = _lapsedByCustomer[customer.trim().toLowerCase()];
+  if (!c) return;
+  const client   = typeof CLIENTS !== 'undefined' ? CLIENTS.find(cl => cl.name.toLowerCase() === c.customer.toLowerCase()) : null;
+  const rawPhone = (client?.phone || '').replace(/\D/g, '');
+  const phone    = rawPhone.startsWith('91') && rawPhone.length > 10 ? rawPhone.slice(2) : rawPhone;
+  const message  = `Greetings! 🙏\n\nThis is Maniram Industries. It's been ${c.daysSince} days since your last order${c.product ? ' for *' + c.product + '*' : ''} (${formatDate(c.date)}) — just checking in to see if you need a fresh supply.\n\nWould you like to place an order?\n\n— Maniram Industries, Jhansi`;
+  const waUrl    = phone ? `https://wa.me/91${phone}?text=${encodeURIComponent(message)}` : `https://wa.me/?text=${encodeURIComponent(message)}`;
+
+  pendingWALink = waUrl + '||__lapsed__||' + encodeURIComponent(c.customer);
+  document.getElementById('popup-sub').textContent     = phone ? `${c.customer} (${phone})` : `${c.customer} — phone not found`;
+  document.getElementById('popup-preview').textContent = message;
+  document.getElementById('popup-overlay').classList.add('show');
+}
+
 // ── Sync orders → history ──
 function syncOrdersToHistory() {
   const history = loadOrderHistory();
@@ -74,10 +166,12 @@ function computeReminders() {
   const sentMap  = loadReminderSent();
   const active   = all.filter(r => r.daysUntil >= -1 && r.daysUntil <= 3);
   const upcoming = all.filter(r => r.daysUntil > 3   && r.daysUntil <= 30);
+  const lapsed   = buildLapsedCustomers();
 
-  updateReminderBadge(active.length);
-  renderDashboardReminderBanner(active);
+  updateReminderBadge(active.length + lapsed.length);
+  renderDashboardReminderBanner(active, lapsed);
   renderActiveReminders(active, sentMap);
+  renderLapsedCustomers(lapsed);
   renderUpcomingReminders(upcoming);
   renderAllPatterns();
 }
@@ -95,10 +189,11 @@ function updateReminderBadge(count) {
 }
 
 // ── Dashboard Banner ──
-function renderDashboardReminderBanner(active) {
+function renderDashboardReminderBanner(active, lapsed) {
   const banner = document.getElementById('dashboard-reminder-banner');
   const list   = document.getElementById('dashboard-reminder-list');
-  if (!active.length) { banner.style.display = 'none'; return; }
+  lapsed = lapsed || [];
+  if (!active.length && !lapsed.length) { banner.style.display = 'none'; return; }
   banner.style.display = 'block';
   list.innerHTML = '';
   active.forEach(r => {
@@ -111,6 +206,18 @@ function renderDashboardReminderBanner(active) {
         <div class="reminder-alert-detail">Avg: ${r.avgCycle} din · ${label}</div>
       </div>
       <button class="btn-send-reminder" onclick="openWAPopup('${escStr(r.key)}')">📲 Remind</button>
+    `;
+    list.appendChild(item);
+  });
+  lapsed.forEach(c => {
+    const item = document.createElement('div');
+    item.className = 'reminder-alert-item';
+    item.innerHTML = `
+      <div class="reminder-alert-info">
+        <div class="reminder-alert-customer">⏰ ${c.customer} — no repeat order</div>
+        <div class="reminder-alert-detail">Last ordered ${c.daysSince} days ago (${formatDate(c.date)})</div>
+      </div>
+      <button class="btn-send-reminder" onclick="showPage('reminders');openLapsedWAPopup('${escStr(c.customer)}')">📲 Check In</button>
     `;
     list.appendChild(item);
   });
@@ -228,7 +335,11 @@ function confirmSendWA() {
   const waUrl = parts[0];
   const key   = parts[1];
   const date  = parts[2];
-  if (key && date) { const s = loadReminderSent(); s[key + '_' + date] = { sent: true, at: new Date().toISOString() }; saveReminderSent(s); }
+  if (key === '__lapsed__' && date) {
+    snoozeLapsedCustomer(decodeURIComponent(date)); // also re-runs computeReminders()
+  } else if (key && date) {
+    const s = loadReminderSent(); s[key + '_' + date] = { sent: true, at: new Date().toISOString() }; saveReminderSent(s);
+  }
   closePopup();
   window.open(waUrl, '_blank');
   setTimeout(computeReminders, 500);
