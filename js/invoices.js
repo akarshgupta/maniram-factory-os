@@ -98,17 +98,63 @@ function autoInvoiceChallans() {
     saveInvoiceList();
     if (typeof renderInvoicingPage === 'function') renderInvoicingPage();
   }
+  renderUnratedChallanBanner();
   return created;
 }
 
+// Challans that have shipped but have no invoice yet, because they have no
+// rate on file to bill at. Shared by the Invoicing page's warning card and
+// the dashboard notification banner below.
+function _unbilledChallans() {
+  if (typeof challanList === 'undefined') return [];
+  const invoicedDcs = new Set();
+  invoiceList.forEach(inv => (inv.items || []).forEach(it => { if (it.challanDc) invoicedDcs.add(it.challanDc); }));
+  return challanList.filter(c => c.dcNum && !invoicedDcs.has(c.dcNum));
+}
+
+// Dashboard-level notification for challans stuck without a rate — the
+// active, hard-to-miss counterpart to the Invoicing page's warning card.
+// "Enter rate & invoice" opens the same fully-editable Create Invoice form
+// as every other invoice — party, date, description, qty and rate can all
+// be changed there, not just the rate.
+function renderUnratedChallanBanner() {
+  const banner = document.getElementById('dashboard-rate-banner');
+  const badge  = document.getElementById('invoicing-rate-badge');
+  const unbilled = _unbilledChallans();
+
+  if (badge) {
+    badge.style.display = unbilled.length ? 'inline-block' : 'none';
+    badge.textContent = unbilled.length;
+  }
+  if (!banner) return;
+  if (!unbilled.length) { banner.style.display = 'none'; return; }
+
+  banner.style.display = 'block';
+  banner.innerHTML = `<div style="font-weight:700;margin-bottom:6px">💰 ${unbilled.length} dispatch${unbilled.length > 1 ? 'es' : ''} waiting on a rate to invoice</div>` +
+    unbilled.map(c => `<div style="font-size:12px;margin-top:2px">→ <strong>${c.dcNum}</strong> · ${c.customer} · ${c.product || c.size || '—'} · ${(c.qty || 0).toLocaleString('en-IN')} pcs
+      <button class="btn-secondary" style="font-size:10px;padding:2px 8px;margin-left:8px" onclick="resolveChallanInvoice('${c.dcNum}','${c.orderId}')">Enter rate &amp; invoice</button></div>`).join('');
+}
+
 // ── Create Invoice Modal ──
-// Each item row: { desc, qty, rate, orderId }  — orderId links the row to an order
+// Each item row: { desc, qty, rate, orderId, challanDc } — orderId links the row to an
+// order, challanDc (only set via resolveChallanInvoice below) links it to the specific
+// challan being billed so it drops off the "waiting on a rate" list once saved.
 let _ciItems     = [];
 let _ciEditingId = null; // set when editing an existing invoice
 
 // Backward-compat: called from order history rows
 function openInvoice(orderId) {
   openCreateInvoiceForm(orderId || null);
+}
+
+// Open the invoice form pre-filled for one specific unrated challan (from the
+// dashboard banner or the Invoicing page's warning card) — same fully-editable
+// form as any other invoice, just tagged so this challan is recognised as
+// billed once saved, instead of still showing up as unrated afterwards.
+function resolveChallanInvoice(dcNum, orderId) {
+  showPage('invoicing');
+  openCreateInvoiceForm(orderId);
+  if (_ciItems[0]) _ciItems[0].challanDc = dcNum;
 }
 
 function openCreateInvoiceForm(orderId) {
@@ -134,7 +180,7 @@ function openCreateInvoiceForm(orderId) {
 
   overlay.style.display = 'flex';
 
-  _ciItems = [{ desc: '', qty: '', rate: '', orderId: null }];
+  _ciItems = [{ desc: '', qty: '', rate: '', orderId: null, challanDc: null }];
   if (orderId) {
     const o = typeof orders !== 'undefined' ? orders.find(x => x.id === orderId) : null;
     if (o && partyEl && !partyEl.value) partyEl.value = o.customer || '';
@@ -233,7 +279,7 @@ function renderInvoiceItemRows() {
       const linked = item.orderId
         ? `<div style="font-size:10px;color:#15803D;margin-top:3px;display:flex;align-items:center;gap:4px;white-space:nowrap">
              ✅ <strong>${item.orderId}</strong> · deducts + marks Delivered
-             <button onclick="_ciItems[${i}].orderId=null;renderInvoiceItemRows()" title="Unlink" style="background:none;border:none;cursor:pointer;color:#15803D;font-size:13px;line-height:1">×</button>
+             <button onclick="_ciItems[${i}].orderId=null;_ciItems[${i}].challanDc=null;renderInvoiceItemRows()" title="Unlink" style="background:none;border:none;cursor:pointer;color:#15803D;font-size:13px;line-height:1">×</button>
            </div>`
         : '';
       return `
@@ -258,7 +304,7 @@ function renderInvoiceItemRows() {
 }
 
 function addInvoiceItemRow() {
-  _ciItems.push({ desc: '', qty: '', rate: '', orderId: null });
+  _ciItems.push({ desc: '', qty: '', rate: '', orderId: null, challanDc: null });
   renderInvoiceItemRows();
   recalcInvoiceTotals();
 }
@@ -295,7 +341,7 @@ function _buildInvoiceRecord() {
     party,
     date:      dateVal,
     orderId:   firstLinked ? firstLinked.orderId : null,
-    items:     items.map(i => ({ desc: i.desc, qty: +i.qty, rate: +(i.rate || 0), amount: +i.qty * +(i.rate || 0), orderId: i.orderId || null })),
+    items:     items.map(i => ({ desc: i.desc, qty: +i.qty, rate: +(i.rate || 0), amount: +i.qty * +(i.rate || 0), orderId: i.orderId || null, challanDc: i.challanDc || null })),
     subtotal:  total,
     gstPct:    0,
     gstAmt:    0,
@@ -380,6 +426,7 @@ function saveInvoiceOnly() {
   const wasEditing = !!_ciEditingId;
   closeCreateInvoice();
   renderInvoicingPage();
+  renderUnratedChallanBanner();
   if (typeof renderOrders === 'function') renderOrders();
   if (typeof updateDashboardOrders === 'function') updateDashboardOrders();
   alert(`✅ ${inv.id} ${wasEditing ? 'updated' : 'saved'}!`);
@@ -390,6 +437,7 @@ function saveAndPrintInvoice() {
   if (!inv) return;
   closeCreateInvoice();
   renderInvoicingPage();
+  renderUnratedChallanBanner();
   if (typeof renderOrders === 'function') renderOrders();
   if (typeof updateDashboardOrders === 'function') updateDashboardOrders();
   _populateInvoiceOverlay(inv);
@@ -403,8 +451,8 @@ function editInvoice(invId) {
   if (!overlay) return;
 
   _ciEditingId = invId;
-  _ciItems = (inv.items || []).map(i => ({ desc: i.desc, qty: i.qty, rate: i.rate, orderId: i.orderId || null }));
-  if (!_ciItems.length) _ciItems = [{ desc: '', qty: '', rate: '', orderId: null }];
+  _ciItems = (inv.items || []).map(i => ({ desc: i.desc, qty: i.qty, rate: i.rate, orderId: i.orderId || null, challanDc: i.challanDc || null }));
+  if (!_ciItems.length) _ciItems = [{ desc: '', qty: '', rate: '', orderId: null, challanDc: null }];
 
   const titleEl = document.querySelector('#create-invoice-overlay .popup-title');
   if (titleEl) titleEl.textContent = `✏️ Edit Invoice ${inv.id}`;
@@ -480,6 +528,7 @@ function deleteInvoice(invId) {
   saveInvoiceList();
   if (typeof mirrorToSheet === 'function') mirrorToSheet('deleteInvoice', { id: invId });
   renderInvoicingPage();
+  renderUnratedChallanBanner();
   if (typeof renderOrders === 'function') renderOrders();
 }
 
@@ -521,10 +570,7 @@ function renderInvoicingPage() {
 
   const fmt2 = n => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const totalInvoiced = invoiceList.reduce((s, inv) => s + inv.total, 0);
-
-  const invoicedDcs = new Set();
-  invoiceList.forEach(inv => (inv.items || []).forEach(it => { if (it.challanDc) invoicedDcs.add(it.challanDc); }));
-  const unbilled = (typeof challanList !== 'undefined' ? challanList : []).filter(c => c.dcNum && !invoicedDcs.has(c.dcNum));
+  const unbilled = _unbilledChallans();
 
   el.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
@@ -552,7 +598,7 @@ function renderInvoicingPage() {
             <span>${c.customer}</span>
             <span style="color:var(--muted)">${c.product || c.size || '—'}</span>
             <span style="color:var(--muted)">${(c.qty || 0).toLocaleString('en-IN')} pcs</span>
-            <button class="btn-secondary" style="font-size:10px;padding:2px 8px;margin-left:auto" onclick="openCreateInvoiceForm('${c.orderId}')">+ Invoice manually</button>
+            <button class="btn-secondary" style="font-size:10px;padding:2px 8px;margin-left:auto" onclick="resolveChallanInvoice('${c.dcNum}','${c.orderId}')">+ Invoice manually</button>
           </div>`).join('')}
         </div>
       </div>

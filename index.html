@@ -69,7 +69,10 @@
     <div class="nav-section">Main</div>
     <div class="nav-item active" onclick="showPage('dashboard')"><span class="nav-icon">⚡</span> Dashboard</div>
     <div class="nav-section">Finance</div>
-    <div class="nav-item" onclick="showPage('invoicing')"><span class="nav-icon">🧾</span> Invoicing</div>
+    <div class="nav-item" onclick="showPage('invoicing')">
+      <span class="nav-icon">🧾</span> Invoicing
+      <span class="reminder-badge" id="invoicing-rate-badge" style="display:none">0</span>
+    </div>
     <div class="nav-item" onclick="showPage('receivables')"><span class="nav-icon">💰</span> Receivables</div>
     <div class="nav-item" onclick="showPage('ledger')"><span class="nav-icon">📒</span> Ledger</div>
     <div class="nav-item" onclick="showPage('expenses')"><span class="nav-icon">💸</span> Expenses</div>
@@ -126,6 +129,7 @@
     <!-- ══ DASHBOARD ══ -->
     <div class="page active" id="page-dashboard">
       <div class="alert-banner" id="urgent-banner" style="display:none"></div>
+      <div class="alert-banner" id="dashboard-rate-banner" style="display:none;background:#FFFBEB;border-color:#F59E0B;color:#78350F"></div>
       <div class="alert-banner" id="dashboard-merge-banner" style="display:none;background:#FFFBEB;border-color:#F59E0B;color:#78350F"></div>
       <div class="reminder-alert-banner" id="dashboard-reminder-banner">
         <div class="reminder-alert-title">🔔 Repeat Order Reminders Due</div>
