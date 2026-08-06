@@ -98,6 +98,10 @@ async function init() {
   initQuotations();
   initChallans();
 
+  // Catch any challans that predate this feature (or were made on another
+  // device) and still have no invoice — see autoInvoiceChallans() in invoices.js.
+  if (typeof autoInvoiceChallans === 'function') autoInvoiceChallans();
+
   // Safe to render now — CLIENTS and purchases arrays are populated
   renderClients();
 
