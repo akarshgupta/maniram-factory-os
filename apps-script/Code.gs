@@ -48,6 +48,7 @@ function doPost(e) {
     else if (action === 'saveProduct')       saveProduct(data);
     else if (action === 'deleteProduct')     deleteProduct(data);
     else if (action === 'saveDispatch')      saveDispatch(data);
+    else if (action === 'clearDispatch')     clearDispatchRow(data);
     else if (action === 'saveStaffLog')      saveStaffLog(data);
     else if (action === 'saveProdPerf')      saveProdPerf(data);
     else if (action === 'savePurchase')      savePurchase(data);
@@ -283,8 +284,24 @@ function saveDispatch(data) {
   sheet.appendRow([data.orderId, data.qty, data.date || '', data.notes || '']);
 }
 
+// Removes an order's row from the Dispatch sheet entirely — the write side of
+// js/dispatch.js's clearDispatch() (un-marking a Record Dispatch entry).
+function clearDispatchRow(data) {
+  var ss    = SpreadsheetApp.openById(DISPATCH_SHEET_ID);
+  var sheet = ss.getSheetByName('Sheet1');
+  if (!sheet) sheet = ss.getSheets()[0];
+  if (!sheet || sheet.getLastRow() === 0) return;
+  var rows = sheet.getDataRange().getValues();
+  for (var i = rows.length - 1; i >= 1; i--) {
+    if (rows[i][0] === data.orderId) sheet.deleteRow(i + 1);
+  }
+}
+
 // ══════════════════════════════════════════════════════════════
 // STAFF LOG  →  STAFF_LOG_SHEET_ID / "Sheet1"
+// Daily headcount, upserted by date — matches js/prod-learning.js's
+// fetchStaffLog(), which reads column B as a plain integer count keyed by
+// column A's date.
 // ══════════════════════════════════════════════════════════════
 
 function saveStaffLog(data) {
@@ -292,10 +309,17 @@ function saveStaffLog(data) {
   var sheet = ss.getSheetByName('Sheet1');
   if (!sheet) sheet = ss.getSheets()[0];
   if (sheet.getLastRow() === 0) {
-    sheet.appendRow(['Date','Staff','OrderID','Action','Notes']);
+    sheet.appendRow(['Date', 'StaffCount']);
   }
-  sheet.appendRow([data.date || new Date().toISOString().split('T')[0],
-                   data.staff || '', data.orderId || '', data.action || '', data.notes || '']);
+  var date = data.date || new Date().toISOString().split('T')[0];
+  var rows = sheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (rows[i][0] === date) {
+      sheet.getRange(i + 1, 2).setValue(data.count || 0);
+      return;
+    }
+  }
+  sheet.appendRow([date, data.count || 0]);
 }
 
 // ══════════════════════════════════════════════════════════════

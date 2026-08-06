@@ -52,7 +52,7 @@ function logTodayStaff() {
   fetch(APPS_SCRIPT_URL, {
     method: 'POST', mode: 'no-cors',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'saveStaff', date: todayStr, count }),
+    body: JSON.stringify({ action: 'saveStaffLog', date: todayStr, count }),
   }).catch(() => {});
 
   if (inp) inp.style.borderColor = 'var(--success)';

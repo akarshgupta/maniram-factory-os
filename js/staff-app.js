@@ -285,7 +285,7 @@ function saveStaffStatus() {
     method: 'POST',
     mode:   'no-cors',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'updateStatus', orderId: o.id, status: newStatus }),
+    body: JSON.stringify({ action: 'updateOrderStatus', id: o.id, status: newStatus }),
   }).catch(() => {});
 }
 
