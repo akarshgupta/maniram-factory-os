@@ -358,9 +358,6 @@ function openEditModal(orderId) {
   editingOrderId = orderId;
 
   document.getElementById('edit-order-id-display').textContent = orderId + ' · Row ' + o.rowIndex;
-  if (typeof _sizeUnitOverride === 'object') delete _sizeUnitOverride['ef-size'];
-  const efSizeBtn = document.getElementById('ef-size-unit-btn');
-  if (efSizeBtn) efSizeBtn.textContent = '🔁 Entered in inches?';
   document.getElementById('ef-customer').value  = o.customer;
   document.getElementById('ef-product').value   = o.product;
   document.getElementById('ef-size').value      = o.size;

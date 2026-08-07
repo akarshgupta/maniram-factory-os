@@ -668,9 +668,6 @@ function clearProductFields() {
   ['f-size', 'f-ply', 'f-colour', 'f-weight', 'f-reel-size'].forEach(id => {
     document.getElementById(id).value = '';
   });
-  if (typeof _sizeUnitOverride === 'object') delete _sizeUnitOverride['f-size'];
-  const btn = document.getElementById('f-size-unit-btn');
-  if (btn) btn.textContent = '🔁 Entered in inches?';
   const hint = document.getElementById('f-size-in');
   if (hint) hint.textContent = '';
   hideStockCheck();
@@ -774,9 +771,6 @@ function openProductModal(ci, pi, callback) {
   _productModalCi = ci;
   _productModalPi = pi;
   _productModalCb = callback || null;
-  if (typeof _sizeUnitOverride === 'object') delete _sizeUnitOverride['pm-size']; // don't carry a unit override in from a previous product
-  const btn = document.getElementById('pm-size-unit-btn');
-  if (btn) btn.textContent = '🔁 Entered in inches?';
   const p = (pi >= 0) ? CLIENTS[ci].products[pi] : null;
   document.getElementById('product-modal-title').textContent = pi >= 0 ? 'Edit Product' : 'Add Product';
   document.getElementById('pm-name').value     = p ? p.name     : '';

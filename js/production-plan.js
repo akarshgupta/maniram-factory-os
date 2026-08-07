@@ -23,46 +23,38 @@ function toggleSheetsReady(orderId) {
   renderProductionPlan();
 }
 
-// ── Size converter: cm ↔ inches ──
-// inputId: field to read, hintId: div below the field to write to.
-// _sizeUnitOverride lets the small "🔁 Entered in inches?" button next to
-// each field force inches→cm instead of trusting the auto-guess below —
-// most real box sizes here (e.g. 26×13×22) are already inches and well
-// under the 60 threshold, so the guess is wrong more often than not for
-// this business's actual data.
-const _sizeUnitOverride = {};
-
-function toggleSizeUnit(inputId, hintId) {
-  _sizeUnitOverride[inputId] = _sizeUnitOverride[inputId] === 'in' ? undefined : 'in';
-  const btn = document.getElementById(inputId + '-unit-btn');
-  if (btn) btn.textContent = _sizeUnitOverride[inputId] === 'in' ? '✓ In inches' : '🔁 Entered in inches?';
-  convertSizeCmIn(inputId, hintId);
+// ── Size field: box dimensions are entered in inches by default — this
+// business's real data is almost always inches ("17*14*26" etc.), so the
+// field is inches-first rather than guessing per entry. The hint below
+// always shows the cm equivalent for reference. For the occasional order
+// that comes in as a cm measurement, the "🔁 This is cm" button next to it
+// converts and REPLACES the field's own value with inches, rather than
+// just relabelling the hint — so what's stored is always inches either way.
+function _parseSizeParts(raw) {
+  // Support ×, x, X, *, / or plain spaces as the separator — "*" is what's
+  // actually used throughout this app's real data and was previously missed.
+  return raw.trim().split(/[×xX*\/\s]+/).map(s => parseFloat(s.replace(',', '.'))).filter(n => !isNaN(n) && n > 0);
 }
 
 function convertSizeCmIn(inputId, hintId) {
   const inp  = document.getElementById(inputId);
   const hint = document.getElementById(hintId);
   if (!inp || !hint) return;
-  const raw = inp.value.trim();
-  if (!raw) { hint.textContent = ''; return; }
-
-  // Parse dimensions: support ×, x, X, *, / or plain spaces as the separator
-  // — "*" is the separator actually used throughout this app's real data
-  // (e.g. "17*14*26"), and was previously missed entirely.
-  const parts = raw.split(/[×xX*\/\s]+/).map(s => parseFloat(s.replace(',', '.'))).filter(n => !isNaN(n) && n > 0);
+  const parts = _parseSizeParts(inp.value);
   if (!parts.length) { hint.textContent = ''; return; }
+  const cmParts = parts.map(d => (d * 2.54).toFixed(1));
+  hint.textContent = `≈ ${cmParts.join(' × ')} cm`;
+}
 
-  // Detect unit: if largest dimension > 60 assume cm, else inches — unless
-  // explicitly overridden via toggleSizeUnit() above.
-  const maxVal = Math.max(...parts);
-  const treatAsCm = _sizeUnitOverride[inputId] !== 'in' && maxVal <= 60;
-  if (treatAsCm) {
-    const inParts = parts.map(d => (d / 2.54).toFixed(1));
-    hint.textContent = `≈ ${inParts.join(' × ')} inches`;
-  } else {
-    const cmParts = parts.map(d => (d * 2.54).toFixed(1));
-    hint.textContent = `≈ ${cmParts.join(' × ')} cm`;
-  }
+// Treats whatever's currently in the field as a cm measurement and replaces
+// it with the inches equivalent — type the cm size in, click this, it's inches.
+function convertBoxSizeToInches(inputId, hintId) {
+  const inp = document.getElementById(inputId);
+  if (!inp) return;
+  const parts = _parseSizeParts(inp.value);
+  if (!parts.length) return;
+  inp.value = parts.map(d => +(d / 2.54).toFixed(1)).join('×');
+  inp.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 // ── Priority Queue (order rearranging + auto-scheduler) ──

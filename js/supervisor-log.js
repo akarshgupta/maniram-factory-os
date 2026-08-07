@@ -162,6 +162,7 @@ function _svCreateChallanFor(e, o, matchedBy) {
       qty: record.qty, vehicle: '', notes: record.note,
     });
   }
+  if (typeof notifyDispatchWA === 'function') notifyDispatchWA(record);
   if (typeof checkOrderFullyDispatched === 'function') checkOrderFullyDispatched(record.orderId);
   if (typeof renderOrders === 'function') renderOrders();
   if (typeof renderChallansTab === 'function') renderChallansTab();
