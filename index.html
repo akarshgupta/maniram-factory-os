@@ -1534,6 +1534,44 @@
     <input class="form-input" type="text" id="sv-link-search" placeholder="Search by order ID, party, or product…"
       style="margin-bottom:10px" oninput="renderSvLinkResults(this.value)" onkeydown="if(event.key==='Escape')closeSvLinkModal()">
     <div id="sv-link-results" style="overflow-y:auto;flex:1;border:1px solid var(--border);border-radius:8px"></div>
+
+    <button class="btn-secondary" id="sv-nq-toggle" style="margin-top:10px" onclick="toggleSvNewOrderForm()">➕ No matching order — create a new one</button>
+
+    <div id="sv-nq-form" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:12px">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px">New order for this dispatch</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Customer *</label>
+          <input class="form-input" type="text" id="sv-nq-customer" style="font-size:13px">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Delivery Date *</label>
+          <input class="form-input" type="date" id="sv-nq-date" style="font-size:13px">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Product</label>
+          <input class="form-input" type="text" id="sv-nq-product" style="font-size:13px">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Box Size</label>
+          <input class="form-input" type="text" id="sv-nq-size" style="font-size:13px">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Qty (pcs)</label>
+          <input class="form-input" type="number" id="sv-nq-qty" style="font-size:13px">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Weight (gm/pc)</label>
+          <input class="form-input" type="number" id="sv-nq-weight" style="font-size:13px">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Rate (₹)</label>
+          <input class="form-input" type="number" step="0.01" id="sv-nq-rate" style="font-size:13px">
+        </div>
+      </div>
+      <button class="btn-primary" style="width:100%" onclick="createOrderFromDispatch()">✅ Create Order &amp; Link</button>
+    </div>
+
     <button class="btn-secondary" style="margin-top:12px" onclick="closeSvLinkModal()">Cancel</button>
   </div>
 </div>

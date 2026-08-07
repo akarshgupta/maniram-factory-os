@@ -225,6 +225,7 @@ function openSvLinkModal(ts) {
   const search = document.getElementById('sv-link-search');
   search.value = '';
   renderSvLinkResults('');
+  document.getElementById('sv-nq-form').style.display = 'none';
   overlay.style.display = 'flex';
   search.focus();
 }
@@ -232,6 +233,68 @@ function openSvLinkModal(ts) {
 function closeSvLinkModal() {
   document.getElementById('sv-link-overlay').style.display = 'none';
   _svLinkTs = null;
+}
+
+// ── Quick "create new order" from an unmatched dispatch entry — for when
+// the dispatch genuinely has no order behind it yet (a backdated/off-books
+// order). Pre-fills from the dispatch row; only Customer + Delivery Date
+// are required, same as the main New Order form. Creating jumps straight
+// into linkDispatchToOrder-style challan creation so the entry stops
+// showing as unmatched immediately, instead of a second manual step. ──
+function toggleSvNewOrderForm() {
+  const form = document.getElementById('sv-nq-form');
+  const opening = form.style.display === 'none';
+  form.style.display = opening ? 'block' : 'none';
+  if (!opening) return;
+
+  const e = _svDisp.find(x => x.ts === _svLinkTs);
+  document.getElementById('sv-nq-customer').value = e?.party   || '';
+  document.getElementById('sv-nq-product').value  = e?.product || '';
+  document.getElementById('sv-nq-size').value     = e?.size    || '';
+  document.getElementById('sv-nq-qty').value      = e?.pcs     || '';
+  document.getElementById('sv-nq-weight').value   = e?.wtPc    || '';
+  document.getElementById('sv-nq-rate').value     = '';
+  document.getElementById('sv-nq-date').value     = e ? _svNormDate(e.date) : '';
+  document.getElementById('sv-nq-customer').focus();
+}
+
+function createOrderFromDispatch() {
+  const e = _svDisp.find(x => x.ts === _svLinkTs);
+  if (!e) { closeSvLinkModal(); return; }
+
+  const customer = document.getElementById('sv-nq-customer').value.trim();
+  const date     = document.getElementById('sv-nq-date').value;
+  if (!customer || !date) { alert('Customer and Delivery Date are required.'); return; }
+
+  const product  = document.getElementById('sv-nq-product').value.trim();
+  const size     = document.getElementById('sv-nq-size').value.trim();
+  const qty      = document.getElementById('sv-nq-qty').value;
+  const weight   = document.getElementById('sv-nq-weight').value;
+  const rate     = document.getElementById('sv-nq-rate').value;
+
+  const id = generateOrderId();
+  const d       = new Date(date);
+  const fmtDate = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+  const payload = {
+    id, customer, product, size, ply: '', colour: '', weight, qty, rate,
+    date: fmtDate, orderDate: fmtDate, status: 'New', priority: 'Normal',
+    reelSize: '', reservedKg: 0, remarks: '',
+  };
+
+  const newOrder = {
+    id, customer, product, size, ply: '', colour: '', weight,
+    qty: parseInt(qty) || 0, rate: parseFloat(rate) || 0, date, orderDate: date,
+    status: 'New', priority: 'Normal', reelSize: '', reservedKg: 0, remarks: '', rowIndex: 9999,
+  };
+  orders.push(newOrder);
+  pendingOrderIds.add(id);
+  fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(() => {});
+  setTimeout(() => fetchOrders(), 4000);
+
+  closeSvLinkModal();
+  _svCreateChallanFor(e, newOrder, 'new order created from dispatch');
+  renderSupervisorLog(false);
+  if (typeof renderOrders === 'function') renderOrders();
 }
 
 function renderSvLinkResults(q) {
