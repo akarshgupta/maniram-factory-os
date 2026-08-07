@@ -110,6 +110,7 @@ function saveAndPrintChallan() {
       qty: record.qty, vehicle: '', notes: record.note,
     });
   }
+  if (typeof notifyDispatchWA === 'function') notifyDispatchWA(record);
   if (typeof autoInvoiceChallans === 'function') autoInvoiceChallans(); // bill this challan if it has a rate on file
 
   const orderId = _challanOrderId;

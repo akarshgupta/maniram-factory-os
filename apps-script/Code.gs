@@ -34,6 +34,17 @@ var QUOTATIONS_SHEET_ID  = '';
 var SUPERVISOR_FORM_ID     = '';
 var ORDER_ID_QUESTION_TITLE = 'Order ID'; // must exactly match the question title on the form
 
+// ── WhatsApp Business Cloud API — automatic dispatch notification ──
+// Blank by default; every call below silently no-ops until these are filled
+// in. Requires a Meta WhatsApp Business Platform setup — see the numbered
+// steps in the big comment above sendWhatsAppTemplate() below for exactly
+// what to do and where these four values come from.
+var WHATSAPP_PHONE_NUMBER_ID = '';
+var WHATSAPP_ACCESS_TOKEN    = '';
+var WHATSAPP_TEMPLATE_NAME   = 'dispatch_notification'; // must exactly match the approved template's name
+var WHATSAPP_TEMPLATE_LANG   = 'en_US';                 // must exactly match the template's approved language
+var WHATSAPP_OWNER_PHONE     = '';                       // optional, E.164 digits only e.g. 919876543210 — gets a copy of every notification too
+
 // ── Entry point ──
 function doPost(e) {
   try {
@@ -66,6 +77,7 @@ function doPost(e) {
     else if (action === 'deletePayment')     deleteFinanceRow(RECEIVABLES_SHEET_ID, 'Receivables', data.id);
     else if (action === 'saveChallan')       saveChallan(data);
     else if (action === 'deleteChallan')     deleteFinanceRow(CHALLANS_SHEET_ID, 'Challans', data.id);
+    else if (action === 'notifyDispatch')    notifyDispatch(data);
     else if (action === 'saveQuotation')     saveQuotation(data);
     else if (action === 'deleteQuotation')   deleteFinanceRow(QUOTATIONS_SHEET_ID, 'Quotations', data.id);
     else if (action === 'createNotionPage')  { /* handled separately if needed */ }
@@ -609,6 +621,98 @@ function saveChallan(data) {
     ['ChallanNo','Date','OrderID','Customer','Product','Qty','Vehicle','Notes'],
     [data.id, data.date, data.orderId || '', data.customer || '', data.product || '',
      data.qty || 0, data.vehicle || '', data.notes || '']);
+}
+
+// ══════════════════════════════════════════════════════════════
+// WHATSAPP BUSINESS CLOUD API — automatic dispatch notification
+//
+// ONE-TIME SETUP (all of this happens on Meta's side, not in this file):
+//   1. Create a Meta Business Account at business.facebook.com if you don't
+//      have one already, using Maniram Industries' business details.
+//   2. Go to developers.facebook.com → My Apps → Create App → choose
+//      "Business" as the app type → add the "WhatsApp" product to it.
+//   3. Meta gives you a free TEST phone number to start — it can send to up
+//      to 5 phone numbers you manually verify, for free, while testing.
+//      For real customers you'll eventually need to register a real
+//      business number (Meta Business Suite → WhatsApp Manager → Phone
+//      Numbers → Add). That number can't be actively used in the regular
+//      WhatsApp app at the same time — plan for a number dedicated to this.
+//   4. Business verification (Meta Business Suite → Business Settings →
+//      Business Info → Start Verification) — required before you can send
+//      to real, unverified customer numbers instead of just test numbers.
+//      Needs business documents; can take a few days.
+//   5. Create a Message Template (WhatsApp Manager → Message Templates →
+//      Create Template). Category: Utility. Suggested body, with 5
+//      placeholders in order — party, product, quantity, challan number,
+//      date:
+//        "Your order has been dispatched from Maniram Industries.
+//
+//         Party: {{1}}
+//         Product: {{2}}
+//         Quantity: {{3}} pcs
+//         Challan No: {{4}}
+//         Date: {{5}}
+//
+//         Thank you for your business!"
+//      Submit for approval (usually minutes, sometimes up to a day).
+//   6. Once approved, collect these four values and paste them into the
+//      constants above doPost(): WHATSAPP_PHONE_NUMBER_ID (WhatsApp Manager
+//      → Phone Numbers → click your number → Phone number ID),
+//      WHATSAPP_ACCESS_TOKEN (Business Suite → System Users → create a
+//      System User with WhatsApp permissions → Generate Token, set it to
+//      never expire), WHATSAPP_TEMPLATE_NAME (exactly as named in step 5),
+//      and WHATSAPP_TEMPLATE_LANG (the language you submitted it in, e.g.
+//      'en_US'). Redeploy after pasting them in.
+//
+// Until all four are filled in, every call below silently does nothing —
+// safe to leave blank indefinitely.
+// ══════════════════════════════════════════════════════════════
+
+function sendWhatsAppTemplate(toPhone, bodyParams) {
+  if (!WHATSAPP_PHONE_NUMBER_ID || !WHATSAPP_ACCESS_TOKEN || !toPhone) return;
+  var url = 'https://graph.facebook.com/v19.0/' + WHATSAPP_PHONE_NUMBER_ID + '/messages';
+  var payload = {
+    messaging_product: 'whatsapp',
+    to: toPhone,
+    type: 'template',
+    template: {
+      name: WHATSAPP_TEMPLATE_NAME,
+      language: { code: WHATSAPP_TEMPLATE_LANG },
+      components: [{
+        type: 'body',
+        parameters: bodyParams.map(function (p) { return { type: 'text', text: String(p) }; }),
+      }],
+    },
+  };
+  try {
+    var res = UrlFetchApp.fetch(url, {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { Authorization: 'Bearer ' + WHATSAPP_ACCESS_TOKEN },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true,
+    });
+    if (res.getResponseCode() >= 300) Logger.log('WhatsApp send failed: ' + res.getContentText());
+  } catch (e) {
+    Logger.log('WhatsApp send threw: ' + e);
+  }
+}
+
+// Bare 10-digit Indian mobile numbers get a "91" prefix; anything already
+// longer is assumed to already include a country code.
+function _toE164(phone) {
+  var digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return '';
+  return digits.length === 10 ? '91' + digits : digits;
+}
+
+// Fires on every dispatch — auto-matched from the Supervisor log or
+// manually created — see _svCreateChallanFor() (js/supervisor-log.js) and
+// saveAndPrintChallan() (js/challan.js).
+function notifyDispatch(data) {
+  var params = [data.customer || '', data.product || '', String(data.qty || ''), data.dcNum || '', data.date || ''];
+  if (data.customerPhone) sendWhatsAppTemplate(_toE164(data.customerPhone), params);
+  if (WHATSAPP_OWNER_PHONE) sendWhatsAppTemplate(WHATSAPP_OWNER_PHONE, params);
 }
 
 function saveQuotation(data) {

@@ -81,6 +81,18 @@ function mirrorToSheet(action, payload) {
   } catch (e) { /* offline — localStorage still has it */ }
 }
 
+// ── Fire a WhatsApp dispatch notification for a just-created challan ──
+// Looks up the customer's phone from CLIENTS; Code.gs's notifyDispatch()
+// silently no-ops if the WhatsApp Business API constants at its top aren't
+// filled in yet, so this is always safe to call regardless of setup status.
+function notifyDispatchWA(record) {
+  const client = (typeof CLIENTS !== 'undefined' ? CLIENTS : []).find(c => (c.name || '').toLowerCase() === (record.customer || '').toLowerCase());
+  mirrorToSheet('notifyDispatch', {
+    customer: record.customer, product: record.product, qty: record.qty,
+    dcNum: record.dcNum, date: record.date, customerPhone: client?.phone || '',
+  });
+}
+
 const COLOUR_HEX = {
   red:    '#E74C3C',
   blue:   '#2980B9',
