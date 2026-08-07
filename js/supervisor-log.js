@@ -270,6 +270,7 @@ function selectSvNqCustomer(name) {
   document.getElementById('sv-nq-customer').value = name;
   document.getElementById('sv-nq-customer-dropdown').style.display = 'none';
   _svNqFiltered = [];
+  populateSvNqProductDropdown(name);
 }
 
 document.addEventListener('click', e => {
@@ -299,6 +300,51 @@ function onSvNqCustomerKey(e) {
   }
 }
 
+// ── Product dropdown for the quick-create form — same customer→product
+// cascade as the main New Order form (js/clients.js: populateProductDropdown
+// / onProductChange): picking one of the customer's known products
+// auto-fills Size/Ply/Colour/Weight/Reel Size/Rate. Unlike the main form,
+// there's no "Add New Product for this Client" option here — the customer
+// itself may not exist as a saved client yet at this point (it's only
+// created when the order is submitted), so there's no client index to file
+// a new product under. Size/Ply/Colour/Weight/Reel Size stay freely
+// editable either way, same as the main form. ──
+function populateSvNqProductDropdown(customerName) {
+  const sel    = document.getElementById('sv-nq-product');
+  const client = CLIENTS.find(c => c.name === customerName);
+
+  if (!client || !client.products || !client.products.length) {
+    sel.innerHTML = '<option value="">— No products yet —</option>';
+    return;
+  }
+  sel.innerHTML = '<option value="">— Select Product —</option>';
+  client.products.forEach((p, i) => {
+    const opt = document.createElement('option');
+    opt.value       = i;
+    opt.textContent = `${p.name} · ${p.size} · ${p.ply}ply · ${p.weight}gm`;
+    sel.appendChild(opt);
+  });
+}
+
+function onSvNqProductChange() {
+  const sel    = document.getElementById('sv-nq-product');
+  const custNm = document.getElementById('sv-nq-customer').value;
+  const client = CLIENTS.find(c => c.name === custNm);
+  const idx    = parseInt(sel.value);
+  const p      = client && !isNaN(idx) ? client.products[idx] : null;
+
+  if (!p) {
+    ['sv-nq-size', 'sv-nq-ply', 'sv-nq-colour', 'sv-nq-weight', 'sv-nq-reelsize'].forEach(id => { document.getElementById(id).value = ''; });
+    return;
+  }
+  document.getElementById('sv-nq-size').value     = p.size     || '';
+  document.getElementById('sv-nq-ply').value      = p.ply      || '';
+  document.getElementById('sv-nq-colour').value   = p.colour   || '';
+  document.getElementById('sv-nq-weight').value   = p.weight   || '';
+  document.getElementById('sv-nq-reelsize').value = p.reelSize || '';
+  if (p.rate) document.getElementById('sv-nq-rate').value = p.rate;
+}
+
 // ── Quick "create new order" from an unmatched dispatch entry — for when
 // the dispatch genuinely has no order behind it yet (a backdated/off-books
 // order). Pre-fills from the dispatch row; only Customer + Delivery Date
@@ -312,13 +358,30 @@ function toggleSvNewOrderForm() {
   if (!opening) return;
 
   const e = _svDisp.find(x => x.ts === _svLinkTs);
-  document.getElementById('sv-nq-customer').value = e?.party   || '';
-  document.getElementById('sv-nq-product').value  = e?.product || '';
-  document.getElementById('sv-nq-size').value     = e?.size    || '';
-  document.getElementById('sv-nq-qty').value      = e?.pcs     || '';
-  document.getElementById('sv-nq-weight').value   = e?.wtPc    || '';
-  document.getElementById('sv-nq-rate').value     = '';
-  document.getElementById('sv-nq-date').value     = e ? _svNormDate(e.date) : '';
+  const custName = e?.party || '';
+  document.getElementById('sv-nq-customer').value = custName;
+  document.getElementById('sv-nq-size').value      = e?.size  || '';
+  document.getElementById('sv-nq-ply').value       = '';
+  document.getElementById('sv-nq-colour').value    = '';
+  document.getElementById('sv-nq-weight').value    = e?.wtPc  || '';
+  document.getElementById('sv-nq-reelsize').value  = '';
+  document.getElementById('sv-nq-qty').value       = e?.pcs   || '';
+  document.getElementById('sv-nq-rate').value      = '';
+  document.getElementById('sv-nq-date').value      = e ? _svNormDate(e.date) : '';
+
+  populateSvNqProductDropdown(custName);
+  // If the dispatch entry's product text matches one of this customer's
+  // known products, select it so the cascade auto-fill (Size/Ply/Colour/
+  // Weight/Reel Size/Rate) applies exactly as it would on the Orders tab —
+  // its saved specs take precedence over the dispatch row's raw text.
+  const client = CLIENTS.find(c => c.name === custName);
+  if (client && e?.product) {
+    const pIdx = client.products.findIndex(p => _svFuzzyEq(p.name, e.product));
+    if (pIdx >= 0) {
+      document.getElementById('sv-nq-product').value = String(pIdx);
+      onSvNqProductChange();
+    }
+  }
   document.getElementById('sv-nq-customer').focus();
 }
 
@@ -330,25 +393,36 @@ function createOrderFromDispatch() {
   const date     = document.getElementById('sv-nq-date').value;
   if (!customer || !date) { alert('Customer and Delivery Date are required.'); return; }
 
-  const product  = document.getElementById('sv-nq-product').value.trim();
-  const size     = document.getElementById('sv-nq-size').value.trim();
-  const qty      = document.getElementById('sv-nq-qty').value;
-  const weight   = document.getElementById('sv-nq-weight').value;
-  const rate     = document.getElementById('sv-nq-rate').value;
+  // Product name comes from the selected catalog entry, same as the Orders
+  // tab — but falls back to the dispatch row's own product text when the
+  // customer has no matching saved product (very often the case here,
+  // since this modal exists for dispatches nothing could already match).
+  const prodSel   = document.getElementById('sv-nq-product');
+  const prodIdx   = parseInt(prodSel.value);
+  const client    = CLIENTS.find(c => c.name === customer);
+  const product   = (client && !isNaN(prodIdx) && client.products[prodIdx]) ? client.products[prodIdx].name : (e.product || '').trim();
+  const size      = document.getElementById('sv-nq-size').value.trim();
+  const ply       = document.getElementById('sv-nq-ply').value.trim();
+  const colour    = document.getElementById('sv-nq-colour').value.trim();
+  const qty       = document.getElementById('sv-nq-qty').value;
+  const weight    = document.getElementById('sv-nq-weight').value;
+  const reelSize  = document.getElementById('sv-nq-reelsize').value.trim();
+  const rate      = document.getElementById('sv-nq-rate').value;
 
   const id = generateOrderId();
   const d       = new Date(date);
   const fmtDate = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+  const reservedKg = typeof calcOrderKg === 'function' ? calcOrderKg(weight, qty) : 0;
   const payload = {
-    id, customer, product, size, ply: '', colour: '', weight, qty, rate,
+    id, customer, product, size, ply, colour, weight, qty, rate,
     date: fmtDate, orderDate: fmtDate, status: 'New', priority: 'Normal',
-    reelSize: '', reservedKg: 0, remarks: '',
+    reelSize, reservedKg, remarks: '',
   };
 
   const newOrder = {
-    id, customer, product, size, ply: '', colour: '', weight,
+    id, customer, product, size, ply, colour, weight,
     qty: parseInt(qty) || 0, rate: parseFloat(rate) || 0, date, orderDate: date,
-    status: 'New', priority: 'Normal', reelSize: '', reservedKg: 0, remarks: '', rowIndex: 9999,
+    status: 'New', priority: 'Normal', reelSize, reservedKg, remarks: '', rowIndex: 9999,
   };
   orders.push(newOrder);
   pendingOrderIds.add(id);
