@@ -37,14 +37,19 @@ const pageTitles = {
   deckle:      '📏 Deckle Optimizer',
 };
 
+const LS_LAST_PAGE = 'mi_last_page_v1';
+
 function showPage(id) {
+  const target = document.getElementById('page-' + id);
+  if (!target) return; // unknown page id — leave whatever's currently showing alone
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item, .bnav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('page-' + id).classList.add('active');
+  target.classList.add('active');
   document.querySelectorAll('.nav-item, .bnav-item').forEach(n => {
     if (n.getAttribute('onclick') && n.getAttribute('onclick').includes("'" + id + "'")) n.classList.add('active');
   });
   document.getElementById('page-title').textContent = pageTitles[id] || id;
+  localStorage.setItem(LS_LAST_PAGE, id);
 
   if (id === 'calendar')    renderCalendar();
   if (id === 'orders')      { fetchClients().then(() => {}); renderOrders(); refreshOrderId(); }
@@ -85,7 +90,7 @@ document.addEventListener('click', e => {
 async function init() {
   // Start non-blocking fetches immediately
   renderCalendar();
-  fetchOrders();
+  const ordersReady = fetchOrders(); // awaited later, once, just to gate the page restore below
   fetchReelStock();
 
   // Load clients + purchases from Sheets in parallel (may migrate from localStorage once)
@@ -109,6 +114,17 @@ async function init() {
   // _svAutoCreateChallans in supervisor-log.js) land on top of the loaded
   // list instead of being overwritten by it.
   if (typeof fetchSupervisorLog === 'function') fetchSupervisorLog();
+
+  // Restore whichever page the user was on before a refresh, instead of
+  // always landing back on Dashboard. Waits for orders to finish loading
+  // first — several pages (Ledger, Receivables, Analytics, Registers,
+  // Pipeline…) render straight from the `orders` array the one time
+  // showPage() calls them, with nothing else re-triggering that render
+  // once the data arrives, unlike Dashboard which updates itself as
+  // fetches complete regardless of what page is showing.
+  await ordersReady;
+  const lastPage = localStorage.getItem(LS_LAST_PAGE);
+  if (lastPage && lastPage !== 'dashboard') showPage(lastPage);
 
   // Auto-refresh intervals
   setInterval(fetchReelStock,    10 * 60 * 1000); // every 10 min
