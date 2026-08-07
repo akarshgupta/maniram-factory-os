@@ -563,25 +563,56 @@ function printInvoice() {
   win.print();
 }
 
+// ── Month filter — defaults to the current month (or the most recent month
+// that actually has invoices, if this one doesn't) the first time the page
+// renders; stays wherever the user leaves it after that. ──
+let _invMonthFilter = null;
+
+function _invMonthKey(dateStr)  { return (dateStr || '').slice(0, 7); } // 'YYYY-MM'
+function _invMonthLabel(key) {
+  const [y, m] = key.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+}
+
+function setInvoiceMonthFilter(key) {
+  _invMonthFilter = key;
+  renderInvoicingPage();
+}
+
 // ── Invoicing Page ──
 function renderInvoicingPage() {
   const el = document.getElementById('invoicing-page-content');
   if (!el) return;
 
   const fmt2 = n => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const totalInvoiced = invoiceList.reduce((s, inv) => s + inv.total, 0);
+
+  const allMonths = [...new Set(invoiceList.map(inv => _invMonthKey(inv.date)).filter(Boolean))].sort().reverse();
+  if (_invMonthFilter === null) {
+    const curMonth = todayStr.slice(0, 7);
+    _invMonthFilter = allMonths.includes(curMonth) ? curMonth : (allMonths[0] || 'all');
+  }
+  const filtered = _invMonthFilter === 'all' ? invoiceList : invoiceList.filter(inv => _invMonthKey(inv.date) === _invMonthFilter);
+
+  const totalInvoiced = filtered.reduce((s, inv) => s + inv.total, 0);
   const unbilled = _unbilledChallans();
+
+  const monthSelect = `
+    <select class="form-select" style="font-size:13px;width:auto;padding:8px 10px" onchange="setInvoiceMonthFilter(this.value)">
+      <option value="all" ${_invMonthFilter === 'all' ? 'selected' : ''}>All Months</option>
+      ${allMonths.map(m => `<option value="${m}" ${m === _invMonthFilter ? 'selected' : ''}>${_invMonthLabel(m)}</option>`).join('')}
+    </select>`;
 
   el.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-      <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+        ${monthSelect}
         <div class="stat-card good" style="padding:10px 16px;min-width:140px">
-          <div class="stat-label">Total Invoiced</div>
+          <div class="stat-label">Total Invoiced${_invMonthFilter !== 'all' ? ' — ' + _invMonthLabel(_invMonthFilter) : ''}</div>
           <div class="stat-value" style="color:var(--success);font-size:18px">₹${fmt2(totalInvoiced)}</div>
         </div>
         <div class="stat-card info" style="padding:10px 16px;min-width:100px">
           <div class="stat-label">Invoices</div>
-          <div class="stat-value">${invoiceList.length}</div>
+          <div class="stat-value">${filtered.length}</div>
         </div>
       </div>
       <button class="btn-primary" onclick="openCreateInvoiceForm(null)" style="font-size:13px">+ New Invoice</button>
@@ -604,15 +635,15 @@ function renderInvoicingPage() {
       </div>
     </div>` : ''}
 
-    ${invoiceList.length === 0
-      ? '<div class="empty-state">No invoices yet. Click "+ New Invoice" to create one.</div>'
+    ${filtered.length === 0
+      ? `<div class="empty-state">${invoiceList.length === 0 ? 'No invoices yet. Click "+ New Invoice" to create one.' : `No invoices in ${_invMonthFilter === 'all' ? 'range' : _invMonthLabel(_invMonthFilter)}.`}</div>`
       : `<div class="card">
           <div class="card-body" style="padding:0">
             <div class="orders-table">
               <div class="table-header" style="grid-template-columns:90px 100px 1.4fr 1fr 70px 100px 130px">
                 <div>Invoice #</div><div>Date</div><div>Party</div><div>Order</div><div>Qty</div><div>Total</div><div>Actions</div>
               </div>
-              ${invoiceList.slice().sort(_invByDateAsc).map(inv => {
+              ${filtered.slice().sort(_invByDateAsc).map(inv => {
                 const qty = (inv.items || []).reduce((s, i) => s + (i.qty || 0), 0);
                 const dateDisp = (() => { try { return new Date(inv.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }); } catch { return inv.date; } })();
                 const orderIds = [...new Set((inv.items || []).map(i => i.orderId).filter(Boolean))];
