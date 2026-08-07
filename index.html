@@ -305,11 +305,11 @@
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">Box Size (cm) <span style="color:var(--accent);font-size:10px;font-weight:400">✏️</span></label>
-            <input class="form-input" type="text" id="f-size" placeholder="e.g. 50×35×68 cm" oninput="convertSizeCmIn('f-size','f-size-in')">
+            <label class="form-label">Box Size (inches) <span style="color:var(--accent);font-size:10px;font-weight:400">✏️</span></label>
+            <input class="form-input" type="text" id="f-size" placeholder="e.g. 20×14×28" oninput="convertSizeCmIn('f-size','f-size-in')">
             <div style="display:flex;align-items:center;gap:8px;margin-top:3px">
               <div id="f-size-in" style="font-size:10px;color:var(--muted);min-height:14px;flex:1"></div>
-              <button type="button" id="f-size-unit-btn" onclick="toggleSizeUnit('f-size','f-size-in')" style="font-size:10px;padding:2px 8px;background:none;border:1px solid var(--border);border-radius:20px;color:var(--muted);cursor:pointer;white-space:nowrap">🔁 Entered in inches?</button>
+              <button type="button" onclick="convertBoxSizeToInches('f-size','f-size-in')" style="font-size:10px;padding:2px 8px;background:none;border:1px solid var(--border);border-radius:20px;color:var(--muted);cursor:pointer;white-space:nowrap" title="If what you typed above is actually cm, click this to convert it to inches">🔁 This is cm</button>
             </div>
           </div>
           <div class="form-group">
@@ -1155,11 +1155,11 @@
         <input class="form-input" type="text" id="ef-product" placeholder="Product name">
       </div>
       <div class="form-group">
-        <label class="form-label">Box Size (cm)</label>
-        <input class="form-input" type="text" id="ef-size" placeholder="e.g. 50×35×68 cm" oninput="convertSizeCmIn('ef-size','ef-size-in')">
+        <label class="form-label">Box Size (inches)</label>
+        <input class="form-input" type="text" id="ef-size" placeholder="e.g. 20×14×28" oninput="convertSizeCmIn('ef-size','ef-size-in')">
         <div style="display:flex;align-items:center;gap:8px;margin-top:3px">
           <div id="ef-size-in" style="font-size:10px;color:var(--muted);min-height:14px;flex:1"></div>
-          <button type="button" id="ef-size-unit-btn" onclick="toggleSizeUnit('ef-size','ef-size-in')" style="font-size:10px;padding:2px 8px;background:none;border:1px solid var(--border);border-radius:20px;color:var(--muted);cursor:pointer;white-space:nowrap">🔁 Entered in inches?</button>
+          <button type="button" onclick="convertBoxSizeToInches('ef-size','ef-size-in')" style="font-size:10px;padding:2px 8px;background:none;border:1px solid var(--border);border-radius:20px;color:var(--muted);cursor:pointer;white-space:nowrap" title="If what you typed above is actually cm, click this to convert it to inches">🔁 This is cm</button>
         </div>
       </div>
       <div class="form-group">
@@ -1285,13 +1285,13 @@
           onkeydown="if(event.key==='Escape')closeProductModal()">
       </div>
       <div class="form-group" style="grid-column:span 2">
-        <label class="form-label">Box Size (cm) <span style="color:var(--danger)">*</span></label>
-        <input class="form-input" type="text" id="pm-size" placeholder="e.g. 50×35×68 cm"
+        <label class="form-label">Box Size (inches) <span style="color:var(--danger)">*</span></label>
+        <input class="form-input" type="text" id="pm-size" placeholder="e.g. 20×14×28"
           onkeydown="if(event.key==='Escape')closeProductModal()"
           oninput="convertSizeCmIn('pm-size','pm-size-in');updateProductSchematic()">
         <div style="display:flex;align-items:center;gap:8px;margin-top:3px">
           <div id="pm-size-in" style="font-size:10px;color:var(--muted);min-height:14px;flex:1"></div>
-          <button type="button" id="pm-size-unit-btn" onclick="toggleSizeUnit('pm-size','pm-size-in')" style="font-size:10px;padding:2px 8px;background:none;border:1px solid var(--border);border-radius:20px;color:var(--muted);cursor:pointer;white-space:nowrap">🔁 Entered in inches?</button>
+          <button type="button" onclick="convertBoxSizeToInches('pm-size','pm-size-in')" style="font-size:10px;padding:2px 8px;background:none;border:1px solid var(--border);border-radius:20px;color:var(--muted);cursor:pointer;white-space:nowrap" title="If what you typed above is actually cm, click this to convert it to inches">🔁 This is cm</button>
         </div>
       </div>
       <div class="form-group">
