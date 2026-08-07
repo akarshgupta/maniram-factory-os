@@ -1551,19 +1551,33 @@
         </div>
         <div class="form-group" style="margin:0">
           <label class="form-label">Product</label>
-          <input class="form-input" type="text" id="sv-nq-product" style="font-size:13px">
+          <select class="form-select" id="sv-nq-product" style="font-size:13px" onchange="onSvNqProductChange()">
+            <option value="">— Select Customer First —</option>
+          </select>
         </div>
         <div class="form-group" style="margin:0">
           <label class="form-label">Box Size</label>
-          <input class="form-input" type="text" id="sv-nq-size" style="font-size:13px">
+          <input class="form-input" type="text" id="sv-nq-size" placeholder="e.g. 20×14×28" style="font-size:13px">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Ply</label>
+          <input class="form-input" type="text" id="sv-nq-ply" placeholder="e.g. 3" style="font-size:13px">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Colour</label>
+          <input class="form-input" type="text" id="sv-nq-colour" placeholder="e.g. Red" style="font-size:13px">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Weight (gm)</label>
+          <input class="form-input" type="number" id="sv-nq-weight" style="font-size:13px">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Reel Size (inch)</label>
+          <input class="form-input" type="number" step="0.5" id="sv-nq-reelsize" placeholder="e.g. 35.5" style="font-size:13px">
         </div>
         <div class="form-group" style="margin:0">
           <label class="form-label">Qty (pcs)</label>
           <input class="form-input" type="number" id="sv-nq-qty" style="font-size:13px">
-        </div>
-        <div class="form-group" style="margin:0">
-          <label class="form-label">Weight (gm/pc)</label>
-          <input class="form-input" type="number" id="sv-nq-weight" style="font-size:13px">
         </div>
         <div class="form-group" style="margin:0">
           <label class="form-label">Rate (₹)</label>
