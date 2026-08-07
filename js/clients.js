@@ -124,6 +124,35 @@ function suggestWeightAndReel() {
   }
 }
 
+// Weight depends on box size, ply, GSM per layer, and reel size — so if any
+// of the three that already have values change after a Suggest, keep weight
+// in sync instead of leaving it stale. Fires on every reel-size or GSM edit;
+// does nothing (silently) until there's a real box size and at least one GSM
+// value to work from, so it never fights with someone who hasn't gotten that
+// far yet.
+function recalcWeightFromReelSize() {
+  const dims = typeof _parseDims === 'function' ? _parseDims(document.getElementById('pm-size')?.value || '') : null;
+  const reelSize = parseFloat(document.getElementById('pm-reelsize')?.value);
+  if (!dims || !dims.l || !dims.w || !reelSize) return;
+
+  const ply    = parseInt(document.getElementById('pm-ply')?.value) || 3;
+  const layers = PLY_LAYERS[ply] || PLY_LAYERS[3];
+  const sheetLen = (dims.l + dims.w) * 2 + 2;
+  const area     = (sheetLen * reelSize) / 1550;
+
+  let weight = 0, anyGsm = false;
+  layers.forEach((layer, i) => {
+    const gsm = parseInt(document.getElementById('pm-gsm-' + (i + 1))?.value) || 0;
+    if (gsm > 0) anyGsm = true;
+    weight += gsm * area * (layer.type === 'fluting' ? 1.5 : 1);
+  });
+  if (!anyGsm) return;
+
+  document.getElementById('pm-weight').value = weight.toFixed(1);
+  const hint = document.getElementById('pm-suggest-hint');
+  if (hint) hint.innerHTML = `Weight recalculated for reel <b>${reelSize}"</b> → <b>${weight.toFixed(1)} gm</b>. Edit either field above if actuals differ.`;
+}
+
 // ── State ──
 let CLIENTS       = [];
 let acSelectedIdx = -1;
@@ -235,7 +264,7 @@ function updateGsmFields(existingGsm, existingBf) {
           placeholder="GSM ${placeholder}" title="GSM" min="60" max="400" step="5"
           value="${gsmVal}"
           style="border-left:3px solid ${accent};padding-left:8px;flex:1;min-width:0"
-          onkeydown="if(event.key==='Escape')closeProductModal()">
+          onkeydown="if(event.key==='Escape')closeProductModal()" oninput="recalcWeightFromReelSize()">
         <input class="form-input" type="number" id="pm-bf-${i+1}"
           placeholder="BF" title="Bursting Factor" min="10" max="40" step="1"
           value="${bfVal}"
