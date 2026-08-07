@@ -138,12 +138,23 @@ function printJobCard(orderId) {
 
   // Box schematic: parse L×W×H from size field
   const dims = _parseDims(o.size);
-  const schematic = dims ? _buildSchematic(dims, spec) : '';
 
-  // Cutting (sheet) size — Sheet L = (L+W)×2+2, Sheet W = W+H+0.5 (skills/rate-calculator.md)
+  // Cutting (sheet) size — notation is ALWAYS reel-size (width) first, then
+  // length (skills/rate-calculator.md: "34.5 × 93, never 93×34.5"). The
+  // actual reel size on the order IS the real sheet width once one's on
+  // record ("Sheet Width = Reel Size the box will be made from") — the
+  // W+H+0.5 formula is only the estimate used before that's known, and the
+  // doc calls for a flag when the two disagree by a meaningful amount.
+  const sheetLen       = dims ? (dims.l + dims.w) * 2 + 2 : null;
+  const calcSheetWid   = dims ? dims.w + dims.h + 0.5 : null;
+  const actualReelSize = parseFloat(o.reelSize) || null;
+  const sheetWid        = actualReelSize || calcSheetWid;
+  const reelMismatch    = !!(actualReelSize && calcSheetWid && Math.abs(actualReelSize - calcSheetWid) > 0.5);
   const cutSizeStr = dims
-    ? `${_fmtN((dims.l + dims.w) * 2 + 2)}" × ${_fmtN(dims.w + dims.h + 0.5)}"`
+    ? `${_fmtN(sheetWid)}" × ${_fmtN(sheetLen)}"`
     : '______ × ______';
+
+  const schematic = dims ? _buildSchematic(dims, spec, sheetWid) : '';
 
   // Product master lookup — GSM/BF per layer + print flag
   const client  = (typeof CLIENTS !== 'undefined' ? CLIENTS : []).find(c => c.name === o.customer);
@@ -293,7 +304,7 @@ function printJobCard(orderId) {
     <div class="order-cell"><div class="order-cell-label">Product</div><div class="order-cell-val">${o.product || '—'}</div></div>
     <div class="order-cell"><div class="order-cell-label">Qty</div><div class="order-cell-val">${(o.qty || 0).toLocaleString('en-IN')} pcs</div></div>
     <div class="order-cell"><div class="order-cell-label">Box Size</div><div class="order-cell-val">${o.size || '—'}</div></div>
-    <div class="order-cell"><div class="order-cell-label">Cutting Size</div><div class="order-cell-val">${cutSizeStr}</div></div>
+    <div class="order-cell"><div class="order-cell-label">Cutting Size</div><div class="order-cell-val">${cutSizeStr}${reelMismatch ? ` <span style="color:#C0392B;font-size:10px;font-weight:700" title="Reel size on the order (${_fmtN(actualReelSize)}&quot;) differs from the calculated width (${_fmtN(calcSheetWid)}&quot;)">⚠ check reel</span>` : ''}</div></div>
     <div class="order-cell"><div class="order-cell-label">Ply</div><div class="order-cell-val">${o.ply ? o.ply + ' Ply' : '—'}</div></div>
     <div class="order-cell"><div class="order-cell-label">Print?</div><div class="order-cell-val" style="color:${isPrint ? '#C0392B' : '#0E9F6E'}">${isPrint ? '🖨️ PRINT' : '⬜ PLAIN'}</div></div>
     <div class="order-cell"><div class="order-cell-label">Print Colour</div><div class="order-cell-val">${isPrint ? (product?.printColour || o.colour || '—') : '—'}</div></div>
@@ -414,7 +425,7 @@ function _parseDims(sizeStr) {
 // Layout (left→right): [Stitch | W | L | W | L]
 // Each panel has top and bottom flaps (W/2 height)
 // Print area shown on both Length panels
-function _buildSchematic(dims, spec) {
+function _buildSchematic(dims, spec, actualReelSize) {
   const { l, w, h } = dims;
   if (!l || !w) return '';
   const H = h || w;
@@ -424,9 +435,11 @@ function _buildSchematic(dims, spec) {
   const totalW  = 2 * l + 2 * w + stitch;    // == (l+w)×2+2 — same as the Cutting Size sheet length
   const totalH  = H + 2 * flapH;
 
-  // Authoritative cutting-size numbers — always match the order-grid "Cutting Size" cell exactly
+  // Authoritative cutting-size numbers — always match the order-grid "Cutting Size" cell exactly,
+  // reel-size (width) first per the notation standard. The actual reel size on the order wins over
+  // the W+H+0.5 estimate once one's on record.
   const sheetLenLabel = (l + w) * 2 + 2;
-  const sheetWidLabel = w + h + 0.5;
+  const sheetWidLabel = actualReelSize || (w + h + 0.5);
 
   // Scale to fit 460 × 182 px canvas
   const MAX_W = 460, MAX_H = 182;
@@ -553,6 +566,6 @@ function _buildSchematic(dims, spec) {
 
   return `<div style="overflow-x:auto">${parts.join('')}</div>
     <div style="font-size:9px;color:#888;text-align:center;margin-top:4px">
-      Flat Blank · L=${fmtN(l)} × W=${fmtN(w)} × H=${fmtN(H)} · Cutting size ${fmtN(sheetLenLabel)}" × ${fmtN(sheetWidLabel)}" · Print areas on both Length panels
+      Flat Blank · L=${fmtN(l)} × W=${fmtN(w)} × H=${fmtN(H)} · Cutting size ${fmtN(sheetWidLabel)}" × ${fmtN(sheetLenLabel)}" · Print areas on both Length panels
     </div>`;
 }
