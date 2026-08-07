@@ -3,6 +3,8 @@
 // Data backend: Google Sheets (Clients + ClientProducts tabs in ORDERS_SHEET_ID)
 // ══════════════════════════════════════════════════════════════
 
+const pendingClientNames = new Set(); // saved locally, not yet confirmed in sheet
+
 const DEFAULT_CLIENTS = [
   {
     name: 'Gaida Enterprises', contact: 'Suresh Gaida', phone: '9800000001', city: 'Gwalior',
@@ -295,7 +297,14 @@ async function fetchClients() {
 
     const pRows = (pJson.values || []).slice(1);
 
-    CLIENTS = allCRows.map(r => ({
+    // Snapshot pending local-only clients before we overwrite — a client just
+    // saved via "+ New Client" may not have propagated to the sheet yet
+    // (writes are fire-and-forget), and this fetch runs 2s after every save.
+    const stillPending = CLIENTS.filter(c => pendingClientNames.has(c.name));
+
+    CLIENTS = allCRows.map(r => {
+        pendingClientNames.delete(r[0]); // confirmed in sheet
+        return {
         name:     r[0] || '',
         contact:  r[1] || '',
         phone:    r[2] || '',
@@ -316,7 +325,12 @@ async function fetchClients() {
             printDesign: p[18] || '',
             bf:          [p[19],p[20],p[21],p[22],p[23],p[24],p[25],p[26],p[27]].map(v => Number(v) || 0),
           })),
-      }));
+      };
+      });
+
+    // Re-inject any locally-saved clients the sheet hasn't confirmed yet
+    stillPending.forEach(c => { if (pendingClientNames.has(c.name)) CLIENTS.push(c); });
+    CLIENTS.sort((a, b) => a.name.localeCompare(b.name));
 
     return true;
   } catch (e) {
@@ -753,6 +767,7 @@ function saveClientModal() {
   } else {
     CLIENTS.push({ name, contact, phone, city, products: [] });
     CLIENTS.sort((a, b) => a.name.localeCompare(b.name));
+    pendingClientNames.add(name);
     postClient({ action: 'saveClient', name, contact, phone, city });
     createNotionClientPage(name, contact, phone, city);
   }
