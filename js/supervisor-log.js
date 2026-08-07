@@ -235,6 +235,70 @@ function closeSvLinkModal() {
   _svLinkTs = null;
 }
 
+// ── Customer autocomplete for the quick-create form — same typeahead as
+// the main New Order form's Customer field (js/clients.js), kept as its
+// own copy with separate state since both fields can't be open at once
+// but shouldn't share acFiltered/acSelectedIdx regardless. ──
+let _svNqFiltered    = [];
+let _svNqSelectedIdx = -1;
+
+function onSvNqCustomerInput() {
+  const val = document.getElementById('sv-nq-customer').value.trim().toLowerCase();
+  const dd  = document.getElementById('sv-nq-customer-dropdown');
+  if (!val) { dd.style.display = 'none'; _svNqFiltered = []; return; }
+
+  _svNqFiltered    = sortedClients().filter(c => c.name.toLowerCase().includes(val));
+  _svNqSelectedIdx = -1;
+  if (!_svNqFiltered.length) { dd.style.display = 'none'; return; }
+
+  dd.innerHTML = '';
+  _svNqFiltered.forEach(c => {
+    const item = document.createElement('div');
+    item.className = 'autocomplete-item';
+    const idx    = c.name.toLowerCase().indexOf(val);
+    const before = c.name.slice(0, idx);
+    const match  = c.name.slice(idx, idx + val.length);
+    const after  = c.name.slice(idx + val.length);
+    item.innerHTML = `${before}<strong>${match}</strong>${after}`;
+    item.onmousedown = () => selectSvNqCustomer(c.name);
+    dd.appendChild(item);
+  });
+  dd.style.display = 'block';
+}
+
+function selectSvNqCustomer(name) {
+  document.getElementById('sv-nq-customer').value = name;
+  document.getElementById('sv-nq-customer-dropdown').style.display = 'none';
+  _svNqFiltered = [];
+}
+
+document.addEventListener('click', e => {
+  const grp = document.getElementById('sv-nq-customer-group');
+  if (grp && !grp.contains(e.target)) {
+    const dd = document.getElementById('sv-nq-customer-dropdown');
+    if (dd) dd.style.display = 'none';
+  }
+});
+
+function onSvNqCustomerKey(e) {
+  const dd    = document.getElementById('sv-nq-customer-dropdown');
+  const items = dd.querySelectorAll('.autocomplete-item');
+  if (e.key === 'ArrowDown') {
+    _svNqSelectedIdx = Math.min(_svNqSelectedIdx + 1, _svNqFiltered.length - 1);
+    items.forEach((el, i) => el.classList.toggle('selected', i === _svNqSelectedIdx));
+    e.preventDefault();
+  } else if (e.key === 'ArrowUp') {
+    _svNqSelectedIdx = Math.max(_svNqSelectedIdx - 1, 0);
+    items.forEach((el, i) => el.classList.toggle('selected', i === _svNqSelectedIdx));
+    e.preventDefault();
+  } else if (e.key === 'Enter') {
+    if (_svNqSelectedIdx >= 0 && _svNqFiltered[_svNqSelectedIdx]) selectSvNqCustomer(_svNqFiltered[_svNqSelectedIdx].name);
+    e.preventDefault();
+  } else if (e.key === 'Escape') {
+    dd.style.display = 'none';
+  }
+}
+
 // ── Quick "create new order" from an unmatched dispatch entry — for when
 // the dispatch genuinely has no order behind it yet (a backdated/off-books
 // order). Pre-fills from the dispatch row; only Customer + Delivery Date
