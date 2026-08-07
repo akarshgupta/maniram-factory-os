@@ -98,14 +98,15 @@ function _svFuzzyEq(a, b) {
 
 // Find which pending order a dispatch entry belongs to, when it has no
 // Order ID (or one that didn't match). Tries product name first, narrowing
-// by party if more than one order shares that product. When there's no
-// usable Product Name text (common — that question is newer/still optional,
-// and most real entries predate it), falls back to the "Party Name" field —
-// but tries it against BOTH order.customer and order.product, because real
-// data shows the supervisor very often types the box/design name into that
-// field instead of an actual customer name (e.g. "Madhubala", "Tower", "Jio"
-// are product names, not parties). Only ever returns a match when it's
-// unambiguous — two candidate orders means "don't guess", not "pick one".
+// by party — then by the dispatch entry's own Size column — if more than
+// one order shares that product. When there's no usable Product Name text
+// (common — that question is newer/still optional, and most real entries
+// predate it), falls back to the "Party Name" field — but tries it against
+// BOTH order.customer and order.product, because real data shows the
+// supervisor very often types the box/design name into that field instead
+// of an actual customer name (e.g. "Madhubala", "Tower", "Jio" are product
+// names, not parties). Only ever returns a match when it's unambiguous —
+// two candidate orders means "don't guess", not "pick one".
 function _svMatchOrderByProduct(e) {
   if (typeof orders === 'undefined' || typeof FINISHED_STATUSES === 'undefined') return { order: null, reason: 'none' };
   const pending = orders.filter(o => !FINISHED_STATUSES.includes(o.status));
@@ -115,8 +116,11 @@ function _svMatchOrderByProduct(e) {
     const byProduct = pending.filter(o => _svFuzzyEq(o.product, e.product));
     if (byProduct.length === 1) return { order: byProduct[0], reason: 'product' };
     if (byProduct.length > 1) {
-      const narrowed = e.party ? byProduct.filter(o => _svFuzzyEq(o.customer, e.party)) : [];
-      return narrowed.length === 1 ? { order: narrowed[0], reason: 'product+party' } : { order: null, reason: 'ambiguous' };
+      let narrowed = e.party ? byProduct.filter(o => _svFuzzyEq(o.customer, e.party)) : [];
+      if (narrowed.length === 1) return { order: narrowed[0], reason: 'product+party' };
+      narrowed = e.size ? byProduct.filter(o => _svFuzzyEq(o.size, e.size)) : [];
+      if (narrowed.length === 1) return { order: narrowed[0], reason: 'product+size' };
+      return { order: null, reason: 'ambiguous' };
     }
   }
   if (e.party) {
