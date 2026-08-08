@@ -37,6 +37,39 @@ Sheet size ALWAYS reel-size (width) first: **34.5 × 93**, never 93×34.5.
 Sheet Width = Reel Size the box will be made from.
 If reel size entered ≠ calculated sheet width → mismatch warning.
 
+⚠️ Reel size = the box's own required width (`W + H + 0.5`), never rounded
+up to a wider *stocked* reel — the weight formula uses this same width, so
+substituting a wider reel here would overstate paper consumed per box.
+
+## Reel Substitutes — Multi-Up Cutting ✅ (corrugator capacity = 50")
+Maniram doesn't stock a reel for every fractional box width. A narrow
+required width is normally cut **multi-up** — n boxes side by side — from a
+wider stocked reel instead, up to the corrugator's 50" width capacity.
+
+The order's own Reel Size already includes the single-box 0.5" margin
+(`W + H + 0.5`), so the raw per-box width without that margin is:
+```
+rawWidth = ReelSize − 0.5
+```
+A stocked reel of width R fits `n = floor(R / rawWidth)` boxes across, and
+is a valid substitute whenever that leaves at least a 0.5" trim margin:
+```
+margin = R − (n × rawWidth)      → substitute valid when margin ≥ 0.5"
+```
+Single-up keeps the exact 0.5" margin; multi-up can loosen up to ~0.75" per
+join since the margin is shared across the extra cut(s), so a little more
+slack (up to ~1" observed on real stock, e.g. the 46" case below) is normal
+and just means slightly more trim waste, not an invalid substitute.
+
+Example — 15.5" required (rawWidth = 15"):
+```
+Reel 30.5" → n = floor(30.5/15) = 2 → margin 0.5"  → 2-up ✅ (tight fit)
+Reel 46"   → n = floor(46/15)   = 3 → margin 1.0"  → 3-up ✅ (a bit looser)
+```
+Implemented in `findSubstitutes()` (`js/orders.js`) — searches actual
+`reelData` stock (not a hardcoded size list) so substitutes always reflect
+what's really on hand, capped at `CORRUGATOR_MAX_WIDTH` (50", `config.js`).
+
 ## Layer Structure
 - 3-ply: L1(flat) | F1(flute×1.5) | L2(flat)
 - 5-ply: L1(flat) | F1(flute×1.5) | L2(flat) | F2(flute×1.5) | L3(flat)
