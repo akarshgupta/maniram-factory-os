@@ -72,13 +72,15 @@ const PLY_LAYERS = {
   ],
 };
 
-// ── Suggest Weight & Reel Size from box dimensions ──
+// ── Suggest Weight, Reel Size & Rate from box dimensions ──
 // Sheet Length = (L+W)×2+2, Sheet Width (= reel size) = W+H+0.5, Area = SheetL×SheetW/1550
-// (skills/rate-calculator.md). Picks the narrowest available reel that fits; falls back
-// to standard stocked widths when live reel data hasn't loaded. Reel size only needs the
-// box dimensions, but weight depends on the actual paper — so this asks for GSM on each
-// layer first (focuses the first blank one) rather than guessing a default and calculating
-// on top of a guess. Both fields stay plain number inputs, editable like any other value.
+// (skills/rate-calculator.md). Reel size is the box-derived width itself — it must NOT be
+// rounded up to a wider stocked reel, since that width also drives the weight calc below
+// and a wider reel would overstate paper actually consumed per box. Weight depends on the
+// actual paper, so this asks for GSM on each layer first (focuses the first blank one)
+// rather than guessing a default and calculating on top of a guess. Rate is then estimated
+// from that weight at the current paper cost (PAPER_RATE_PER_KG). All three fields stay
+// plain number inputs, editable like any other value.
 function suggestWeightAndReel() {
   const hint = document.getElementById('pm-suggest-hint');
   const dims = typeof _parseDims === 'function' ? _parseDims(document.getElementById('pm-size')?.value || '') : null;
@@ -91,13 +93,7 @@ function suggestWeightAndReel() {
   const layers = PLY_LAYERS[ply] || PLY_LAYERS[3];
 
   const sheetLen = (l + w) * 2 + 2;
-  const reqWidth = w + h + 0.5;
-
-  const known = (typeof _deckleReelSizes === 'function' ? _deckleReelSizes() : [])
-    .map(r => r.size).filter(s => s > 0);
-  const pool  = known.length ? known : [30, 32, 33, 35, 35.5, 36, 38, 40, 42, 44, 46, 48];
-  const fits  = pool.filter(s => s >= reqWidth).sort((a, b) => a - b);
-  const reelSize = fits.length ? fits[0] : Math.ceil(reqWidth * 2) / 2;
+  const reelSize = w + h + 0.5;
   document.getElementById('pm-reelsize').value = reelSize;
 
   // Weight needs real GSM per layer — ask for it instead of assuming a default.
@@ -119,8 +115,12 @@ function suggestWeightAndReel() {
   });
   document.getElementById('pm-weight').value = weight.toFixed(1);
 
+  const rate = (weight / 1000) * PAPER_RATE_PER_KG;
+  const rateEl = document.getElementById('pm-rate');
+  if (rateEl) rateEl.value = rate.toFixed(2);
+
   if (hint) {
-    hint.innerHTML = `Sheet ${_fmtN(sheetLen)}×${_fmtN(reqWidth)}" (${ply}-ply) → reel <b>${reelSize}"</b> → est. weight <b>${weight.toFixed(1)} gm</b> from GSM ${gsmUsed.join('/')}. Edit either field above if actuals differ.`;
+    hint.innerHTML = `Sheet ${_fmtN(sheetLen)}×${_fmtN(reelSize)}" (${ply}-ply) → est. weight <b>${weight.toFixed(1)} gm</b> from GSM ${gsmUsed.join('/')} → suggested rate <b>₹${rate.toFixed(2)}</b>/pc @ ₹${PAPER_RATE_PER_KG}/kg paper. Edit any field above if actuals differ.`;
   }
 }
 

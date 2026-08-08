@@ -54,6 +54,7 @@ const CLIENTS_TAB       = 'Customers';
 
 const NOTION_CLIENTS_DB = '5be5433513b64fc9a14fa539ca06c475'; // Maniram Clients database
 
+const PAPER_RATE_PER_KG = 60;   // ₹/kg — used to suggest a box rate from its weight (Suggest Weight & Reel Size)
 const KATRA_BUFFER_KG  = 5000;
 const MAX_DAILY_KG     = 1500;  // max box weight (kg) ready per day
 const CRITICAL_SIZES   = ['35.5', '44', '42', '35'];
