@@ -715,6 +715,23 @@ function saveClientModal() {
 
   if (!name) { document.getElementById('cm-name').focus(); return; }
 
+  // Case-insensitive duplicate check — without this, adding a client whose
+  // name already exists silently pushed a second CLIENTS entry with the
+  // same name (products on the duplicate become unreachable, since every
+  // by-name lookup elsewhere finds only the first match).
+  const dupIdx = CLIENTS.findIndex((c, i) => i !== _clientModalIdx && c.name.toLowerCase() === name.toLowerCase());
+  if (dupIdx >= 0) {
+    const existing = CLIENTS[dupIdx];
+    if (_clientModalIdx < 0 && confirm(`"${existing.name}" is already a saved client. Use the existing client instead of adding a duplicate?`)) {
+      closeClientModal();
+      if (_clientSaveCallback) { _clientSaveCallback(existing.name); _clientSaveCallback = null; }
+      return;
+    }
+    alert(`A client named "${existing.name}" already exists. Please use a different name, or pick them from the Customer field instead.`);
+    document.getElementById('cm-name').focus();
+    return;
+  }
+
   if (_clientModalIdx >= 0) {
     const originalName = CLIENTS[_clientModalIdx].name;
     CLIENTS[_clientModalIdx] = { ...CLIENTS[_clientModalIdx], name, contact, phone, city };
