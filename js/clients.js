@@ -128,6 +128,8 @@ function suggestWeightAndReel() {
 let CLIENTS       = [];
 let acSelectedIdx = -1;
 let acFiltered    = [];
+let _clientSearchQuery = '';
+let _clientSortBy      = 'name';
 
 // ── Client Modal State ──
 let _clientModalIdx    = -1; // -1 = adding new
@@ -646,13 +648,104 @@ function clearProductFields() {
 // CLIENTS PAGE — Render & CRUD
 // ══════════════════════════════════════════════════════════════
 
+// ── Per-client order stats — orders count, boxes, revenue, and an estimated
+// profit (revenue minus paper cost, costed at PAPER_RATE_PER_KG the same way
+// clients.js suggests a rate) — plus the most recent delivery date across
+// their orders, used to spot clients who've gone quiet. Cancelled orders
+// don't count as business; every other status does, delivered or not.
+function _clientOrderStats(name) {
+  const empty = { orderCount: 0, totalQty: 0, revenue: 0, estProfit: 0, lastDate: null, daysSince: null };
+  if (typeof orders === 'undefined' || !name) return empty;
+  const needle = name.trim().toLowerCase();
+  const mine = orders.filter(o => o.status !== 'Cancelled' && (o.customer || '').trim().toLowerCase() === needle);
+  if (!mine.length) return empty;
+
+  let totalQty = 0, revenue = 0, cost = 0, lastDate = null;
+  const paperRate = typeof PAPER_RATE_PER_KG !== 'undefined' ? PAPER_RATE_PER_KG : 60;
+  mine.forEach(o => {
+    const qty    = parseInt(o.qty) || 0;
+    const rate   = parseFloat(o.rate) || 0;
+    const weight = parseFloat(o.weight) || 0;
+    totalQty += qty;
+    revenue  += qty * rate;
+    cost     += (weight / 1000) * qty * paperRate;
+    if (o.date && (!lastDate || o.date > lastDate)) lastDate = o.date;
+  });
+  const daysSince = lastDate ? Math.floor((Date.now() - new Date(lastDate + 'T00:00:00').getTime()) / 86400000) : null;
+  return { orderCount: mine.length, totalQty, revenue, estProfit: revenue - cost, lastDate, daysSince };
+}
+
+function onClientSearch() {
+  _clientSearchQuery = (document.getElementById('client-search')?.value || '').trim().toLowerCase();
+  renderClients();
+}
+
+function onClientSortChange() {
+  _clientSortBy = document.getElementById('client-sort')?.value || 'name';
+  renderClients();
+}
+
 function renderClients() {
   const banner = document.getElementById('client-migration-banner');
   if (banner) banner.style.display = _clientsFromSheet ? 'none' : 'block';
 
   const list = document.getElementById('clients-list');
   list.innerHTML = '';
-  CLIENTS.forEach((c, ci) => {
+
+  let rows = CLIENTS.map((c, ci) => ({ c, ci, stats: _clientOrderStats(c.name) }));
+
+  const topRow    = rows.reduce((best, r) => (r.stats.revenue > (best ? best.stats.revenue : 0)) ? r : best, null);
+  const quietRows = rows.filter(r => r.stats.daysSince !== null && r.stats.daysSince >= 60);
+
+  const summaryEl = document.getElementById('clients-summary');
+  if (summaryEl) {
+    summaryEl.innerHTML = rows.length ? `
+      <div class="client-summary-strip">
+        <div class="client-summary-card">
+          <div class="cs-label">🏆 Top Client (by revenue)</div>
+          <div class="cs-value">${topRow && topRow.stats.revenue > 0 ? topRow.c.name : '—'}</div>
+          ${topRow && topRow.stats.revenue > 0 ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">₹${Math.round(topRow.stats.revenue).toLocaleString('en-IN')} across ${topRow.stats.orderCount} order${topRow.stats.orderCount > 1 ? 's' : ''}</div>` : ''}
+        </div>
+        <div class="client-summary-card">
+          <div class="cs-label">📦 Total Clients</div>
+          <div class="cs-value">${rows.length}</div>
+        </div>
+        <div class="client-summary-card">
+          <div class="cs-label">⚠️ Quiet 60+ Days</div>
+          <div class="cs-value" style="${quietRows.length ? 'color:var(--danger)' : ''}">${quietRows.length}</div>
+          ${quietRows.length ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${quietRows.slice(0, 3).map(r => r.c.name).join(', ')}${quietRows.length > 3 ? ` +${quietRows.length - 3} more` : ''}</div>` : ''}
+        </div>
+      </div>
+      <div class="field-hint" style="margin-top:8px">Revenue and Est. Profit are computed from saved order quantities and rates; Est. Profit only subtracts paper cost (weight × ${typeof PAPER_RATE_PER_KG !== 'undefined' ? PAPER_RATE_PER_KG : 60}/kg) — it doesn't include labour, overhead, or other materials, so treat it as a rough ranking, not an exact number.</div>` : '';
+  }
+
+  if (_clientSearchQuery) {
+    rows = rows.filter(r =>
+      r.c.name.toLowerCase().includes(_clientSearchQuery) ||
+      (r.c.contact || '').toLowerCase().includes(_clientSearchQuery) ||
+      (r.c.city || '').toLowerCase().includes(_clientSearchQuery)
+    );
+  }
+
+  rows.sort((a, b) => {
+    if (_clientSortBy === 'revenue') return b.stats.revenue - a.stats.revenue;
+    if (_clientSortBy === 'profit')  return b.stats.estProfit - a.stats.estProfit;
+    if (_clientSortBy === 'orders')  return b.stats.orderCount - a.stats.orderCount;
+    if (_clientSortBy === 'stale') {
+      // Never-ordered clients first, then oldest last-order first.
+      if (a.stats.lastDate === null && b.stats.lastDate === null) return a.c.name.localeCompare(b.c.name);
+      if (a.stats.lastDate === null) return -1;
+      if (b.stats.lastDate === null) return 1;
+      return a.stats.lastDate.localeCompare(b.stats.lastDate);
+    }
+    return a.c.name.localeCompare(b.c.name);
+  });
+
+  if (!rows.length) {
+    list.innerHTML = `<div class="empty-state">${_clientSearchQuery ? 'No clients match your search.' : 'No clients yet.'}</div>`;
+  }
+
+  rows.forEach(({ c, ci, stats }) => {
     const card = document.createElement('div');
     card.className = 'client-card';
     const productsHtml = c.products.map((p, pi) => {
@@ -664,19 +757,36 @@ function renderClients() {
         <button class="btn-sm" style="color:var(--danger)" onclick="deleteProduct(${ci},${pi})">🗑</button>
       </div>`;
     }).join('');
+
+    const isTop   = !!(topRow && topRow.c === c && stats.revenue > 0);
+    const isQuiet = stats.daysSince !== null && stats.daysSince >= 60;
+    const lastOrderLbl = stats.lastDate
+      ? (stats.daysSince < 0 ? 'Upcoming' : stats.daysSince === 0 ? 'Today' : `${stats.daysSince}d ago`)
+      : 'Never';
+
     card.innerHTML = `
       <div class="client-card-header">
         <div class="client-avatar">${c.name[0]}</div>
         <div>
-          <div class="client-name">${c.name}</div>
-          <div class="client-meta">${c.contact} · ${c.city} · ${c.phone}</div>
+          <div class="client-name">${c.name}${isTop ? '<span class="client-badge client-badge-top">🏆 Top Client</span>' : ''}${isQuiet ? `<span class="client-badge client-badge-quiet">⚠️ Quiet ${stats.daysSince}d</span>` : ''}</div>
+          <div class="client-meta">${c.contact || '—'} · ${c.city || '—'} · ${c.phone || '—'}</div>
         </div>
         <div class="client-edit-btn" style="display:flex;gap:6px">
           <button class="btn-sm" onclick="editClient(${ci})">✏️ Edit</button>
           <button class="btn-sm" style="color:var(--success)" onclick="addProduct(${ci})">+ Product</button>
         </div>
       </div>
-      <div class="client-products">${productsHtml || '<span style="font-size:12px;color:var(--muted)">No products defined yet</span>'}</div>
+      <div class="client-stats-row">
+        <div class="client-stat">Orders<strong>${stats.orderCount}</strong></div>
+        <div class="client-stat">Boxes<strong>${stats.totalQty.toLocaleString('en-IN')}</strong></div>
+        <div class="client-stat">Revenue<strong>${stats.revenue ? '₹' + Math.round(stats.revenue).toLocaleString('en-IN') : '—'}</strong></div>
+        <div class="client-stat">Est. Profit<strong style="${stats.estProfit > 0 ? 'color:var(--success)' : stats.estProfit < 0 ? 'color:var(--danger)' : ''}">${stats.revenue ? '₹' + Math.round(stats.estProfit).toLocaleString('en-IN') : '—'}</strong></div>
+        <div class="client-stat">Last Order<strong style="${isQuiet ? 'color:var(--danger)' : ''}">${lastOrderLbl}</strong></div>
+      </div>
+      <details>
+        <summary class="client-products-toggle">${c.products.length} product${c.products.length === 1 ? '' : 's'}</summary>
+        <div class="client-products">${productsHtml || '<span style="font-size:12px;color:var(--muted)">No products defined yet</span>'}</div>
+      </details>
     `;
     list.appendChild(card);
   });

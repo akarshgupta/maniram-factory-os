@@ -591,6 +591,20 @@
           <button onclick="document.getElementById('client-migration-banner').style.display='none'" style="margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1">×</button>
         </div>
       </div>
+      <div id="clients-summary" style="margin-bottom:14px"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+        <div id="client-search-bar" style="display:flex;flex:1;min-width:220px">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="client-search" placeholder="Search by client, contact, or city..." oninput="onClientSearch()" autocomplete="off">
+        </div>
+        <select class="form-input" id="client-sort" style="width:auto;min-width:200px" onchange="onClientSortChange()">
+          <option value="name">Sort: Name (A–Z)</option>
+          <option value="revenue">Sort: Highest Revenue</option>
+          <option value="profit">Sort: Highest Est. Profit</option>
+          <option value="orders">Sort: Most Orders</option>
+          <option value="stale">Sort: Least Recently Ordered</option>
+        </select>
+      </div>
       <div id="clients-list"></div>
     </div>
 
