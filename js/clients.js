@@ -74,13 +74,15 @@ const PLY_LAYERS = {
   ],
 };
 
-// ── Suggest Weight & Reel Size from box dimensions ──
+// ── Suggest Weight, Reel Size & Rate from box dimensions ──
 // Sheet Length = (L+W)×2+2, Sheet Width (= reel size) = W+H+0.5, Area = SheetL×SheetW/1550
-// (skills/rate-calculator.md). Picks the narrowest available reel that fits; falls back
-// to standard stocked widths when live reel data hasn't loaded. Reel size only needs the
-// box dimensions, but weight depends on the actual paper — so this asks for GSM on each
-// layer first (focuses the first blank one) rather than guessing a default and calculating
-// on top of a guess. Both fields stay plain number inputs, editable like any other value.
+// (skills/rate-calculator.md). Reel size is the box-derived width itself — it must NOT be
+// rounded up to a wider stocked reel, since that width also drives the weight calc below
+// and a wider reel would overstate paper actually consumed per box. Weight depends on the
+// actual paper, so this asks for GSM on each layer first (focuses the first blank one)
+// rather than guessing a default and calculating on top of a guess. Rate is then estimated
+// from that weight at the current paper cost (PAPER_RATE_PER_KG). All three fields stay
+// plain number inputs, editable like any other value.
 function suggestWeightAndReel() {
   const hint = document.getElementById('pm-suggest-hint');
   const dims = typeof _parseDims === 'function' ? _parseDims(document.getElementById('pm-size')?.value || '') : null;
@@ -93,13 +95,7 @@ function suggestWeightAndReel() {
   const layers = PLY_LAYERS[ply] || PLY_LAYERS[3];
 
   const sheetLen = (l + w) * 2 + 2;
-  const reqWidth = w + h + 0.5;
-
-  const known = (typeof _deckleReelSizes === 'function' ? _deckleReelSizes() : [])
-    .map(r => r.size).filter(s => s > 0);
-  const pool  = known.length ? known : [30, 32, 33, 35, 35.5, 36, 38, 40, 42, 44, 46, 48];
-  const fits  = pool.filter(s => s >= reqWidth).sort((a, b) => a - b);
-  const reelSize = fits.length ? fits[0] : Math.ceil(reqWidth * 2) / 2;
+  const reelSize = w + h + 0.5;
   document.getElementById('pm-reelsize').value = reelSize;
 
   // Weight needs real GSM per layer — ask for it instead of assuming a default.
@@ -121,8 +117,12 @@ function suggestWeightAndReel() {
   });
   document.getElementById('pm-weight').value = weight.toFixed(1);
 
+  const rate = (weight / 1000) * PAPER_RATE_PER_KG;
+  const rateEl = document.getElementById('pm-rate');
+  if (rateEl) rateEl.value = rate.toFixed(2);
+
   if (hint) {
-    hint.innerHTML = `Sheet ${_fmtN(sheetLen)}×${_fmtN(reqWidth)}" (${ply}-ply) → reel <b>${reelSize}"</b> → est. weight <b>${weight.toFixed(1)} gm</b> from GSM ${gsmUsed.join('/')}. Edit either field above if actuals differ.`;
+    hint.innerHTML = `Sheet ${_fmtN(sheetLen)}×${_fmtN(reelSize)}" (${ply}-ply) → est. weight <b>${weight.toFixed(1)} gm</b> from GSM ${gsmUsed.join('/')} → suggested rate <b>₹${rate.toFixed(2)}</b>/pc @ ₹${PAPER_RATE_PER_KG}/kg paper. Edit any field above if actuals differ.`;
   }
 }
 
@@ -159,6 +159,8 @@ function recalcWeightFromReelSize() {
 let CLIENTS       = [];
 let acSelectedIdx = -1;
 let acFiltered    = [];
+let _clientSearchQuery = '';
+let _clientSortBy      = 'name';
 
 // ── Client Modal State ──
 let _clientModalIdx    = -1; // -1 = adding new
@@ -691,13 +693,104 @@ function clearProductFields() {
 // CLIENTS PAGE — Render & CRUD
 // ══════════════════════════════════════════════════════════════
 
+// ── Per-client order stats — orders count, boxes, revenue, and an estimated
+// profit (revenue minus paper cost, costed at PAPER_RATE_PER_KG the same way
+// clients.js suggests a rate) — plus the most recent delivery date across
+// their orders, used to spot clients who've gone quiet. Cancelled orders
+// don't count as business; every other status does, delivered or not.
+function _clientOrderStats(name) {
+  const empty = { orderCount: 0, totalQty: 0, revenue: 0, estProfit: 0, lastDate: null, daysSince: null };
+  if (typeof orders === 'undefined' || !name) return empty;
+  const needle = name.trim().toLowerCase();
+  const mine = orders.filter(o => o.status !== 'Cancelled' && (o.customer || '').trim().toLowerCase() === needle);
+  if (!mine.length) return empty;
+
+  let totalQty = 0, revenue = 0, cost = 0, lastDate = null;
+  const paperRate = typeof PAPER_RATE_PER_KG !== 'undefined' ? PAPER_RATE_PER_KG : 60;
+  mine.forEach(o => {
+    const qty    = parseInt(o.qty) || 0;
+    const rate   = parseFloat(o.rate) || 0;
+    const weight = parseFloat(o.weight) || 0;
+    totalQty += qty;
+    revenue  += qty * rate;
+    cost     += (weight / 1000) * qty * paperRate;
+    if (o.date && (!lastDate || o.date > lastDate)) lastDate = o.date;
+  });
+  const daysSince = lastDate ? Math.floor((Date.now() - new Date(lastDate + 'T00:00:00').getTime()) / 86400000) : null;
+  return { orderCount: mine.length, totalQty, revenue, estProfit: revenue - cost, lastDate, daysSince };
+}
+
+function onClientSearch() {
+  _clientSearchQuery = (document.getElementById('client-search')?.value || '').trim().toLowerCase();
+  renderClients();
+}
+
+function onClientSortChange() {
+  _clientSortBy = document.getElementById('client-sort')?.value || 'name';
+  renderClients();
+}
+
 function renderClients() {
   const banner = document.getElementById('client-migration-banner');
   if (banner) banner.style.display = _clientsFromSheet ? 'none' : 'block';
 
   const list = document.getElementById('clients-list');
   list.innerHTML = '';
-  CLIENTS.forEach((c, ci) => {
+
+  let rows = CLIENTS.map((c, ci) => ({ c, ci, stats: _clientOrderStats(c.name) }));
+
+  const topRow    = rows.reduce((best, r) => (r.stats.revenue > (best ? best.stats.revenue : 0)) ? r : best, null);
+  const quietRows = rows.filter(r => r.stats.daysSince !== null && r.stats.daysSince >= 60);
+
+  const summaryEl = document.getElementById('clients-summary');
+  if (summaryEl) {
+    summaryEl.innerHTML = rows.length ? `
+      <div class="client-summary-strip">
+        <div class="client-summary-card">
+          <div class="cs-label">🏆 Top Client (by revenue)</div>
+          <div class="cs-value">${topRow && topRow.stats.revenue > 0 ? topRow.c.name : '—'}</div>
+          ${topRow && topRow.stats.revenue > 0 ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">₹${Math.round(topRow.stats.revenue).toLocaleString('en-IN')} across ${topRow.stats.orderCount} order${topRow.stats.orderCount > 1 ? 's' : ''}</div>` : ''}
+        </div>
+        <div class="client-summary-card">
+          <div class="cs-label">📦 Total Clients</div>
+          <div class="cs-value">${rows.length}</div>
+        </div>
+        <div class="client-summary-card">
+          <div class="cs-label">⚠️ Quiet 60+ Days</div>
+          <div class="cs-value" style="${quietRows.length ? 'color:var(--danger)' : ''}">${quietRows.length}</div>
+          ${quietRows.length ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${quietRows.slice(0, 3).map(r => r.c.name).join(', ')}${quietRows.length > 3 ? ` +${quietRows.length - 3} more` : ''}</div>` : ''}
+        </div>
+      </div>
+      <div class="field-hint" style="margin-top:8px">Revenue and Est. Profit are computed from saved order quantities and rates; Est. Profit only subtracts paper cost (weight × ${typeof PAPER_RATE_PER_KG !== 'undefined' ? PAPER_RATE_PER_KG : 60}/kg) — it doesn't include labour, overhead, or other materials, so treat it as a rough ranking, not an exact number.</div>` : '';
+  }
+
+  if (_clientSearchQuery) {
+    rows = rows.filter(r =>
+      r.c.name.toLowerCase().includes(_clientSearchQuery) ||
+      (r.c.contact || '').toLowerCase().includes(_clientSearchQuery) ||
+      (r.c.city || '').toLowerCase().includes(_clientSearchQuery)
+    );
+  }
+
+  rows.sort((a, b) => {
+    if (_clientSortBy === 'revenue') return b.stats.revenue - a.stats.revenue;
+    if (_clientSortBy === 'profit')  return b.stats.estProfit - a.stats.estProfit;
+    if (_clientSortBy === 'orders')  return b.stats.orderCount - a.stats.orderCount;
+    if (_clientSortBy === 'stale') {
+      // Never-ordered clients first, then oldest last-order first.
+      if (a.stats.lastDate === null && b.stats.lastDate === null) return a.c.name.localeCompare(b.c.name);
+      if (a.stats.lastDate === null) return -1;
+      if (b.stats.lastDate === null) return 1;
+      return a.stats.lastDate.localeCompare(b.stats.lastDate);
+    }
+    return a.c.name.localeCompare(b.c.name);
+  });
+
+  if (!rows.length) {
+    list.innerHTML = `<div class="empty-state">${_clientSearchQuery ? 'No clients match your search.' : 'No clients yet.'}</div>`;
+  }
+
+  rows.forEach(({ c, ci, stats }) => {
     const card = document.createElement('div');
     card.className = 'client-card';
     const productsHtml = c.products.map((p, pi) => {
@@ -709,19 +802,36 @@ function renderClients() {
         <button class="btn-sm" style="color:var(--danger)" onclick="deleteProduct(${ci},${pi})">🗑</button>
       </div>`;
     }).join('');
+
+    const isTop   = !!(topRow && topRow.c === c && stats.revenue > 0);
+    const isQuiet = stats.daysSince !== null && stats.daysSince >= 60;
+    const lastOrderLbl = stats.lastDate
+      ? (stats.daysSince < 0 ? 'Upcoming' : stats.daysSince === 0 ? 'Today' : `${stats.daysSince}d ago`)
+      : 'Never';
+
     card.innerHTML = `
       <div class="client-card-header">
         <div class="client-avatar">${c.name[0]}</div>
         <div>
-          <div class="client-name">${c.name}</div>
-          <div class="client-meta">${c.contact} · ${c.city} · ${c.phone}</div>
+          <div class="client-name">${c.name}${isTop ? '<span class="client-badge client-badge-top">🏆 Top Client</span>' : ''}${isQuiet ? `<span class="client-badge client-badge-quiet">⚠️ Quiet ${stats.daysSince}d</span>` : ''}</div>
+          <div class="client-meta">${c.contact || '—'} · ${c.city || '—'} · ${c.phone || '—'}</div>
         </div>
         <div class="client-edit-btn" style="display:flex;gap:6px">
           <button class="btn-sm" onclick="editClient(${ci})">✏️ Edit</button>
           <button class="btn-sm" style="color:var(--success)" onclick="addProduct(${ci})">+ Product</button>
         </div>
       </div>
-      <div class="client-products">${productsHtml || '<span style="font-size:12px;color:var(--muted)">No products defined yet</span>'}</div>
+      <div class="client-stats-row">
+        <div class="client-stat">Orders<strong>${stats.orderCount}</strong></div>
+        <div class="client-stat">Boxes<strong>${stats.totalQty.toLocaleString('en-IN')}</strong></div>
+        <div class="client-stat">Revenue<strong>${stats.revenue ? '₹' + Math.round(stats.revenue).toLocaleString('en-IN') : '—'}</strong></div>
+        <div class="client-stat">Est. Profit<strong style="${stats.estProfit > 0 ? 'color:var(--success)' : stats.estProfit < 0 ? 'color:var(--danger)' : ''}">${stats.revenue ? '₹' + Math.round(stats.estProfit).toLocaleString('en-IN') : '—'}</strong></div>
+        <div class="client-stat">Last Order<strong style="${isQuiet ? 'color:var(--danger)' : ''}">${lastOrderLbl}</strong></div>
+      </div>
+      <details>
+        <summary class="client-products-toggle">${c.products.length} product${c.products.length === 1 ? '' : 's'}</summary>
+        <div class="client-products">${productsHtml || '<span style="font-size:12px;color:var(--muted)">No products defined yet</span>'}</div>
+      </details>
     `;
     list.appendChild(card);
   });
@@ -759,6 +869,23 @@ function saveClientModal() {
   const city    = document.getElementById('cm-city').value.trim();
 
   if (!name) { document.getElementById('cm-name').focus(); return; }
+
+  // Case-insensitive duplicate check — without this, adding a client whose
+  // name already exists silently pushed a second CLIENTS entry with the
+  // same name (products on the duplicate become unreachable, since every
+  // by-name lookup elsewhere finds only the first match).
+  const dupIdx = CLIENTS.findIndex((c, i) => i !== _clientModalIdx && c.name.toLowerCase() === name.toLowerCase());
+  if (dupIdx >= 0) {
+    const existing = CLIENTS[dupIdx];
+    if (_clientModalIdx < 0 && confirm(`"${existing.name}" is already a saved client. Use the existing client instead of adding a duplicate?`)) {
+      closeClientModal();
+      if (_clientSaveCallback) { _clientSaveCallback(existing.name); _clientSaveCallback = null; }
+      return;
+    }
+    alert(`A client named "${existing.name}" already exists. Please use a different name, or pick them from the Customer field instead.`);
+    document.getElementById('cm-name').focus();
+    return;
+  }
 
   if (_clientModalIdx >= 0) {
     const originalName = CLIENTS[_clientModalIdx].name;

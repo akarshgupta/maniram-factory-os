@@ -598,6 +598,20 @@
           <button onclick="document.getElementById('client-migration-banner').style.display='none'" style="margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1">×</button>
         </div>
       </div>
+      <div id="clients-summary" style="margin-bottom:14px"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+        <div id="client-search-bar" style="display:flex;flex:1;min-width:220px">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="client-search" placeholder="Search by client, contact, or city..." oninput="onClientSearch()" autocomplete="off">
+        </div>
+        <select class="form-input" id="client-sort" style="width:auto;min-width:200px" onchange="onClientSortChange()">
+          <option value="name">Sort: Name (A–Z)</option>
+          <option value="revenue">Sort: Highest Revenue</option>
+          <option value="profit">Sort: Highest Est. Profit</option>
+          <option value="orders">Sort: Most Orders</option>
+          <option value="stale">Sort: Least Recently Ordered</option>
+        </select>
+      </div>
       <div id="clients-list"></div>
     </div>
 
@@ -1316,7 +1330,7 @@
         <div id="pm-gsm-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px"></div>
       </div>
       <div class="form-group" style="grid-column:span 2;margin:2px 0 -2px">
-        <button type="button" class="btn-secondary" style="font-size:12px;padding:6px 12px" onclick="suggestWeightAndReel()">🧮 Suggest Weight &amp; Reel Size from Box Size + GSM</button>
+        <button type="button" class="btn-secondary" style="font-size:12px;padding:6px 12px" onclick="suggestWeightAndReel()">🧮 Suggest Weight, Reel Size &amp; Rate from Box Size + GSM</button>
         <div id="pm-suggest-hint" class="field-hint" style="margin-top:6px;min-height:14px"></div>
       </div>
       <div class="form-group">
@@ -1335,6 +1349,7 @@
         <label class="form-label">Rate (₹/pc) <span style="font-size:10px;font-weight:400;color:var(--muted)">optional — auto-fills order form</span></label>
         <input class="form-input" type="number" id="pm-rate" placeholder="e.g. 32.50" step="0.01"
           onkeydown="if(event.key==='Escape')closeProductModal()">
+        <div class="field-hint">Suggested from box weight @ ₹60/kg paper cost. Edit for your actual selling price.</div>
       </div>
 
       <!-- Printing -->

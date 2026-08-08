@@ -195,23 +195,34 @@ function getTotalKgForSize(reelSizeStr) {
   return found ? (found.totalWeight + KATRA_BUFFER_KG) : 0;
 }
 
+// The factory doesn't stock a reel for every fractional box width — a narrow
+// required width is normally cut multi-up (n boxes side by side) from a wider
+// stocked reel instead, up to the corrugator's CORRUGATOR_MAX_WIDTH capacity.
+// reelSizeStr already bakes in the box's own single-cut 0.5" margin (see
+// clients.js suggestWeightAndReel), so the raw per-box width without that
+// margin is reelSizeStr - 0.5. A stocked reel of width R fits n =
+// floor(R / rawWidth) boxes across; it's a usable substitute whenever that
+// leaves at least a 0.5" trim margin (single-up keeps the exact 0.5" margin,
+// multi-up can loosen to ~0.75" per join). See skills/rate-calculator.md.
 function findSubstitutes(reelSizeStr, neededKg) {
   const base = parseFloat(reelSizeStr);
-  if (isNaN(base)) return [];
+  if (isNaN(base) || base <= 0 || !reelData.length) return [];
+  const rawWidth = base > 0.5 ? base - 0.5 : base;
   const subs = [];
-  [1, 2].forEach(delta => {
-    [base + delta, base + delta + 0.5].forEach(trySize => {
-      const found = reelData.find(r => Math.abs(r.size - trySize) < 0.1);
-      if (found) {
-        const reservedKg  = getReservedKgForSize(found.size.toString());
-        const availableKg = (found.totalWeight + KATRA_BUFFER_KG) - reservedKg;
-        if (availableKg >= neededKg) {
-          subs.push({ size: found.size, availableKg: Math.round(availableKg) });
-        }
-      }
-    });
+  reelData.forEach(r => {
+    const size = parseFloat(r.size);
+    if (!(size > 0) || size > CORRUGATOR_MAX_WIDTH || Math.abs(size - base) < 0.1) return;
+    const upCount = Math.floor(size / rawWidth);
+    if (upCount < 1) return;
+    const margin = size - upCount * rawWidth;
+    if (margin < 0.5) return; // not enough trim margin to cut cleanly
+    const reservedKg  = getReservedKgForSize(size.toString());
+    const availableKg = (r.totalWeight + KATRA_BUFFER_KG) - reservedKg;
+    if (availableKg >= neededKg) {
+      subs.push({ size, availableKg: Math.round(availableKg), upCount });
+    }
   });
-  return subs.filter((s, i, arr) => arr.findIndex(x => x.size === s.size) === i);
+  return subs.sort((a, b) => a.size - b.size);
 }
 
 function checkStockForCurrentOrder() {
@@ -235,7 +246,7 @@ function checkStockForCurrentOrder() {
     box.style.borderLeft = '4px solid var(--danger)';
     box.innerHTML = `
       <div style="font-size:13px;font-weight:700;color:var(--danger);margin-bottom:6px;">❌ ${reelSize}" — No stock data found</div>
-      ${subs.length ? `<div style="font-size:12px;font-weight:600;color:#B45309;">🔄 Substitute:</div>${subs.map(s=>`<div style="font-size:12px;color:#92400E;">→ ${s.size}" · ${s.availableKg.toLocaleString('en-IN')} kg available</div>`).join('')}` : '<div style="font-size:12px;color:var(--danger)">No substitutes available.</div>'}`;
+      ${subs.length ? `<div style="font-size:12px;font-weight:600;color:#B45309;">🔄 Substitute:</div>${subs.map(s=>`<div style="font-size:12px;color:#92400E;">→ ${s.size}" reel · ${s.upCount > 1 ? `${s.upCount}-up cut · ` : ''}${s.availableKg.toLocaleString('en-IN')} kg available</div>`).join('')}` : '<div style="font-size:12px;color:var(--danger)">No substitutes available.</div>'}`;
     return;
   }
 
@@ -259,7 +270,7 @@ function checkStockForCurrentOrder() {
         <div><span style="color:var(--muted)">Available:</span> <strong style="color:var(--danger)">${Math.max(0,Math.round(availableKg)).toLocaleString('en-IN')} kg</strong></div>
         <div><span style="color:var(--muted)">Shortage:</span> <strong style="color:var(--danger)">${shortage.toLocaleString('en-IN')} kg</strong></div>
       </div>
-      ${subs.length ? `<div style="font-size:12px;font-weight:600;color:#B45309;margin-bottom:4px;">🔄 Substitute Available:</div>${subs.map(s=>`<div style="font-size:12px;color:#92400E;">→ ${s.size}" · ${s.availableKg.toLocaleString('en-IN')} kg ✅</div>`).join('')}` : '<div style="font-size:12px;color:var(--danger);font-weight:600;">No substitutes available. Please place a purchase order first.</div>'}`;
+      ${subs.length ? `<div style="font-size:12px;font-weight:600;color:#B45309;margin-bottom:4px;">🔄 Substitute Available:</div>${subs.map(s=>`<div style="font-size:12px;color:#92400E;">→ ${s.size}" reel · ${s.upCount > 1 ? `${s.upCount}-up cut · ` : ''}${s.availableKg.toLocaleString('en-IN')} kg ✅</div>`).join('')}` : '<div style="font-size:12px;color:var(--danger);font-weight:600;">No substitutes available. Please place a purchase order first.</div>'}`;
   }
 }
 
@@ -303,7 +314,8 @@ async function saveOrderToSheet() {
   const priority  = document.getElementById('f-priority').value;
   const reelSize  = document.getElementById('f-reel-size').value.trim();
 
-  if (!customer || !date) { alert('Customer and Delivery Date are required.'); return; }
+  if (!customer) { alert('Customer is required.'); document.getElementById('f-customer').focus(); return; }
+  if (!date)     { alert('Delivery Date is required.'); document.getElementById('f-date').focus(); return; }
 
   const reservedKg = calcOrderKg(weight, qty);
   const d          = new Date(date);

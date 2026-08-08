@@ -172,6 +172,18 @@ function pickDate(dateStr) {
   showDateLoadHint(_calTarget);
 }
 
+// Quick-pick straight from the ±3-day strip under a date field, independent
+// of the calendar overlay / _calTarget (the strip can be clicked without the
+// overlay ever having been opened).
+function _stripPickDate(inputId, dateStr) {
+  const inp = document.getElementById(inputId);
+  if (!inp) return;
+  inp.value = dateStr;
+  inp.dispatchEvent(new Event('change', { bubbles: true }));
+  inp.dispatchEvent(new Event('input',  { bubbles: true }));
+  showDateLoadHint(inputId);
+}
+
 function hideDateCalendar() {
   const ov = document.getElementById('__date-cal-overlay');
   if (ov) ov.style.display = 'none';
@@ -193,7 +205,9 @@ function showDateLoadHint(inputId) {
   const dt     = new Date(val + 'T00:00:00');
   const dayLbl = dt.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' });
 
-  // Show ±3 day strip
+  // Show ±3 day strip — clickable, so it's a real quick-picker and not just
+  // a lookalike readout (it used to have no onclick at all: it looked exactly
+  // like a row of day buttons, but tapping a day silently did nothing).
   const strip = [];
   for (let i = -3; i <= 3; i++) {
     const d = new Date(val + 'T00:00:00');
@@ -202,7 +216,7 @@ function showDateLoadHint(inputId) {
     const cnt = map[ds] || 0;
     const c   = _loadColour(cnt);
     const isCur = i === 0;
-    strip.push(`<div style="text-align:center;flex:1">
+    strip.push(`<div onclick="_stripPickDate('${inputId}','${ds}')" style="text-align:center;flex:1;cursor:pointer">
       <div style="width:100%;padding:4px 0;border-radius:6px;background:${isCur ? (c.bg||'#EFF6FF') : (c.bg||'#F8FAFC')};
                   border:${isCur ? '2px solid var(--blue)' : '1px solid var(--border)'};font-size:10px;font-weight:${isCur?'800':'500'};
                   color:${isCur ? 'var(--blue)' : (c.text||'var(--muted)') }">
