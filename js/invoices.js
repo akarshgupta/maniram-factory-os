@@ -120,6 +120,12 @@ function onInvoiceItemProductInput(i, val) {
   _ciItems[i].desc    = val;
   _ciItems[i].orderId = null; // typing unlinks any previous match until re-picked
 
+  // The "linked" badge is stale DOM from the last full render — without this
+  // it stays visible (still showing the old order) while the dropdown opens
+  // in the exact same spot, overlapping it.
+  const linkedEl = document.getElementById('ci-item-linked-' + i);
+  if (linkedEl) linkedEl.style.display = 'none';
+
   const party    = (document.getElementById('ci-party')?.value || '').toLowerCase().trim();
   const product  = (val || '').toLowerCase().trim();
   const dropdown = document.getElementById('ci-item-dd-' + i);
@@ -174,7 +180,7 @@ function renderInvoiceItemRows() {
     </div>` +
     _ciItems.map((item, i) => {
       const linked = item.orderId
-        ? `<div style="font-size:10px;color:#15803D;margin-top:3px;display:flex;align-items:center;gap:4px;white-space:nowrap">
+        ? `<div id="ci-item-linked-${i}" style="font-size:10px;color:#15803D;margin-top:3px;display:flex;align-items:center;gap:4px;white-space:nowrap">
              ✅ <strong>${item.orderId}</strong> · deducts + marks Delivered
              <button onclick="_ciItems[${i}].orderId=null;renderInvoiceItemRows()" title="Unlink" style="background:none;border:none;cursor:pointer;color:#15803D;font-size:13px;line-height:1">×</button>
            </div>`

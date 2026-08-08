@@ -46,7 +46,7 @@ function renderDailyReport(loading) {
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px">
       <button class="btn-secondary" style="padding:6px 12px" onclick="drShiftDate(-1)">◀</button>
       <input type="date" class="form-input" style="max-width:180px" value="${_drDate}" onchange="drSetDate(this.value)">
-      <button class="btn-secondary" style="padding:6px 12px" onclick="drShiftDate(1)" ${_drDate >= todayStr ? 'disabled' : ''}>▶</button>
+      <button class="btn-secondary" style="padding:6px 12px" onclick="drShiftDate(1)" ${_drDate >= todayStr ? 'disabled title="Already at today — the report can\'t look ahead into the future"' : ''}>▶</button>
       <button class="btn-secondary" style="padding:6px 12px;font-size:12px" onclick="drToday()">Today</button>
       <div style="font-weight:700;font-size:15px;margin-left:6px">${_drDateLabel(_drDate)}</div>
       <button class="btn-secondary" style="font-size:11px;padding:5px 12px;margin-left:auto" onclick="window.print()">🖨 Print</button>
