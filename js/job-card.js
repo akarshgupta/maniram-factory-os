@@ -222,6 +222,8 @@ function printJobCard(orderId) {
 <head>
 <meta charset="UTF-8">
 <title>Job Card — ${o.id}</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: Arial, sans-serif; font-size: 12px; color: #111; background: #fff; }
@@ -280,7 +282,9 @@ function printJobCard(orderId) {
 <body>
 <div class="no-print print-bar">
   <button class="print-btn" onclick="window.print()">🖨️ Print Job Card</button>
+  <button id="share-btn" class="print-btn" style="background:#0E9F6E" onclick="shareJobCard()">📤 Share</button>
   <button onclick="window.close()" style="background:#6b7280;color:#fff;border:none;padding:9px 18px;font-size:13px;font-weight:700;border-radius:6px;cursor:pointer">✕ Close</button>
+  <div id="share-status" style="font-size:11px;color:#888;margin-top:8px"></div>
 </div>
 
 <div class="page">
@@ -403,6 +407,61 @@ function printJobCard(orderId) {
   }
   if (img.complete && img.naturalWidth) fit(); else img.onload = fit;
 })();
+
+// ── Share job card as PDF — Web Share API (WhatsApp / email / anything
+// the device's share sheet offers) with a plain download fallback for
+// desktop browsers that don't support sharing files. ──
+async function shareJobCard() {
+  var btn    = document.getElementById('share-btn');
+  var status = document.getElementById('share-status');
+  if (!window.html2canvas || !window.jspdf) {
+    if (status) status.textContent = 'Still loading — try again in a moment.';
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Preparing…'; }
+  if (status) status.textContent = '';
+  try {
+    var pageEl = document.querySelector('.page');
+    var canvas = await html2canvas(pageEl, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+    var { jsPDF } = window.jspdf;
+    var pdf    = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    var pageW  = 210, pageH = 297;
+    var imgW   = pageW;
+    var imgH   = canvas.height * imgW / canvas.width;
+    var imgData = canvas.toDataURL('image/jpeg', 0.92);
+
+    var heightLeft = imgH, position = 0;
+    pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH);
+    heightLeft -= pageH;
+    while (heightLeft > 0) {
+      position -= pageH;
+      pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH);
+      heightLeft -= pageH;
+    }
+
+    var filename = ${JSON.stringify(`JobCard_${o.id}.pdf`)};
+    var blob = pdf.output('blob');
+    var file = new File([blob], filename, { type: 'application/pdf' });
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        files: [file],
+        title: ${JSON.stringify(`Job Card — ${o.id}`)},
+        text:  ${JSON.stringify(`Production job card for ${o.customer}${(o.product || o.size) ? ' · ' + (o.product || o.size) : ''}`)},
+      });
+    } else {
+      pdf.save(filename);
+      if (status) status.textContent = 'Downloaded — attach it in WhatsApp/Email from your downloads.';
+    }
+  } catch (err) {
+    if (err && err.name !== 'AbortError') {
+      if (status) status.textContent = 'Could not prepare job card: ' + err.message;
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📤 Share'; }
+  }
+}
 </script>
 </body>
 </html>`;
