@@ -13,9 +13,13 @@
 let _drDate = todayStr;
 
 function drShiftDate(days) {
-  const d = new Date(_drDate + 'T00:00:00');
-  d.setDate(d.getDate() + days);
-  _drDate = d.toISOString().split('T')[0];
+  // Pure local-calendar arithmetic — no toISOString() round-trip. That
+  // round-trip converts through UTC, and for any timezone ahead of UTC
+  // (IST included) it silently drops or duplicates a day depending on the
+  // time of day, which is why the arrows could do nothing or jump too far.
+  const [y, m, dNum] = _drDate.split('-').map(Number);
+  const d = new Date(y, m - 1, dNum + days);
+  _drDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   renderDailyReport();
 }
 function drSetDate(value) {
