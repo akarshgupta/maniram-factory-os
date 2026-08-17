@@ -191,10 +191,19 @@ function printJobCard(orderId) {
     </tr>`;
   }).join('') : '';
 
+  // GSM broken out by liner vs flute for the Corrugation sign-off below —
+  // the two paper grades are picked/loaded separately on the machine, so
+  // the check needs both, not just a ply count.
+  const linerGsmList = layers.map((l, i) => (product && product.gsm ? product.gsm[i] : 0)).filter((_, i) => layers[i]?.type === 'liner');
+  const fluteGsmList = layers.map((l, i) => (product && product.gsm ? product.gsm[i] : 0)).filter((_, i) => layers[i]?.type === 'fluting');
+  const gsmSummary = layers.length
+    ? ` · Liner GSM: ${linerGsmList.map(g => g || '__').join('/')} · Flute GSM: ${fluteGsmList.map(g => g || '__').join('/')}`
+    : '';
+
   // ── Stage sign-off — fixed shop-floor sequence, each with its required signers ──
   const stages = [
     { name: 'Paper Cutting Size Check', icon: '📏', detail: 'Cutting size: ' + cutSizeStr, signers: ['Supervisor'] },
-    { name: 'Corrugation — Ply Size Check', icon: '🌀', detail: (o.ply ? o.ply + ' Ply' : '______') + ' · Reel: ' + (o.reelSize ? o.reelSize + '"' : '______'), signers: ['Technician', 'Supervisor'] },
+    { name: 'Corrugation — Ply Size Check', icon: '🌀', detail: (o.ply ? o.ply + ' Ply' : '______') + ' · Reel: ' + (o.reelSize ? o.reelSize + '"' : '______') + gsmSummary, signers: ['Technician', 'Supervisor'] },
     { name: 'Pasting — ' + (o.ply ? o.ply + ' Ply' : '___ Ply') + ' Check', icon: '🩹', detail: 'Layer count and alignment', signers: ['Technician'] },
     { name: 'Print Check', icon: '🖨️', detail: isPrint ? ('Colour: ' + (product?.printColour || o.colour || '______')) : 'PLAIN — NO PRINT', signers: ['Supervisor', 'Technician'] },
     { name: 'Rotary — Size Check', icon: '🔄', detail: 'Box size: ' + (o.size || '______'), signers: ['Supervisor', 'Technician'] },
