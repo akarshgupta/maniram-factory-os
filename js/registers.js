@@ -72,14 +72,14 @@ function _regParseSize(s) {
   const m = String(s||'').toLowerCase().replace(/×/g,'x').match(/([\d.]+)\s*x\s*([\d.]+)\s*x\s*([\d.]+)/);
   return m ? { L:+m[1], W:+m[2], H:+m[3] } : null;
 }
-function _regSheetArea(size) {
+function _regSheetArea(size, twoPart) {
   const d = _regParseSize(size); if (!d) return 0;
-  const SL = (d.L + d.W) * 2 + 2, SW = d.W + d.H + 0.5;
+  const SL = calcSheetLen(d.L, d.W, twoPart), SW = d.W + d.H + 0.5;
   return (SL * SW) / 1550; // sqm
 }
 // gsmStr e.g. "140/120/120" (top-first). Returns {plyKg, topKg} per sheet.
 function _regLayerWeights(order) {
-  const area = _regSheetArea(order.size); if (!area) return null;
+  const area = _regSheetArea(order.size, order.twoPart); if (!area) return null;
   const meta = _gsmLocal()[order.id];
   if (meta && meta.gsm) {
     const layers = meta.gsm.split(/[\/,\s]+/).map(Number).filter(n => n > 0);

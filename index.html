@@ -332,6 +332,13 @@
             <div id="f-reel-hint" style="font-size:11px;color:var(--muted);margin-top:6px;background:var(--bg);border-radius:8px;padding:6px 8px;display:contents"></div>
             <div class="field-hint">Width of the paper roll loaded into the machine — ask supervisor if unsure</div>
           </div>
+          <div class="form-group" style="grid-column:span 2">
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+              <input type="checkbox" id="f-two-part" style="width:16px;height:16px;cursor:pointer;accent-color:var(--navy)">
+              <span style="font-weight:600;font-size:13px;color:var(--navy)">Made in 2 Parts (box too long for a single pass — pasted)</span>
+            </label>
+            <div class="field-hint">Machine max is ~82". Adds the extra 2" stitching margin to the cutting size on the job card.</div>
+          </div>
           <div class="form-group">
             <label class="form-label">Quantity (pcs)</label>
             <input class="form-input" type="number" id="f-qty" placeholder="1000" oninput="hideSuggestion(); checkStockForCurrentOrder()">
@@ -1179,6 +1186,12 @@
         <label class="form-label">Weight (gm)</label>
         <input class="form-input" type="number" id="ef-weight" placeholder="e.g. 648" step="0.1">
       </div>
+      <div class="form-group" style="grid-column:span 2">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <input type="checkbox" id="ef-two-part" style="width:16px;height:16px;cursor:pointer;accent-color:var(--navy)">
+          <span style="font-weight:600;font-size:13px;color:var(--navy)">Made in 2 Parts (box too long for a single pass — pasted)</span>
+        </label>
+      </div>
       <div class="form-group">
         <label class="form-label">Quantity (pcs)</label>
         <input class="form-input" type="number" id="ef-qty" placeholder="1000">
@@ -1335,6 +1348,13 @@
         <label class="form-label">Rate (₹/pc) <span style="font-size:10px;font-weight:400;color:var(--muted)">optional — auto-fills order form</span></label>
         <input class="form-input" type="number" id="pm-rate" placeholder="e.g. 32.50" step="0.01"
           onkeydown="if(event.key==='Escape')closeProductModal()">
+      </div>
+      <div class="form-group" style="grid-column:span 2;margin-top:2px">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <input type="checkbox" id="pm-two-part" style="width:16px;height:16px;cursor:pointer;accent-color:var(--navy)" onchange="recalcWeightFromReelSize()">
+          <span style="font-weight:600;font-size:13px;color:var(--navy)">Made in 2 Parts (box too long for a single pass — pasted)</span>
+        </label>
+        <div class="field-hint">Machine max is ~82". If the sheet length works out longer than that, the box is cut as two pasted pieces — check this to add the extra 2" stitching margin to the cutting size and weight.</div>
       </div>
 
       <!-- Printing -->

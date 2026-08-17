@@ -108,7 +108,8 @@ async function fetchOrders() {
       reelSize:  header.findIndex(h => h.includes('reel size') || h === 'reel_size' || h === 'reelsize'),
       resvKg:    header.findIndex(h => h.includes('reserved kg') || h === 'reserved_kg'),
       orderDate: header.findIndex(h => h === 'orderdate' || h.includes('order date') || h === 'order_date'),
-    } : { id:0, customer:1, product:2, spec:3, ply:4, colour:5, weight:6, qty:7, rate:8, date:9, status:10, priority:11, reelSize:12, resvKg:13, orderDate:14 };
+      twoPart:   header.findIndex(h => h.includes('two part') || h === 'twopart' || h === 'two_part'),
+    } : { id:0, customer:1, product:2, spec:3, ply:4, colour:5, weight:6, qty:7, rate:8, date:9, status:10, priority:11, reelSize:12, resvKg:13, orderDate:14, twoPart:15 };
 
     // Snapshot pending local orders before we overwrite
     const stillPending = orders.filter(o => pendingOrderIds.has(o.id));
@@ -137,6 +138,7 @@ async function fetchOrders() {
         priority:   col.priority >= 0 ? (r[col.priority] || 'Normal') : 'Normal',
         reelSize:   col.reelSize >= 0 ? (r[col.reelSize] || '') : '',
         reservedKg: col.resvKg  >= 0 ? parseFloat(r[col.resvKg]) || 0 : 0,
+        twoPart:    col.twoPart >= 0 ? String(r[col.twoPart]).toUpperCase() === 'TRUE' : false,
         done: false, rowIndex: i + 1,
       });
     }
@@ -302,6 +304,7 @@ async function saveOrderToSheet() {
   const status    = document.getElementById('f-status').value;
   const priority  = document.getElementById('f-priority').value;
   const reelSize  = document.getElementById('f-reel-size').value.trim();
+  const twoPart   = !!document.getElementById('f-two-part').checked;
 
   if (!customer || !date) { alert('Customer and Delivery Date are required.'); return; }
 
@@ -310,13 +313,13 @@ async function saveOrderToSheet() {
   const formatted  = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
   const od         = new Date(orderDate);
   const fmtOd      = `${String(od.getDate()).padStart(2,'0')}/${String(od.getMonth()+1).padStart(2,'0')}/${od.getFullYear()}`;
-  const payload    = { id, customer, product, size, ply, colour, weight, qty, rate, date: formatted, orderDate: fmtOd, status, priority, reelSize, reservedKg, remarks: '' };
+  const payload    = { id, customer, product, size, ply, colour, weight, qty, rate, twoPart, date: formatted, orderDate: fmtOd, status, priority, reelSize, reservedKg, remarks: '' };
 
   try {
     const btn = document.querySelector('button.btn-primary[onclick="saveOrderToSheet()"]');
     if (btn) { btn.textContent = '⏳ Saving...'; btn.disabled = true; }
     await fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    const savedOrder = { id, customer, product, size, ply, colour, weight, qty: parseInt(qty)||0, rate: parseFloat(rate)||0, date, orderDate };
+    const savedOrder = { id, customer, product, size, ply, colour, weight, twoPart, qty: parseInt(qty)||0, rate: parseFloat(rate)||0, date, orderDate };
     // Optimistic update so generateOrderId() increments correctly on next save
     orders.push({ ...savedOrder, status, priority, reelSize, reservedKg, remarks: '', rowIndex: 9999 });
     pendingOrderIds.add(id);
@@ -342,6 +345,7 @@ function clearOrderForm() {
   clearProductFields();
   document.getElementById('f-status').value   = 'New';
   document.getElementById('f-priority').value = 'Normal';
+  document.getElementById('f-two-part').checked = false;
   // Reset form title
   document.querySelector('.add-order-form .form-title').textContent = '➕ New Order';
   hideSuggestion();
@@ -365,6 +369,7 @@ function openEditModal(orderId) {
   document.getElementById('ef-colour').value    = o.colour;
   document.getElementById('ef-reel-size').value = o.reelSize || '';
   document.getElementById('ef-weight').value    = o.weight;
+  document.getElementById('ef-two-part').checked = !!o.twoPart;
   document.getElementById('ef-qty').value       = o.qty;
   document.getElementById('ef-rate').value       = o.rate;
   document.getElementById('ef-order-date').value = o.orderDate || new Date().toISOString().split('T')[0];
@@ -394,6 +399,7 @@ async function saveEditedOrder() {
   const colour   = document.getElementById('ef-colour').value.trim();
   const reelSize = document.getElementById('ef-reel-size').value.trim();
   const weight   = document.getElementById('ef-weight').value.trim();
+  const twoPart  = !!document.getElementById('ef-two-part').checked;
   const qty      = document.getElementById('ef-qty').value;
   const rate      = document.getElementById('ef-rate').value;
   const dateVal   = document.getElementById('ef-date').value;
@@ -414,7 +420,7 @@ async function saveEditedOrder() {
     rowIndex: o.rowIndex,
     id: editingOrderId,
     customer: o.customer,
-    product, size, ply, colour, weight, qty, rate,
+    product, size, ply, colour, weight, qty, rate, twoPart,
     date: formatted, orderDate: fmtOd, status, priority, reelSize, reservedKg, remarks: ''
   };
 
@@ -426,7 +432,7 @@ async function saveEditedOrder() {
     // Optimistic update in memory
     const idx = orders.findIndex(x => x.id === editingOrderId);
     if (idx >= 0) {
-      orders[idx] = { ...orders[idx], product, size, ply, colour, reelSize, weight, qty: parseInt(qty)||0, rate: parseFloat(rate)||0, date: dateVal, orderDate: orderDateVal, status, priority, reservedKg };
+      orders[idx] = { ...orders[idx], product, size, ply, colour, reelSize, weight, twoPart, qty: parseInt(qty)||0, rate: parseFloat(rate)||0, date: dateVal, orderDate: orderDateVal, status, priority, reservedKg };
     }
     document.getElementById('edit-order-overlay').style.display = 'none';
     editingOrderId = null;

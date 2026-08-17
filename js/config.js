@@ -68,6 +68,17 @@ const today       = new Date();
 const todayStr    = today.toISOString().split('T')[0];
 const tomorrowStr = new Date(today.getTime() + 86400000).toISOString().split('T')[0];
 
+// ── Sheet Length formula (skills/rate-calculator.md) — shared by every
+// place that computes it (job card, rate calculator, deckle optimizer,
+// registers, product/order weight suggestion) so the two-part rule can't
+// drift out of sync between them. Machine width caps a single piece at
+// ~76-82"; boxes over that get cut as two shorter pieces pasted together,
+// each needing its own 2" stitching margin — hence the extra +2 on top of
+// the normal +2 edge margin when twoPart is set. ──
+function calcSheetLen(l, w, twoPart) {
+  return (l + w) * 2 + 2 + (twoPart ? 2 : 0);
+}
+
 // ── Mirror a write to Google Sheets via Apps Script (fire-and-forget, offline-safe) ──
 // Keeps localStorage as the live store; every save/delete is also pushed to its own
 // dedicated sheet so records are backed up and visible across devices.

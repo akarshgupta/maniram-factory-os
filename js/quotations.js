@@ -173,7 +173,7 @@ function runRateCalculator() {
     </div>` : '<div style="font-size:11px;color:var(--muted);margin-top:8px;">Enter paper rate to calculate box rate.</div>';
 
   const twoPartHTML = result.twoPart
-    ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px 12px;border-radius:8px;background:#FFF7E6;border:1px solid #F5C06B;font-size:12px"><span>✂️</span><span><strong>Two-part box</strong> — sheet ${((L+W)*2+2)}" limit se bada, isliye 2 pieces + stitching margin ×2 (Sheet L = (L+W)×2+4)</span></div>`
+    ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px 12px;border-radius:8px;background:#FFF7E6;border:1px solid #F5C06B;font-size:12px"><span>✂️</span><span><strong>Two-part box</strong> — sheet length ${((L+W)*2+2)}" exceeds the single-piece limit, so it's made as 2 pieces with the stitching margin applied twice (Sheet L = (L+W)×2+4)</span></div>`
     : result.special
     ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px 12px;border-radius:8px;background:#FFF7E6;border:1px solid #F5C06B;font-size:12px"><span>⚠️</span><span><strong>Special case</strong> — 3-ply ${result.sheetL}" is above 80" (machine max 82"). A single piece will work, but it is tight.</span></div>`
     : '';
