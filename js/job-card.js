@@ -145,16 +145,16 @@ function printJobCard(orderId) {
   // record ("Sheet Width = Reel Size the box will be made from") — the
   // W+H+0.5 formula is only the estimate used before that's known, and the
   // doc calls for a flag when the two disagree by a meaningful amount.
-  const sheetLen       = dims ? (dims.l + dims.w) * 2 + 2 : null;
+  const sheetLen       = dims ? calcSheetLen(dims.l, dims.w, o.twoPart) : null;
   const calcSheetWid   = dims ? dims.w + dims.h + 0.5 : null;
   const actualReelSize = parseFloat(o.reelSize) || null;
   const sheetWid        = actualReelSize || calcSheetWid;
   const reelMismatch    = !!(actualReelSize && calcSheetWid && Math.abs(actualReelSize - calcSheetWid) > 0.5);
   const cutSizeStr = dims
-    ? `${_fmtN(sheetWid)}" × ${_fmtN(sheetLen)}"`
+    ? `${_fmtN(sheetWid)}" × ${_fmtN(sheetLen)}"${o.twoPart ? ' (2 parts)' : ''}`
     : '______ × ______';
 
-  const schematic = dims ? _buildSchematic(dims, spec, sheetWid) : '';
+  const schematic = dims ? _buildSchematic(dims, spec, sheetWid, o.twoPart) : '';
 
   // Product master lookup — GSM/BF per layer + print flag
   const client  = (typeof CLIENTS !== 'undefined' ? CLIENTS : []).find(c => c.name === o.customer);
@@ -434,7 +434,7 @@ function _parseDims(sizeStr) {
 // Layout (left→right): [Stitch | W | L | W | L]
 // Each panel has top and bottom flaps (W/2 height)
 // Print area shown on both Length panels
-function _buildSchematic(dims, spec, actualReelSize) {
+function _buildSchematic(dims, spec, actualReelSize, twoPart) {
   const { l, w, h } = dims;
   if (!l || !w) return '';
   const H = h || w;
@@ -447,7 +447,7 @@ function _buildSchematic(dims, spec, actualReelSize) {
   // Authoritative cutting-size numbers — always match the order-grid "Cutting Size" cell exactly,
   // reel-size (width) first per the notation standard. The actual reel size on the order wins over
   // the W+H+0.5 estimate once one's on record.
-  const sheetLenLabel = (l + w) * 2 + 2;
+  const sheetLenLabel = calcSheetLen(l, w, twoPart);
   const sheetWidLabel = actualReelSize || (w + h + 0.5);
 
   // Scale to fit 460 × 182 px canvas

@@ -164,14 +164,25 @@ function _orderRowVals(d) {
   return [
     d.id, d.customer, d.product || '', d.size || '', d.ply || '', d.colour || '',
     d.weight || '', d.qty || '', d.rate || '', d.date || '', d.status || 'New',
-    d.priority || 'Normal', d.reelSize || '', d.reservedKg || 0, d.remarks || ''
+    d.priority || 'Normal', d.reelSize || '', d.reservedKg || 0, d.remarks || '',
+    d.twoPart ? 'TRUE' : 'FALSE'
   ];
+}
+
+// Orders sheet header is otherwise hand-managed, not auto-created — self-heal
+// just the one new column so existing sheets pick it up without a manual edit.
+function _ensureOrderTwoPartHeader(sheet) {
+  var header = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
+  if (header.indexOf('TwoPart') < 0) {
+    sheet.getRange(1, 16, 1, 1).setValues([['TwoPart']]);
+  }
 }
 
 function appendOrderRow(data) {
   var ss    = SpreadsheetApp.openById(ORDERS_SHEET_ID);
   var sheet = ss.getSheetByName('Orders');
   if (!sheet) return;
+  _ensureOrderTwoPartHeader(sheet);
   sheet.appendRow(_orderRowVals(data));
 }
 
@@ -179,6 +190,7 @@ function updateOrderRow(data) {
   var ss    = SpreadsheetApp.openById(ORDERS_SHEET_ID);
   var sheet = ss.getSheetByName('Orders');
   if (!sheet) return;
+  _ensureOrderTwoPartHeader(sheet);
   var vals = _orderRowVals(data);
   var row  = parseInt(data.rowIndex);
   if (row > 1) {
@@ -222,7 +234,8 @@ function saveClient(data) {
 var PRODUCT_HEADERS = ['ClientName','Product','Size','Ply','Colour','Weight','ReelSize',
                         'GSM1','GSM2','GSM3','GSM4','GSM5','GSM6','GSM7','GSM8','GSM9',
                         'HasPrint','PrintColour','PrintDesign',
-                        'BF1','BF2','BF3','BF4','BF5','BF6','BF7','BF8','BF9'];
+                        'BF1','BF2','BF3','BF4','BF5','BF6','BF7','BF8','BF9',
+                        'TwoPart'];
 
 function saveProduct(data) {
   var ss    = SpreadsheetApp.openById(PRODUCTS_SHEET_ID);
@@ -233,7 +246,10 @@ function saveProduct(data) {
     // Sheet already exists from before BF columns were added — extend its header in place.
     var curHeader = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
     if (curHeader.indexOf('BF1') < 0) {
-      sheet.getRange(1, 20, 1, 9).setValues([PRODUCT_HEADERS.slice(19)]);
+      sheet.getRange(1, 20, 1, 9).setValues([PRODUCT_HEADERS.slice(19, 28)]);
+    }
+    if (curHeader.indexOf('TwoPart') < 0) {
+      sheet.getRange(1, 29, 1, 1).setValues([['TwoPart']]);
     }
   }
 
@@ -248,7 +264,8 @@ function saveProduct(data) {
     data.printColour || '',
     data.printDesign || '',
     bf[0]||'', bf[1]||'', bf[2]||'', bf[3]||'', bf[4]||'',
-    bf[5]||'', bf[6]||'', bf[7]||'', bf[8]||''
+    bf[5]||'', bf[6]||'', bf[7]||'', bf[8]||'',
+    data.twoPart ? 'TRUE' : 'FALSE'
   ];
 
   var rows       = sheet.getDataRange().getValues();

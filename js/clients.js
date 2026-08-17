@@ -89,10 +89,11 @@ function suggestWeightAndReel() {
     return;
   }
   const { l, w, h } = dims;
-  const ply    = parseInt(document.getElementById('pm-ply')?.value) || 3;
-  const layers = PLY_LAYERS[ply] || PLY_LAYERS[3];
+  const ply     = parseInt(document.getElementById('pm-ply')?.value) || 3;
+  const layers  = PLY_LAYERS[ply] || PLY_LAYERS[3];
+  const twoPart = !!document.getElementById('pm-two-part')?.checked;
 
-  const sheetLen = (l + w) * 2 + 2;
+  const sheetLen = calcSheetLen(l, w, twoPart);
   const reqWidth = w + h + 0.5;
 
   const known = (typeof _deckleReelSizes === 'function' ? _deckleReelSizes() : [])
@@ -122,7 +123,7 @@ function suggestWeightAndReel() {
   document.getElementById('pm-weight').value = weight.toFixed(1);
 
   if (hint) {
-    hint.innerHTML = `Sheet ${_fmtN(sheetLen)}×${_fmtN(reqWidth)}" (${ply}-ply) → reel <b>${reelSize}"</b> → est. weight <b>${weight.toFixed(1)} gm</b> from GSM ${gsmUsed.join('/')}. Edit either field above if actuals differ.`;
+    hint.innerHTML = `Sheet ${_fmtN(sheetLen)}×${_fmtN(reqWidth)}" (${ply}-ply${twoPart ? ', 2 parts' : ''}) → reel <b>${reelSize}"</b> → est. weight <b>${weight.toFixed(1)} gm</b> from GSM ${gsmUsed.join('/')}. Edit either field above if actuals differ.`;
   }
 }
 
@@ -137,9 +138,10 @@ function recalcWeightFromReelSize() {
   const reelSize = parseFloat(document.getElementById('pm-reelsize')?.value);
   if (!dims || !dims.l || !dims.w || !reelSize) return;
 
-  const ply    = parseInt(document.getElementById('pm-ply')?.value) || 3;
-  const layers = PLY_LAYERS[ply] || PLY_LAYERS[3];
-  const sheetLen = (dims.l + dims.w) * 2 + 2;
+  const ply     = parseInt(document.getElementById('pm-ply')?.value) || 3;
+  const layers  = PLY_LAYERS[ply] || PLY_LAYERS[3];
+  const twoPart = !!document.getElementById('pm-two-part')?.checked;
+  const sheetLen = calcSheetLen(dims.l, dims.w, twoPart);
   const area     = (sheetLen * reelSize) / 1550;
 
   let weight = 0, anyGsm = false;
@@ -324,6 +326,7 @@ async function fetchClients() {
             printColour: p[17] || '',
             printDesign: p[18] || '',
             bf:          [p[19],p[20],p[21],p[22],p[23],p[24],p[25],p[26],p[27]].map(v => Number(v) || 0),
+            twoPart:     String(p[28] || '').toUpperCase() === 'TRUE',
           })),
       };
       });
@@ -673,6 +676,7 @@ function onProductChange() {
   document.getElementById('f-colour').value    = p.colour   || '';
   document.getElementById('f-weight').value    = p.weight   || '';
   document.getElementById('f-reel-size').value = p.reelSize || '';
+  document.getElementById('f-two-part').checked = !!p.twoPart;
   if (p.rate) document.getElementById('f-rate').value = p.rate;
 
   checkStockForCurrentOrder();
@@ -682,6 +686,7 @@ function clearProductFields() {
   ['f-size', 'f-ply', 'f-colour', 'f-weight', 'f-reel-size'].forEach(id => {
     document.getElementById(id).value = '';
   });
+  document.getElementById('f-two-part').checked = false;
   const hint = document.getElementById('f-size-in');
   if (hint) hint.textContent = '';
   hideStockCheck();
@@ -794,6 +799,7 @@ function openProductModal(ci, pi, callback) {
   document.getElementById('pm-colour').value   = p ? p.colour   : 'Red';
   document.getElementById('pm-weight').value   = p ? p.weight   : '';
   document.getElementById('pm-reelsize').value = p ? p.reelSize : '';
+  document.getElementById('pm-two-part').checked = p ? !!p.twoPart : false;
   const pmRate = document.getElementById('pm-rate');
   if (pmRate) pmRate.value = p ? (p.rate || '') : '';
   // Print fields — print colour reuses the Colour field above, never asked twice
@@ -843,7 +849,8 @@ function saveProductModal() {
   const hasPrint    = !!document.getElementById('pm-has-print')?.checked;
   const printColour = hasPrint ? colour : ''; // same value as the Colour field — never asked twice
   const printDesign = hasPrint ? (document.getElementById('pm-print-design')?.value || '') : '';
-  const product = { name, size, ply, colour, weight, reelSize, rate, gsm, bf, hasPrint, printColour, printDesign };
+  const twoPart     = !!document.getElementById('pm-two-part')?.checked;
+  const product = { name, size, ply, colour, weight, reelSize, rate, gsm, bf, hasPrint, printColour, printDesign, twoPart };
   const ci      = _productModalCi;
 
   if (_productModalPi >= 0) {
