@@ -740,6 +740,24 @@ function setupSheets() {
   return out.join('\n');
 }
 
+// ── ONE-TIME SETUP — run this once from the Apps Script editor (function
+// dropdown at top → setupLeadsSheet → ▶ Run). Creates the separate Leads
+// spreadsheet the same way setupSheets() creates Invoices/Expenses/etc.,
+// and logs its ID. Paste that ID into LEADS_SHEET_ID (top of this file)
+// AND into js/config.js, then redeploy. Kept separate from setupSheets()
+// so re-running it can't accidentally recreate the other five sheets.
+function setupLeadsSheet() {
+  var ss = SpreadsheetApp.create('Maniram — Leads');
+  var sh = ss.getSheets()[0];
+  sh.setName('Leads');
+  sh.appendRow(['ID','DateAdded','Company','Location','Address','Contact','Phone','Status',
+                'QuoteSent','EstMonthlyValue','NextFollowup','FollowupCount','LostReason','Notes']);
+  try { DriveApp.getFileById(ss.getId()).setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
+  var msg = 'LEADS_SHEET_ID = ' + ss.getId();
+  Logger.log('Paste this into LEADS_SHEET_ID (top of Code.gs) and js/config.js:\n\n' + msg);
+  return msg;
+}
+
 // ══════════════════════════════════════════════════════════════
 // ONE-TIME FORMATTING — run formatAllSheets() once from the Apps
 // Script editor (select it from the function dropdown → ▶ Run).
