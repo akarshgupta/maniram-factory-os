@@ -20,6 +20,7 @@ const pageTitles = {
   production:  '🏭 Production Plan',
   reels:       'Reel Stock',
   clients:     'Clients & Product Master',
+  leads:       '📞 Leads',
   reminders:   '🔔 Reminders',
   purchase:    '🛒 Purchase Register',
   receivables: '💰 Receivables',
@@ -56,6 +57,7 @@ function showPage(id) {
   if (id === 'production')  renderProductionPlan();
   if (id === 'reels')       { fetchReelStock(); renderReelDateTabs(); }
   if (id === 'clients')     { fetchClients().then(ok => { if (ok) renderClients(); }); renderClients(); }
+  if (id === 'leads')       loadLeadsPage();
   if (id === 'reminders')   computeReminders();
   if (id === 'purchase')    { renderPurchaseList(); renderRateHistory(); initPurchaseForm(); }
   if (id === 'receivables') renderReceivables();
@@ -102,6 +104,10 @@ async function init() {
   initPayments();
   initQuotations();
   initChallans();
+  initLeads();
+  fetchLeads().then(ok => { if (ok) { updateLeadsBadge(); renderDashboardLeadsBanner(); } });
+  updateLeadsBadge();
+  renderDashboardLeadsBanner();
 
   // Catch any challans that predate this feature (or were made on another
   // device) and still have no invoice — see autoInvoiceChallans() in invoices.js.
@@ -131,6 +137,7 @@ async function init() {
   setInterval(fetchOrders,        5 * 60 * 1000); // every 5 min
   setInterval(fetchClients,      10 * 60 * 1000); // every 10 min
   setInterval(computeReminders,  60 * 60 * 1000); // every 1 hr
+  setInterval(() => fetchLeads().then(ok => { if (ok) { renderLeadsPage(); updateLeadsBadge(); renderDashboardLeadsBanner(); } }), 10 * 60 * 1000); // every 10 min
   if (typeof fetchSupervisorLog === 'function') setInterval(fetchSupervisorLog, 5 * 60 * 1000); // every 5 min — also drives auto-challan creation
 }
 
