@@ -32,6 +32,13 @@ const RECEIVABLES_TAB = 'Receivables';
 const CHALLANS_TAB    = 'Challans';
 const QUOTATIONS_TAB  = 'Quotations';
 
+// ── Leads (fill in after running setupSheets() in Apps Script — same
+// one-time flow as the finance sheets above). Blank = the Leads page
+// still works fully offline via localStorage; nothing reads/writes the
+// sheet until this is set. ──
+const LEADS_SHEET_ID = ''; // Leads
+const LEADS_TAB      = 'Leads';
+
 // ── Production Register (tabs live in the Orders spreadsheet; writes via main Apps Script) ──
 const REGISTERS_SHEET_ID  = '1JVWfffLht7X_mGOyQb0QK1cB3vx68TTM1yx9pGZbb30'; // = ORDERS_SHEET_ID (ProdLog + GSMeta tabs)
 const REGISTERS_SCRIPT_URL = ''; // blank = writes fall back to main APPS_SCRIPT_URL (prodlogAppend/gsmSet in Code.gs)

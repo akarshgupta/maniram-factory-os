@@ -25,6 +25,7 @@ var EXPENSES_SHEET_ID    = '';
 var RECEIVABLES_SHEET_ID = '';
 var CHALLANS_SHEET_ID    = '';
 var QUOTATIONS_SHEET_ID  = '';
+var LEADS_SHEET_ID       = '';
 
 // ── Supervisor Dispatch form — Order ID dropdown ──
 // This is the FORM's own editable ID (from its /edit URL — Extensions >
@@ -80,6 +81,8 @@ function doPost(e) {
     else if (action === 'notifyDispatch')    notifyDispatch(data);
     else if (action === 'saveQuotation')     saveQuotation(data);
     else if (action === 'deleteQuotation')   deleteFinanceRow(QUOTATIONS_SHEET_ID, 'Quotations', data.id);
+    else if (action === 'saveLead')          saveLead(data);
+    else if (action === 'deleteLead')        deleteFinanceRow(LEADS_SHEET_ID, 'Leads', data.id);
     else if (action === 'createNotionPage')  { /* handled separately if needed */ }
     // ── Supervisor data collection ──
     else if (action === 'saveDispatchWeight') saveDispatchWeight(data);
@@ -739,6 +742,13 @@ function saveQuotation(data) {
      data.ply || '', data.rate || 0, data.status || 'Pending', data.notes || '']);
 }
 
+function saveLead(data) {
+  _financeUpsert(LEADS_SHEET_ID, 'Leads',
+    ['ID','Name','Company','Phone','Source','Status','LastContact','NextCall','Notes','CreatedAt'],
+    [data.id, data.name || '', data.company || '', data.phone || '', data.source || '',
+     data.status || 'New', data.lastContact || '', data.nextCall || '', data.notes || '', data.createdAt || '']);
+}
+
 // ══════════════════════════════════════════════════════════════
 // SUPERVISOR DATA COLLECTION
 // All three write to ORDERS_SHEET_ID for easy access.
@@ -857,6 +867,7 @@ function setupSheets() {
     { name: 'Maniram — Receivables', tab: 'Receivables', headers: ['ID','Date','Customer','Amount','Note'] },
     { name: 'Maniram — Challans',    tab: 'Challans',    headers: ['ChallanNo','Date','OrderID','Customer','Product','Qty','Vehicle','Notes'] },
     { name: 'Maniram — Quotations',  tab: 'Quotations',  headers: ['ID','Date','Customer','BoxSize','Ply','RatePerBox','Status','Notes'] },
+    { name: 'Maniram — Leads',       tab: 'Leads',       headers: ['ID','Name','Company','Phone','Source','Status','LastContact','NextCall','Notes','CreatedAt'] },
   ];
   var out = [];
   for (var i = 0; i < defs.length; i++) {
@@ -902,6 +913,7 @@ function formatAllSheets() {
     { id: RECEIVABLES_SHEET_ID, tabs: ['Receivables'] },
     { id: CHALLANS_SHEET_ID,    tabs: ['Challans'] },
     { id: QUOTATIONS_SHEET_ID,  tabs: ['Quotations'] },
+    { id: LEADS_SHEET_ID,       tabs: ['Leads'] },
     { id: SUPERVISOR_SHEET_ID,  tabs: ['Production', 'Dispatch'] },
   ];
 
