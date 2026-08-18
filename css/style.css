@@ -346,6 +346,11 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 #client-search { flex: 1; border: none; outline: none; font-size: 13px; color: var(--text); background: transparent; }
 #client-search::placeholder { color: var(--muted); }
 
+#lead-search-bar { display: flex; align-items: center; gap: 10px; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 14px; box-shadow: var(--shadow); }
+#lead-search-bar .search-icon { font-size: 14px; color: var(--muted); }
+#lead-search { flex: 1; border: none; outline: none; font-size: 13px; color: var(--text); background: transparent; }
+#lead-search::placeholder { color: var(--muted); }
+
 .client-stats-row  { display: flex; flex-wrap: wrap; gap: 16px; margin: 10px 0 6px; padding: 10px 0; border-top: 1px dashed var(--border); border-bottom: 1px dashed var(--border); }
 .client-stat        { font-size: 11.5px; color: var(--muted); }
 .client-stat strong  { display: block; font-size: 13.5px; color: var(--navy); font-weight: 700; }

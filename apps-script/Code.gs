@@ -25,6 +25,7 @@ var EXPENSES_SHEET_ID    = '';
 var RECEIVABLES_SHEET_ID = '';
 var CHALLANS_SHEET_ID    = '';
 var QUOTATIONS_SHEET_ID  = '';
+var LEADS_SHEET_ID       = '';
 
 // ── Supervisor Dispatch form — Order ID dropdown ──
 // This is the FORM's own editable ID (from its /edit URL — Extensions >
@@ -67,6 +68,8 @@ function doPost(e) {
     else if (action === 'deleteChallan')     deleteFinanceRow(CHALLANS_SHEET_ID, 'Challans', data.id);
     else if (action === 'saveQuotation')     saveQuotation(data);
     else if (action === 'deleteQuotation')   deleteFinanceRow(QUOTATIONS_SHEET_ID, 'Quotations', data.id);
+    else if (action === 'saveLead')          saveLead(data);
+    else if (action === 'deleteLead')        deleteFinanceRow(LEADS_SHEET_ID, 'Leads', data.id);
     else if (action === 'createNotionPage')  { /* handled separately if needed */ }
     // ── Supervisor data collection ──
     else if (action === 'saveDispatchWeight') saveDispatchWeight(data);
@@ -592,6 +595,16 @@ function saveQuotation(data) {
     ['ID','Date','Customer','BoxSize','Ply','RatePerBox','Status','Notes'],
     [data.id, data.date, data.customer || '', data.size || '',
      data.ply || '', data.rate || 0, data.status || 'Pending', data.notes || '']);
+}
+
+function saveLead(data) {
+  _financeUpsert(LEADS_SHEET_ID, 'Leads',
+    ['ID','DateAdded','Company','Location','Address','Contact','Phone','Status',
+     'QuoteSent','EstMonthlyValue','NextFollowup','FollowupCount','LostReason','Notes'],
+    [data.id, data.dateAdded || '', data.company || '', data.location || '', data.address || '',
+     data.contact || '', data.phone || '', data.status || '', data.quoteSent || 'No',
+     data.value || 0, data.nextFollowup || '', data.followupCount || 0,
+     data.lostReason || '', data.notes || '']);
 }
 
 // ══════════════════════════════════════════════════════════════

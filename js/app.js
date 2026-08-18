@@ -20,6 +20,7 @@ const pageTitles = {
   production:  '🏭 Production Plan',
   reels:       'Reel Stock',
   clients:     'Clients & Product Master',
+  leads:       '🎯 Leads / Sales Pipeline',
   reminders:   '🔔 Reminders',
   purchase:    '🛒 Purchase Register',
   receivables: '💰 Receivables',
@@ -51,6 +52,7 @@ function showPage(id) {
   if (id === 'production')  renderProductionPlan();
   if (id === 'reels')       { fetchReelStock(); renderReelDateTabs(); }
   if (id === 'clients')     { fetchClients().then(ok => { if (ok) renderClients(); }); renderClients(); }
+  if (id === 'leads')       renderLeads();
   if (id === 'reminders')   computeReminders();
   if (id === 'purchase')    { renderPurchaseList(); renderRateHistory(); initPurchaseForm(); }
   if (id === 'receivables') renderReceivables();
@@ -97,6 +99,7 @@ async function init() {
   initPayments();
   initQuotations();
   initChallans();
+  initLeads();
 
   // Safe to render now — CLIENTS and purchases arrays are populated
   renderClients();

@@ -87,6 +87,7 @@
     <div class="nav-item" onclick="showPage('reels')"><span class="nav-icon">🧻</span> Reel Stock</div>
     <div class="nav-item" onclick="showPage('deckle')"><span class="nav-icon">📏</span> Deckle Optimizer</div>
     <div class="nav-item" onclick="showPage('clients')"><span class="nav-icon">🤝</span> Clients</div>
+    <div class="nav-item" onclick="showPage('leads')"><span class="nav-icon">🎯</span> Leads</div>
     <div class="nav-section">Tools</div>
     <div class="nav-item" onclick="showPage('ratecalc')"><span class="nav-icon">📐</span> Rate Calculator</div>
     <div class="nav-item" onclick="showPage('analytics')"><span class="nav-icon">📊</span> Analytics</div>
@@ -606,6 +607,26 @@
         </select>
       </div>
       <div id="clients-list"></div>
+    </div>
+
+    <!-- ══ LEADS / SALES PIPELINE ══ -->
+    <div class="page" id="page-leads">
+      <div class="section-header">
+        <div class="section-title">🎯 Leads / Sales Pipeline</div>
+        <span style="font-size:12px;color:var(--muted)">Prospects, not yet clients — mark a lead Won to add them as a Client</span>
+      </div>
+      <div id="leads-summary" style="margin-bottom:14px"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+        <div id="lead-search-bar" style="display:flex;flex:1;min-width:220px">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="lead-search" placeholder="Search by company, location, contact, or phone..." oninput="onLeadSearch()" autocomplete="off">
+        </div>
+        <button class="btn-primary" onclick="openLeadModal(-1)">➕ Add New Lead</button>
+      </div>
+      <div id="leads-board"></div>
+      <div class="field-hint" style="margin-top:14px">
+        Follow-up cadence: Hot every 2–3 days, Warm every 5–7 days, Cold every 30–45 days. 📝 logs a follow-up note and pushes the next follow-up date forward automatically.
+      </div>
     </div>
 
     <!-- ══ REMINDERS ══ -->
@@ -1273,6 +1294,79 @@
   </div>
 </div>
 
+<!-- LEAD MODAL -->
+<div class="popup-overlay" id="lead-modal-overlay" style="display:none" onclick="closeLeadModal()">
+  <div class="popup-box" style="width:min(520px,95vw);padding:24px" onclick="event.stopPropagation()">
+    <div class="popup-title" id="lead-modal-title">Add New Lead</div>
+    <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      <div class="form-group" style="grid-column:span 2">
+        <label class="form-label">Company <span style="color:var(--danger)">*</span></label>
+        <input class="form-input" type="text" id="lm-company" placeholder="e.g. Amit Flour Mill"
+          onkeydown="if(event.key==='Enter')saveLeadModal();if(event.key==='Escape')closeLeadModal()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Location</label>
+        <input class="form-input" type="text" id="lm-location" placeholder="e.g. Chirgaon, Jhansi"
+          onkeydown="if(event.key==='Enter')saveLeadModal();if(event.key==='Escape')closeLeadModal()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Address</label>
+        <input class="form-input" type="text" id="lm-address" placeholder="e.g. Main Road"
+          onkeydown="if(event.key==='Enter')saveLeadModal();if(event.key==='Escape')closeLeadModal()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Contact Person</label>
+        <input class="form-input" type="text" id="lm-contact" placeholder="e.g. Rajesh Kumar"
+          onkeydown="if(event.key==='Enter')saveLeadModal();if(event.key==='Escape')closeLeadModal()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Phone</label>
+        <input class="form-input" type="tel" id="lm-phone" placeholder="e.g. 9800000001"
+          onkeydown="if(event.key==='Enter')saveLeadModal();if(event.key==='Escape')closeLeadModal()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Status</label>
+        <select class="form-input" id="lm-status">
+          <option value="Hot">🔥 Hot</option>
+          <option value="Warm">🌤️ Warm</option>
+          <option value="Cold">❄️ Cold</option>
+          <option value="Won">🏆 Won</option>
+          <option value="Lost">✕ Lost</option>
+        </select>
+      </div>
+      <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:8px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="lm-quote" style="width:16px;height:16px;cursor:pointer">
+          <span style="font-size:13px;font-weight:600;color:var(--navy)">Quote Sent?</span>
+        </label>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Est. Monthly Value (₹)</label>
+        <input class="form-input" type="number" id="lm-value" placeholder="e.g. 15000" step="1"
+          onkeydown="if(event.key==='Enter')saveLeadModal();if(event.key==='Escape')closeLeadModal()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Next Follow-up</label>
+        <input class="form-input" type="date" id="lm-next-followup">
+      </div>
+      <div class="form-group" style="grid-column:span 2">
+        <label class="form-label">Lost Reason <span style="font-size:10px;font-weight:400;color:var(--muted)">only if Status = Lost</span></label>
+        <input class="form-input" type="text" id="lm-lost-reason" placeholder="e.g. Not interested"
+          onkeydown="if(event.key==='Enter')saveLeadModal();if(event.key==='Escape')closeLeadModal()">
+      </div>
+      <div class="form-group" style="grid-column:span 2">
+        <label class="form-label">Notes / Pitch Angle</label>
+        <textarea class="form-input" id="lm-notes" rows="3" placeholder="Pitch angle, call log, anything worth remembering next time"
+          onkeydown="if(event.key==='Escape')closeLeadModal()"></textarea>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn-primary" onclick="saveLeadModal()">💾 Save Lead</button>
+      <button class="btn-secondary" onclick="closeLeadModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- PRODUCT MODAL -->
 <div class="popup-overlay" id="product-modal-overlay" style="display:none">
   <div class="popup-box" style="width:min(520px,95vw);padding:24px" onclick="event.stopPropagation()" onkeydown="if(event.key==='Escape')closeProductModal()">
@@ -1601,6 +1695,7 @@
 <!-- JS MODULES — order matters -->
 <!-- config.js + auth.js already loaded in <head> -->
 <script src="js/clients.js"></script>
+<script src="js/leads.js"></script>
 <script src="js/purchase.js"></script>
 <script src="js/reels.js"></script>
 <script src="js/orders.js"></script>

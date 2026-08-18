@@ -26,11 +26,13 @@ const EXPENSES_SHEET_ID     = ''; // Expenses
 const RECEIVABLES_SHEET_ID  = ''; // Receivables / Payments
 const CHALLANS_SHEET_ID     = ''; // Delivery Challans
 const QUOTATIONS_SHEET_ID   = ''; // Quotations
+const LEADS_SHEET_ID        = ''; // Lead Register / Sales Pipeline
 const INVOICES_TAB    = 'Invoices';
 const EXPENSES_TAB    = 'Expenses';
 const RECEIVABLES_TAB = 'Receivables';
 const CHALLANS_TAB    = 'Challans';
 const QUOTATIONS_TAB  = 'Quotations';
+const LEADS_TAB        = 'Leads';
 
 // ── Production Register (tabs live in the Orders spreadsheet; writes via main Apps Script) ──
 const REGISTERS_SHEET_ID  = '1JVWfffLht7X_mGOyQb0QK1cB3vx68TTM1yx9pGZbb30'; // = ORDERS_SHEET_ID (ProdLog + GSMeta tabs)
