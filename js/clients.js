@@ -637,6 +637,23 @@ function onProductChange() {
   checkStockForCurrentOrder();
 }
 
+// Quick-edit the product currently selected in the New Order form, without
+// leaving the Orders page — opens the same Product modal used on the
+// Clients page, then refreshes the dropdown text and re-fills the form
+// fields (size/ply/colour/weight/reel size/rate) from the saved edit.
+function editCurrentOrderProduct() {
+  const custNm = (document.getElementById('f-customer')?.value || '').trim();
+  const sel    = document.getElementById('f-product');
+  const ci     = CLIENTS.findIndex(c => c.name === custNm);
+  const pi     = sel ? parseInt(sel.value) : NaN;
+  if (ci < 0 || isNaN(pi)) { alert('Select a customer and product first.'); return; }
+  openProductModal(ci, pi, (product, idx) => {
+    populateProductDropdown(custNm);
+    document.getElementById('f-product').value = idx.toString();
+    onProductChange();
+  });
+}
+
 function clearProductFields() {
   ['f-size', 'f-ply', 'f-colour', 'f-weight', 'f-reel-size'].forEach(id => {
     document.getElementById(id).value = '';
