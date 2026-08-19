@@ -72,15 +72,45 @@ const PLY_LAYERS = {
   ],
 };
 
+// Practical reel width to cut a box from, given its own required width
+// (reqWidth = box width + margin — see suggestWeightAndReel below). The
+// factory doesn't stock a reel for every fractional width; a narrow box is
+// normally cut multi-up (n across) from a wider stocked reel instead, up to
+// CORRUGATOR_MAX_WIDTH. Mirrors findSubstitutes() in js/orders.js: for each
+// candidate reel width R, n = floor(R / rawWidth) boxes fit across, valid
+// once that leaves >= 0.5" trim margin. Ranks candidates by waste% (lowest
+// wins) rather than just grabbing the narrowest reel that merely fits one
+// box — see skills/rate-calculator.md. Falls back to reqWidth itself only
+// when no live/standard reel size gives a valid fit.
+function _bestMultiUpReel(reqWidth) {
+  const rawWidth = reqWidth > 0.5 ? reqWidth - 0.5 : reqWidth;
+  const cap  = typeof CORRUGATOR_MAX_WIDTH !== 'undefined' ? CORRUGATOR_MAX_WIDTH : 50;
+  const pool = (typeof _deckleReelSizes === 'function' ? _deckleReelSizes() : [])
+    .map(r => parseFloat(r.size)).filter(s => s > 0 && s <= cap);
+
+  let best = null; // { size, upCount, wastePct }
+  pool.forEach(size => {
+    const n = Math.floor(size / rawWidth);
+    if (n < 1) return;
+    const margin = size - n * rawWidth;
+    if (margin < 0.5) return; // not enough trim margin to cut cleanly
+    const wastePct = margin / size;
+    if (!best || wastePct < best.wastePct) best = { size, upCount: n, wastePct };
+  });
+  return best || { size: reqWidth, upCount: 1, wastePct: 0 };
+}
+
 // ── Suggest Weight, Reel Size & Rate from box dimensions ──
-// Sheet Length = (L+W)×2+2, Sheet Width (= reel size) = W+H+0.5, Area = SheetL×SheetW/1550
-// (skills/rate-calculator.md). Reel size is the box-derived width itself — it must NOT be
-// rounded up to a wider stocked reel, since that width also drives the weight calc below
-// and a wider reel would overstate paper actually consumed per box. Weight depends on the
-// actual paper, so this asks for GSM on each layer first (focuses the first blank one)
-// rather than guessing a default and calculating on top of a guess. Rate is then estimated
-// from that weight at the current paper cost (PAPER_RATE_PER_KG). All three fields stay
-// plain number inputs, editable like any other value.
+// Sheet Length = (L+W)×2+2, box's own required width = W+H+0.5, Area =
+// SheetL×ReqWidth/1550 (skills/rate-calculator.md). Weight/area ALWAYS use
+// the box's own required width, never the (possibly wider, multi-up) reel
+// suggested below — a box's paper consumption doesn't change depending on
+// how many copies happen to be cut alongside it on the same reel. Weight
+// depends on the actual paper, so this asks for GSM on each layer first
+// (focuses the first blank one) rather than guessing a default and
+// calculating on top of a guess. Rate is then estimated from that weight
+// at the current paper cost (PAPER_RATE_PER_KG). All fields stay plain
+// number inputs, editable like any other value.
 function suggestWeightAndReel() {
   const hint = document.getElementById('pm-suggest-hint');
   const dims = typeof _parseDims === 'function' ? _parseDims(document.getElementById('pm-size')?.value || '') : null;
@@ -93,20 +123,21 @@ function suggestWeightAndReel() {
   const layers = PLY_LAYERS[ply] || PLY_LAYERS[3];
 
   const sheetLen = (l + w) * 2 + 2;
-  const reelSize = w + h + 0.5;
-  document.getElementById('pm-reelsize').value = reelSize;
+  const reqWidth = w + h + 0.5;
+  const pick     = _bestMultiUpReel(reqWidth);
+  document.getElementById('pm-reelsize').value = pick.size;
 
   // Weight needs real GSM per layer — ask for it instead of assuming a default.
   const gsmInputs  = layers.map((_, i) => document.getElementById('pm-gsm-' + (i + 1)));
   const firstBlank = gsmInputs.find(inp => !inp || !(parseInt(inp.value) > 0));
   if (firstBlank) {
-    if (hint) hint.innerHTML = `Reel size suggested: <b>${reelSize}"</b>. Now enter the <b>GSM</b> for each paper layer above, then click Suggest again to calculate weight.`;
+    if (hint) hint.innerHTML = `Reel size suggested: <b>${pick.size}"</b>${pick.upCount > 1 ? ` (${pick.upCount}-up)` : ''}. Now enter the <b>GSM</b> for each paper layer above, then click Suggest again to calculate weight.`;
     firstBlank.scrollIntoView({ behavior: 'smooth', block: 'center' });
     firstBlank.focus();
     return;
   }
 
-  const area = (sheetLen * reelSize) / 1550; // sqm
+  const area = (sheetLen * reqWidth) / 1550; // sqm — box's own width, not the reel width
   let weight = 0;
   const gsmUsed = layers.map((layer, i) => {
     const gsm = parseInt(gsmInputs[i].value);
@@ -120,7 +151,8 @@ function suggestWeightAndReel() {
   if (rateEl) rateEl.value = rate.toFixed(2);
 
   if (hint) {
-    hint.innerHTML = `Sheet ${_fmtN(sheetLen)}×${_fmtN(reelSize)}" (${ply}-ply) → est. weight <b>${weight.toFixed(1)} gm</b> from GSM ${gsmUsed.join('/')} → suggested rate <b>₹${rate.toFixed(2)}</b>/pc @ ₹${PAPER_RATE_PER_KG}/kg paper. Edit any field above if actuals differ.`;
+    const upNote = pick.upCount > 1 ? ` → cut <b>${pick.upCount}-up</b> from a <b>${pick.size}"</b> reel` : ` → reel <b>${pick.size}"</b>`;
+    hint.innerHTML = `Sheet ${_fmtN(sheetLen)}×${_fmtN(reqWidth)}" (${ply}-ply)${upNote} → est. weight <b>${weight.toFixed(1)} gm</b> from GSM ${gsmUsed.join('/')} → suggested rate <b>₹${rate.toFixed(2)}</b>/pc @ ₹${PAPER_RATE_PER_KG}/kg paper. Edit any field above if actuals differ.`;
   }
 }
 

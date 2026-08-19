@@ -33,42 +33,67 @@ Example: 26.5×18×16 (7-ply) → single = 91" > 76" → two-part → 93"
 ## Notation Standard
 Sheet size ALWAYS reel-size (width) first: **34.5 × 93**, never 93×34.5.
 
-## Reel Size Relationship
-Sheet Width = Reel Size the box will be made from.
-If reel size entered ≠ calculated sheet width → mismatch warning.
+## Reel Size Relationship — two DIFFERENT widths, don't conflate them ⚠️
+There are two distinct numbers that both get called "reel size," and mixing
+them up is the single most common mistake in this codebase's history:
 
-⚠️ Reel size = the box's own required width (`W + H + 0.5`), never rounded
-up to a wider *stocked* reel — the weight formula uses this same width, so
-substituting a wider reel here would overstate paper consumed per box.
+1. **Required width** (`reqWidth = W + H + 0.5`) — the box's OWN sheet
+   width. This is what the weight/area formula ALWAYS uses, no matter what
+   physical reel the box ends up cut from. A box's paper consumption per
+   piece cannot depend on how many other copies happen to share the reel.
+2. **Practical reel width** — the actual stocked reel width Maniram will
+   buy/load to cut this box from. Almost always ≥ reqWidth, often much
+   wider, because…
 
-## Reel Substitutes — Multi-Up Cutting ✅ (corrugator capacity = 50")
+## Reel Substitutes — Multi-Up Cutting ✅ (corrugator capacity ≈ 48–50")
 Maniram doesn't stock a reel for every fractional box width. A narrow
 required width is normally cut **multi-up** — n boxes side by side — from a
-wider stocked reel instead, up to the corrugator's 50" width capacity.
+wider stocked reel instead, up to the corrugator's width capacity (machine
+ceiling 50", but in practice the widest reels actually stocked/used top out
+around 48" — both figures matter: search up to 50", but real stock rarely
+exceeds 48" anyway).
 
-The order's own Reel Size already includes the single-box 0.5" margin
-(`W + H + 0.5`), so the raw per-box width without that margin is:
+The raw per-box width without its own 0.5" trim margin is:
 ```
-rawWidth = ReelSize − 0.5
+rawWidth = reqWidth − 0.5
 ```
 A stocked reel of width R fits `n = floor(R / rawWidth)` boxes across, and
-is a valid substitute whenever that leaves at least a 0.5" trim margin:
+is a valid candidate whenever that leaves at least a 0.5" trim margin:
 ```
-margin = R − (n × rawWidth)      → substitute valid when margin ≥ 0.5"
+margin = R − (n × rawWidth)      → valid when margin ≥ 0.5"
+wastePct = margin / R
 ```
-Single-up keeps the exact 0.5" margin; multi-up can loosen up to ~0.75" per
-join since the margin is shared across the extra cut(s), so a little more
-slack (up to ~1" observed on real stock, e.g. the 46" case below) is normal
-and just means slightly more trim waste, not an invalid substitute.
+Among all valid candidates (any n ≥ 1), **pick the one with the lowest
+wastePct** — not just the narrowest reel that happens to fit. Picking
+"narrowest that fits ≥ reqWidth" (i.e. always n=1) is the old, wrong
+behavior: it ignores multi-up options that waste far less paper per box.
 
 Example — 15.5" required (rawWidth = 15"):
 ```
-Reel 30.5" → n = floor(30.5/15) = 2 → margin 0.5"  → 2-up ✅ (tight fit)
-Reel 46"   → n = floor(46/15)   = 3 → margin 1.0"  → 3-up ✅ (a bit looser)
+Reel 30.5" → n = floor(30.5/15) = 2 → margin 0.5"  → 2-up, waste 1.6%
+Reel 46"   → n = floor(46/15)   = 3 → margin 1.0"  → 3-up, waste 2.2%
 ```
-Implemented in `findSubstitutes()` (`js/orders.js`) — searches actual
-`reelData` stock (not a hardcoded size list) so substitutes always reflect
-what's really on hand, capped at `CORRUGATOR_MAX_WIDTH` (50", `config.js`).
+Both valid; rank by waste% and prefer whichever real stock actually has.
+
+Example — 20.5" required (rawWidth = 20"), against standard sizes:
+```
+Reel 42" → n = floor(42/20) = 2 → margin 2.0" → 2-up, waste 4.8% ← lowest, picked
+Reel 30" → n = 1 → margin 10" → waste 33% (single-up, technically valid, much worse)
+```
+
+**Weight still uses reqWidth (20.5"), never the picked 42" reel** — same
+box, same paper, regardless of which reel cuts it.
+
+Implemented in two places, same algorithm:
+- `findSubstitutes()` (`js/orders.js`) — Orders page stock-check, when an
+  order's exact reel size shows no stock.
+- `_bestMultiUpReel()` (`js/clients.js`), used by `suggestWeightAndReel()` —
+  the Product Master's "Suggest Weight & Reel Size" button suggests the
+  practical reel this way, while area/weight always uses reqWidth.
+
+Both search actual `reelData` stock (not a hardcoded size list, though
+`DECKLE_FALLBACK_SIZES` / `js/deckle.js` back it when live stock hasn't
+loaded), capped at `CORRUGATOR_MAX_WIDTH` (50", `config.js`).
 
 ## Layer Structure
 - 3-ply: L1(flat) | F1(flute×1.5) | L2(flat)
