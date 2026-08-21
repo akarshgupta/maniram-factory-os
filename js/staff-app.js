@@ -155,8 +155,8 @@ async function staffFetchStock() {
 // TABS
 // ══════════════════════════════════════════════════════════════
 
-const STAFF_TABS = ['orders','stock','delivery','weight'];
-const STAFF_TAB_TITLES = { orders: '📦 Orders', stock: '🧻 Reel Stock', delivery: '📅 Delivery Date', weight: '⚖️ Box Weight' };
+const STAFF_TABS = ['orders','stock','delivery','weight','process'];
+const STAFF_TAB_TITLES = { orders: '📦 Orders', stock: '🧻 Reel Stock', delivery: '📅 Delivery Date', weight: '⚖️ Box Weight', process: '⚗️ Process Log' };
 
 function showStaffTab(id, btn) {
   STAFF_TABS.forEach(t => {
@@ -166,7 +166,8 @@ function showStaffTab(id, btn) {
   if (btn) btn.classList.add('active');
   document.getElementById('staff-page-title').textContent = STAFF_TAB_TITLES[id] || id;
 
-  if (id === 'stock' && !staffStock.length) staffFetchStock();
+  if (id === 'stock'   && !staffStock.length)      staffFetchStock();
+  if (id === 'process' && !staffProcessLog.length) staffFetchProcessLog();
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -408,6 +409,94 @@ function calcWeight() {
 }
 
 // ══════════════════════════════════════════════════════════════
+// PROCESS LOG — batch costing input (gum, stitching, …)
+// Records raw material used + approx output produced only. Cost/kg itself
+// is computed on the office app's Process Costing page (js/process-costing.js)
+// from a ₹/kg rate the owner sets there — this portal just logs quantities.
+// ══════════════════════════════════════════════════════════════
+
+let staffProcessLog = [];
+
+async function staffFetchProcessLog() {
+  const syncEl = document.getElementById('pl-sync');
+  try {
+    const url  = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent(PROCESS_LOG_TAB + '!A2:G200')}?key=${API_KEY}`;
+    const res  = await fetch(url);
+    const json = await res.json();
+    // A json.error here almost always just means the ProcessLog tab doesn't
+    // exist yet (no batch has ever been saved) — treat as "no entries", not a failure.
+    staffProcessLog = json.error ? [] : (json.values || []).filter(r => r[0]).map(r => ({
+      date: r[0] || '', process: r[1] || '',
+      rawMaterialKg: parseFloat(r[2]) || 0, outputQty: parseFloat(r[3]) || 0,
+      outputUnit: r[4] || 'kg', notes: r[5] || '', ts: r[6] || '',
+    })).sort((a, b) => (b.ts || '').localeCompare(a.ts || ''));
+    if (syncEl) syncEl.innerHTML = '<div class="sync-dot ok"></div><span>Updated just now</span>';
+  } catch (e) {
+    if (syncEl) syncEl.innerHTML = `<div class="sync-dot error"></div><span>Fetch failed: ${e.message}</span>`;
+  }
+  renderProcessLog();
+}
+
+function onPlProcessChange() {
+  const p = document.getElementById('pl-process').value;
+  document.getElementById('pl-process-other-wrap').style.display = p === 'Other' ? 'block' : 'none';
+  document.getElementById('pl-output-label').textContent = p === 'Gum' ? 'Gum produced, approx' : 'Output produced, approx';
+  const unitEl = document.getElementById('pl-unit');
+  if (p === 'Stitching') unitEl.value = 'boxes';
+  else if (p !== 'Other') unitEl.value = 'kg';
+}
+
+function saveProcessBatch() {
+  const msg = document.getElementById('pl-msg');
+  msg.innerHTML = '';
+
+  let process = document.getElementById('pl-process').value;
+  if (process === 'Other') process = document.getElementById('pl-process-other').value.trim();
+  const date       = document.getElementById('pl-date').value || todayStr;
+  const rawKg      = parseFloat(document.getElementById('pl-raw-kg').value)     || 0;
+  const outputQty  = parseFloat(document.getElementById('pl-output-qty').value) || 0;
+  const outputUnit = document.getElementById('pl-unit').value || 'kg';
+  const notes      = document.getElementById('pl-notes').value.trim();
+
+  if (!process)       { msg.innerHTML = '⚠️ Select or enter a process.'; return; }
+  if (rawKg <= 0)      { msg.innerHTML = '⚠️ Enter the raw material used (kg).'; return; }
+  if (outputQty <= 0)  { msg.innerHTML = '⚠️ Enter the approximate output produced.'; return; }
+
+  const entry = { date, process, rawMaterialKg: rawKg, outputQty, outputUnit, notes, ts: new Date().toISOString() };
+  staffProcessLog.unshift(entry);
+  renderProcessLog();
+
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST', mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(Object.assign({ action: 'processLogAppend' }, entry)),
+  }).catch(() => {});
+
+  msg.innerHTML = `✅ Saved — ${rawKg} kg → ${outputQty} ${outputUnit} of ${process}`;
+  document.getElementById('pl-raw-kg').value     = '';
+  document.getElementById('pl-output-qty').value = '';
+  document.getElementById('pl-notes').value      = '';
+  setTimeout(staffFetchProcessLog, 3000);
+}
+
+function renderProcessLog() {
+  const list = document.getElementById('pl-list');
+  if (!list) return;
+  if (!staffProcessLog.length) { list.innerHTML = '<div class="empty-state">No batches logged yet.</div>'; return; }
+
+  list.innerHTML = staffProcessLog.slice(0, 20).map(e => `
+    <div class="card" style="margin-bottom:8px;padding:12px 16px">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--navy)">${e.process}</div>
+          <div style="font-size:11px;color:var(--muted)">${formatDate(e.date)}${e.notes ? ' · ' + e.notes : ''}</div>
+        </div>
+        <div style="font-size:12px;font-weight:600">${e.rawMaterialKg.toLocaleString('en-IN')} kg → ${e.outputQty.toLocaleString('en-IN')} ${e.outputUnit}</div>
+      </div>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════════════
 
@@ -416,6 +505,7 @@ function staffInit() {
     new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
 
   document.getElementById('dd-start').value = todayStr;
+  document.getElementById('pl-date').value  = todayStr;
 
   checkStaffAuth();
   if (staffIsLoggedIn()) {

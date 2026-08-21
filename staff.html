@@ -93,6 +93,7 @@
       <button class="staff-tab" onclick="showStaffTab('stock',this)">🧻 Reel Stock</button>
       <button class="staff-tab" onclick="showStaffTab('delivery',this)">📅 Delivery Date</button>
       <button class="staff-tab" onclick="showStaffTab('weight',this)">⚖️ Box Weight</button>
+      <button class="staff-tab" onclick="showStaffTab('process',this)">⚗️ Process Log</button>
     </div>
 
     <!-- ══ ORDERS TAB ══ -->
@@ -219,6 +220,61 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- ══ PROCESS LOG TAB ══ -->
+    <div id="staff-tab-process" style="display:none">
+      <div class="card" style="max-width:560px">
+        <div class="card-header"><div class="card-title">⚗️ Log a Process Batch</div></div>
+        <div class="card-body">
+          <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Whenever a batch (gum, etc.) is made, log how much raw material went in and approximately how much came out. Cost per kg is calculated on the office dashboard.</p>
+          <div class="form-group">
+            <label class="form-label">Process</label>
+            <select class="form-select" id="pl-process" onchange="onPlProcessChange()">
+              <option value="Gum">Gum</option>
+              <option value="Stitching">Stitching</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="form-group" id="pl-process-other-wrap" style="display:none">
+            <label class="form-label">Process name</label>
+            <input class="form-input" type="text" id="pl-process-other" placeholder="e.g. Printing ink">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Date</label>
+            <input class="form-input" type="date" id="pl-date">
+          </div>
+          <div class="calc-grid">
+            <div class="form-group">
+              <label class="form-label">Raw material used (kg)</label>
+              <input class="form-input" type="number" id="pl-raw-kg" placeholder="e.g. 25" step="0.1" min="0">
+            </div>
+            <div class="form-group">
+              <label class="form-label" id="pl-output-label">Gum produced, approx</label>
+              <input class="form-input" type="number" id="pl-output-qty" placeholder="e.g. 23" step="0.1" min="0">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Output unit</label>
+            <select class="form-select" id="pl-unit">
+              <option value="kg">kg</option>
+              <option value="boxes">boxes</option>
+              <option value="pcs">pcs</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Notes (optional)</label>
+            <input class="form-input" type="text" id="pl-notes" placeholder="e.g. batch slightly thin">
+          </div>
+          <button class="btn-primary" style="width:100%;padding:12px;font-size:15px" onclick="saveProcessBatch()">💾 Save Batch</button>
+          <div id="pl-msg" style="margin-top:8px;font-size:13px"></div>
+        </div>
+      </div>
+
+      <div style="max-width:560px;margin-top:16px">
+        <div class="sync-bar" id="pl-sync" style="margin-bottom:10px"><div class="sync-dot loading"></div><span>Loading recent batches...</span></div>
+        <div id="pl-list"></div>
       </div>
     </div>
 
