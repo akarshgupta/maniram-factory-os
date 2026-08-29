@@ -61,6 +61,17 @@ const CLIENTS_TAB       = 'Customers';
 
 const NOTION_CLIENTS_DB = '5be5433513b64fc9a14fa539ca06c475'; // Maniram Clients database
 
+// ── Customer Review Funnel (review.html, js/review.js) ──
+// Where the "post this on Google" button sends a 4-5 star customer.
+// Best option: Google Business Profile app/site → your Maniram Industries
+// listing → "Ask for reviews" → gives a short g.page/r/XXXXXXX/review link
+// that drops the customer straight into the review box. Paste that link
+// here when you have it — until then this falls back to a plain Google
+// Maps search for the business name, which still works, it just costs the
+// customer one extra tap (open listing → Write a review) instead of landing
+// there directly.
+const GOOGLE_REVIEW_URL = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('Maniram Industries, Sadar Bazar, Jhansi');
+
 const KATRA_BUFFER_KG  = 5000;
 const MAX_DAILY_KG     = 1500;  // max box weight (kg) ready per day
 const CRITICAL_SIZES   = ['35.5', '44', '42', '35'];

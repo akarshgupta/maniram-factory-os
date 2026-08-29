@@ -36,6 +36,7 @@ const pageTitles = {
   pipeline:    '🚦 Pipeline Board',
   costing:     '🧮 Job Costing',
   deckle:      '📏 Deckle Optimizer',
+  reviews:     '🌟 Customer Reviews',
 };
 
 const LS_LAST_PAGE = 'mi_last_page_v1';
@@ -73,6 +74,7 @@ function showPage(id) {
   if (id === 'pipeline')    renderPipelineBoard();
   if (id === 'costing')     initJobCosting();
   if (id === 'deckle')      initDeckle();
+  if (id === 'reviews')     loadReviewsAdmin();
 }
 
 // ── Topbar Date ──

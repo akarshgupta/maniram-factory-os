@@ -88,6 +88,8 @@ function doPost(e) {
     else if (action === 'saveDispatchWeight') saveDispatchWeight(data);
     else if (action === 'saveProductionLog')  saveProductionLog(data);
     else if (action === 'saveReadyStock')     saveReadyStock(data);
+    // ── Customer review funnel (review.html) ──
+    else if (action === 'saveReview')         saveReview(data);
     // ── Production Register (in-app machine-stage entries) ──
     else if (action === 'prodlogAppend')      prodlogAppend(data);
     else if (action === 'gsmSet')             gsmSet(data);
@@ -814,6 +816,32 @@ function saveReadyStock(data) {
   sheet.appendRow([
     data.date || '', data.orderId || '', data.customer || '', data.product || '',
     parseInt(data.qtyReady) || '', data.notes || '', now
+  ]);
+}
+
+// ══════════════════════════════════════════════════════════════
+// CUSTOMER REVIEWS  →  ORDERS_SHEET_ID / "Reviews" tab
+// review.html (QR code) posts here. 4-5 stars: Type=Public, Comment is
+// whatever the customer copied to Google (their choice — not proof it
+// was actually posted, since that write is fire-and-forget mode:'no-cors'
+// and Google itself is never called from this app). 1-3 stars: Type=
+// Private, Feedback is for the owner only and is never sent to Google.
+// ══════════════════════════════════════════════════════════════
+
+function saveReview(data) {
+  var ss    = SpreadsheetApp.openById(ORDERS_SHEET_ID);
+  var sheet = ss.getSheetByName('Reviews');
+  if (!sheet) {
+    sheet = ss.insertSheet('Reviews');
+    sheet.appendRow(['Timestamp','Rating','Type','CommentCopied','PrivateFeedback','Phone','SavedAt']);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1,1,1,7).setFontWeight('bold').setBackground('#E8F0FE');
+  }
+  var now    = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'dd/MM/yyyy HH:mm');
+  var rating = parseInt(data.rating) || 0;
+  sheet.appendRow([
+    data.ts || now, rating, (rating >= 4 ? 'Public' : 'Private'),
+    data.comment || '', data.feedback || '', data.phone || '', now
   ]);
 }
 

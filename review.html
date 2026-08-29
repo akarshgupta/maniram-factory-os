@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Rate Your Experience — Maniram Industries</title>
+<meta name="theme-color" content="#042C53">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: linear-gradient(160deg,#042C53 0%,#185FA5 55%,#3B82F6 100%);
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  .rv-wrap { width: 100%; max-width: 440px; }
+  .rv-logo { text-align: center; margin-bottom: 18px; color: #fff; }
+  .rv-logo-mark {
+    display: inline-flex; align-items: center; justify-content: center; width: 52px; height: 52px;
+    background: #fff; border-radius: 14px; font-size: 18px; font-weight: 800; color: #042C53; margin-bottom: 10px;
+  }
+  .rv-logo-name { font-size: 17px; font-weight: 700; }
+  .rv-logo-sub { font-size: 12.5px; opacity: 0.85; margin-top: 2px; }
+
+  .rv-card {
+    background: #fff; border-radius: 18px; padding: 28px 24px; box-shadow: 0 24px 60px rgba(0,0,0,0.25);
+  }
+  .rv-title { font-size: 18px; font-weight: 700; color: #042C53; text-align: center; margin-bottom: 6px; }
+  .rv-subtitle { font-size: 13px; color: #5B7290; text-align: center; margin-bottom: 22px; line-height: 1.5; }
+
+  /* Star picker */
+  .rv-stars { display: flex; justify-content: center; gap: 6px; margin-bottom: 6px; }
+  .rv-star {
+    background: none; border: none; cursor: pointer; font-size: 44px; line-height: 1; padding: 4px;
+    color: #DEE8F3; transition: transform 0.12s, color 0.12s; -webkit-tap-highlight-color: transparent;
+  }
+  .rv-star:active { transform: scale(0.88); }
+  .rv-star.on { color: #F1C40F; }
+  .rv-rating-label { text-align: center; font-size: 12.5px; color: #5B7290; font-weight: 600; min-height: 18px; margin-bottom: 4px; }
+
+  .rv-hidden { display: none !important; }
+
+  /* Templates */
+  .rv-tpl-list { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; }
+  .rv-tpl-card {
+    text-align: left; background: #F3F7FC; border: 1.5px solid #DEE8F3; border-radius: 12px; padding: 13px 14px;
+    font-size: 13px; line-height: 1.5; color: #042C53; cursor: pointer; transition: border-color 0.12s, background 0.12s;
+  }
+  .rv-tpl-card:active { background: #EFF6FF; }
+  .rv-tpl-card.sel { border-color: #3B82F6; background: #EFF6FF; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+
+  .rv-label { font-size: 11.5px; font-weight: 700; color: #5B7290; text-transform: uppercase; letter-spacing: 0.5px; margin: 18px 0 8px; }
+  textarea.rv-textarea {
+    width: 100%; min-height: 90px; border: 1.5px solid #DEE8F3; border-radius: 10px; padding: 12px 14px;
+    font-size: 13.5px; font-family: inherit; color: #042C53; resize: vertical;
+  }
+  textarea.rv-textarea:focus { outline: none; border-color: #3B82F6; }
+  input.rv-input {
+    width: 100%; border: 1.5px solid #DEE8F3; border-radius: 10px; padding: 11px 14px; font-size: 13.5px;
+    font-family: inherit; color: #042C53;
+  }
+  input.rv-input:focus { outline: none; border-color: #3B82F6; }
+
+  .rv-btn {
+    width: 100%; padding: 14px; border-radius: 12px; border: none; font-size: 14.5px; font-weight: 700;
+    cursor: pointer; margin-top: 16px; -webkit-tap-highlight-color: transparent;
+  }
+  .rv-btn-primary { background: #042C53; color: #fff; }
+  .rv-btn-primary:active { background: #031f3b; }
+  .rv-btn-primary[disabled] { background: #A9BBD0; cursor: not-allowed; }
+  .rv-btn-google { background: linear-gradient(135deg,#4285F4,#34A853); color: #fff; }
+  .rv-back {
+    display: block; text-align: center; margin-top: 14px; font-size: 12.5px; color: #5B7290; background: none;
+    border: none; cursor: pointer; text-decoration: underline; width: 100%;
+  }
+
+  .rv-hint { font-size: 11.5px; color: #5B7290; text-align: center; margin-top: 10px; line-height: 1.5; }
+
+  /* Thank you */
+  .rv-thanks { text-align: center; padding: 10px 0; }
+  .rv-thanks-icon { font-size: 46px; margin-bottom: 10px; }
+  .rv-thanks-title { font-size: 17px; font-weight: 700; color: #042C53; margin-bottom: 8px; }
+  .rv-thanks-body { font-size: 13.5px; color: #5B7290; line-height: 1.6; }
+
+  .rv-footer { text-align: center; margin-top: 16px; font-size: 11.5px; color: rgba(255,255,255,0.75); }
+</style>
+</head>
+<body>
+
+<div class="rv-wrap">
+  <div class="rv-logo">
+    <div class="rv-logo-mark">MI</div>
+    <div class="rv-logo-name">Maniram Industries</div>
+    <div class="rv-logo-sub">Corrugated Box Manufacturer · Jhansi</div>
+  </div>
+
+  <div class="rv-card">
+
+    <!-- STEP 1 — star picker -->
+    <div id="rv-step-rate">
+      <div class="rv-title">How was your experience?</div>
+      <div class="rv-subtitle">Tap a star to rate us — it takes 10 seconds and helps us a lot.</div>
+      <div class="rv-stars" id="rv-stars">
+        <button class="rv-star" data-n="1" onclick="rvSelectStar(1)">★</button>
+        <button class="rv-star" data-n="2" onclick="rvSelectStar(2)">★</button>
+        <button class="rv-star" data-n="3" onclick="rvSelectStar(3)">★</button>
+        <button class="rv-star" data-n="4" onclick="rvSelectStar(4)">★</button>
+        <button class="rv-star" data-n="5" onclick="rvSelectStar(5)">★</button>
+      </div>
+      <div class="rv-rating-label" id="rv-rating-label">&nbsp;</div>
+    </div>
+
+    <!-- STEP 2A — 4-5 star: pick a comment, post to Google -->
+    <div id="rv-step-public" class="rv-hidden">
+      <div class="rv-title">Thanks! Glad you had a good experience</div>
+      <div class="rv-subtitle">Pick whichever sounds most like you (or edit it), then post it as a Google review.</div>
+      <div class="rv-tpl-list" id="rv-tpl-list"></div>
+      <div class="rv-label">Your review</div>
+      <textarea class="rv-textarea" id="rv-comment" maxlength="600" placeholder="Pick an option above, or write your own..."></textarea>
+      <button class="rv-btn rv-btn-google" id="rv-post-btn" onclick="rvPostToGoogle()" disabled>📮 Copy &amp; Open Google Review</button>
+      <div class="rv-hint">This copies your review and opens Google in a new tab — just paste it in, pick your star rating there too, and tap Post.</div>
+      <button class="rv-back" onclick="rvReset()">← Change rating</button>
+    </div>
+
+    <!-- STEP 2B — 1-3 star: private feedback, never public -->
+    <div id="rv-step-private" class="rv-hidden">
+      <div class="rv-title">Sorry to hear that</div>
+      <div class="rv-subtitle">Please tell us what went wrong so we can make it right. This goes straight to the owner — it's not posted anywhere public.</div>
+      <div class="rv-label">What happened?</div>
+      <textarea class="rv-textarea" id="rv-feedback" maxlength="1000" placeholder="Tell us what we could have done better..."></textarea>
+      <div class="rv-label">Phone (optional, if you'd like a callback)</div>
+      <input class="rv-input" id="rv-phone" type="tel" inputmode="tel" placeholder="e.g. 98765 43210">
+      <button class="rv-btn rv-btn-primary" id="rv-feedback-btn" onclick="rvSubmitFeedback()" disabled>Send Feedback</button>
+      <button class="rv-back" onclick="rvReset()">← Change rating</button>
+    </div>
+
+    <!-- STEP 3 — thank you -->
+    <div id="rv-step-thanks" class="rv-hidden">
+      <div class="rv-thanks">
+        <div class="rv-thanks-icon" id="rv-thanks-icon">🙏</div>
+        <div class="rv-thanks-title" id="rv-thanks-title">Thank you!</div>
+        <div class="rv-thanks-body" id="rv-thanks-body"></div>
+      </div>
+    </div>
+
+  </div>
+  <div class="rv-footer">Maniram Industries · Jhansi</div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/review.js"></script>
+</body>
+</html>

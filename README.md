@@ -32,6 +32,7 @@ A factory management web app built for **Maniram Industries**, a corrugated-box 
 **Other entry points**
 - `staff.html` — a simplified, PIN-gated staff portal (order status + reel stock only)
 - `supervisor.html` — a standalone mobile page for supervisor data entry (largely superseded by the Google Form the Supervisor Log page reads from)
+- `review.html` — public, no login, reached via a printable QR code (Tools → Customer Reviews in the main app). Customers rate 1-5 stars; 4-5 stars get ready-made comments to copy and post to Google, 1-3 stars go to a private feedback form only the owner sees.
 
 ## Architecture
 

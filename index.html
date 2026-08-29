@@ -97,6 +97,7 @@
     <div class="nav-section">Tools</div>
     <div class="nav-item" onclick="showPage('ratecalc')"><span class="nav-icon">📐</span> Rate Calculator</div>
     <div class="nav-item" onclick="showPage('analytics')"><span class="nav-icon">📊</span> Analytics</div>
+    <div class="nav-item" onclick="showPage('reviews')"><span class="nav-icon">🌟</span> Customer Reviews</div>
     <div class="nav-item" onclick="showPage('reminders')" id="nav-reminders">
       <span class="nav-icon">🔔</span> Reminders
       <span class="reminder-badge" id="sidebar-reminder-badge">0</span>
@@ -616,6 +617,54 @@
     <!-- ══ LEADS ══ -->
     <div class="page" id="page-leads">
       <div id="leads-root"></div>
+    </div>
+
+    <!-- ══ CUSTOMER REVIEWS ══ -->
+    <div class="page" id="page-reviews">
+      <div class="section-header">
+        <div class="section-title">🌟 Customer Reviews</div>
+        <button class="btn-secondary" onclick="loadReviewsAdmin()" style="margin-left:0">🔄 Refresh</button>
+      </div>
+
+      <div class="grid-2" style="align-items:start;margin-bottom:16px">
+        <div class="card">
+          <div class="card-header"><div class="card-title">📱 Your Review QR Code</div></div>
+          <div class="card-body" style="text-align:center">
+            <p style="font-size:12px;color:var(--muted);margin:0 0 14px">
+              Print this and put it on the counter, invoices, or delivery challans. Customers scan it, rate their
+              experience, and 4-5 star ratings get a ready-made comment they can post straight to Google.
+            </p>
+            <div id="review-qr-box" style="display:inline-block;padding:14px;background:#fff;border:1px solid var(--border);border-radius:10px"></div>
+            <div style="margin-top:12px;font-size:11px;color:var(--muted);word-break:break-all" id="review-qr-url">—</div>
+            <div style="display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap">
+              <button class="btn-secondary" onclick="downloadReviewQR()">⬇️ Download PNG</button>
+              <button class="btn-secondary" onclick="copyReviewLink()">🔗 Copy Link</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><div class="card-title">📊 Summary</div></div>
+          <div class="card-body">
+            <div class="grid-2" style="gap:10px">
+              <div class="stat-card"><div class="stat-label">Total Ratings</div><div class="stat-value" id="rv-stat-total" style="font-size:22px">—</div></div>
+              <div class="stat-card good"><div class="stat-label">Average</div><div class="stat-value" id="rv-stat-avg" style="font-size:22px;color:var(--success)">—</div></div>
+              <div class="stat-card good"><div class="stat-label">5 &amp; 4 Star</div><div class="stat-value" id="rv-stat-public" style="font-size:22px;color:var(--success)">—</div></div>
+              <div class="stat-card alert"><div class="stat-label">Needs Follow-up</div><div class="stat-value" id="rv-stat-private" style="font-size:22px;color:var(--danger)">—</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">🤝 Private Feedback (1-3 star — not posted anywhere public)</div></div>
+        <div class="card-body" id="reviews-private-list"><div class="empty-state">Loading...</div></div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <div class="card-header"><div class="card-title">📋 All Ratings</div></div>
+        <div class="card-body" id="reviews-all-list"><div class="empty-state">Loading...</div></div>
+      </div>
     </div>
 
     <!-- ══ REMINDERS ══ -->
@@ -1750,6 +1799,7 @@
 
 <!-- jsPDF — client-side PDF generation -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
 <!-- JS MODULES — order matters -->
 <!-- config.js + auth.js already loaded in <head> -->
@@ -1783,6 +1833,7 @@
 <script src="js/supervisor-log.js"></script>
 <script src="js/ledger.js"></script>
 <script src="js/daily-report.js"></script>
+<script src="js/reviews-admin.js"></script>
 <script src="js/app.js"></script>
 
 </body>
