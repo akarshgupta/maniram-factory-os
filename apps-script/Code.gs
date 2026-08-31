@@ -16,6 +16,8 @@ var PROD_PERF_SHEET_ID = '1cK7sbz1pwsSJOD6ZBgdj12CN3Gznw9Y37KN-U3_hTwQ';
 // then paste each ID below AND into js/config.js. Nothing is merged together.
 var REEL_SHEET_ID        = '1tcE8W_1q-tkXn6DZ9DX6darBnUpwcQtFZqA9sUbtjR8';
 var REEL_STOCK_TAB       = 'Stock';
+var SNAPSHOT_SHEET_ID    = '1bSoFhhJ4_RzD8YiFhZFAA8sW_r1ItwC_EAP-6fPdl9k'; // Reel Snapshot Log — durable, never pruned
+var SNAPSHOT_TAB         = 'Snapshots';
 
 // ── Separate spreadsheet per finance operation ──
 // Run setupSheets() ONCE (from the editor) to create these and print their IDs,
@@ -66,6 +68,7 @@ function doPost(e) {
     else if (action === 'savePurchase')      savePurchase(data);
     else if (action === 'updatePurchase')    updatePurchase(data);
     else if (action === 'addReelStock')      addReelStock(data);
+    else if (action === 'saveReelSnapshot')  saveReelSnapshot(data);
     else if (action === 'saveOverhead')      saveOverhead(data);
     // ── Tally sync ──
     else if (action === 'syncTally')         responseData = syncTallyData(data);
@@ -470,6 +473,39 @@ function addReelStock(data) {
   if (colQty    >= 0) newRow[colQty]    = numReels;
 
   sheet.appendRow(newRow);
+}
+
+// ══════════════════════════════════════════════════════════════
+// REEL STOCK SNAPSHOT  →  SNAPSHOT_SHEET_ID / "Snapshots" tab
+// One row per calendar date (upserted — the last snapshot taken on a given
+// day overwrites that day's row, so it settles on that day's closing state).
+// Never pruned, unlike the localStorage snapshots in js/reels.js — this is
+// the durable source for the app's monthly opening/closing stock report.
+// DataJSON is the full per-reel-size breakdown (same shape reels.js already
+// keeps locally) so the size-by-size detail survives too, not just the total.
+// ══════════════════════════════════════════════════════════════
+
+function saveReelSnapshot(d) {
+  var ss = SpreadsheetApp.openById(SNAPSHOT_SHEET_ID);
+  var sh = ss.getSheetByName(SNAPSHOT_TAB);
+  if (!sh) {
+    // The spreadsheet may already have an unused default first sheet from
+    // when it was created — reuse that instead of leaving it dangling empty.
+    var first = ss.getSheets()[0];
+    sh = (ss.getSheets().length === 1 && first.getLastRow() === 0) ? first : ss.insertSheet(SNAPSHOT_TAB);
+    sh.setName(SNAPSHOT_TAB);
+    sh.appendRow(['Date', 'TotalKg', 'DataJSON', 'Timestamp']);
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, 1, 4).setFontWeight('bold').setBackground('#E8F0FE');
+  }
+  var rows = sh.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]) === String(d.date)) {
+      sh.getRange(i + 1, 1, 1, 4).setValues([[d.date, d.totalKg || 0, d.dataJson || '', d.ts || new Date().toISOString()]]);
+      return;
+    }
+  }
+  sh.appendRow([d.date || '', d.totalKg || 0, d.dataJson || '', d.ts || new Date().toISOString()]);
 }
 
 // ══════════════════════════════════════════════════════════════

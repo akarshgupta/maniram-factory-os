@@ -36,6 +36,58 @@ function _getReelSnaps() {
   try { return JSON.parse(localStorage.getItem(LS_REEL_SNAPS) || '{}'); } catch { return {}; }
 }
 
+// ── Durable snapshot log (SNAPSHOT_SHEET_ID) ──
+// The localStorage snapshots above are per-browser and pruned after
+// SNAP_KEEP_DAYS — fine for the quick "last few days" tabs, but not for
+// month-end stock figures that need to survive across devices and years.
+// Every fetch also mirrors today's snapshot to a durable, never-pruned
+// sheet (one row per calendar date, upserted — see saveReelSnapshot in
+// Code.gs), which powers the Monthly view below.
+let reelSnapshotHistory  = []; // [{date, totalKg, data, ts}], ascending by date
+let _snapHistoryFetched  = false;
+
+function _mirrorReelSnapshot(data) {
+  const dateKey = new Date().toISOString().split('T')[0];
+  mirrorToSheet('saveReelSnapshot', {
+    date: dateKey, totalKg: Math.round(_snapTotalKg(data)),
+    dataJson: JSON.stringify(data), ts: new Date().toISOString(),
+  });
+}
+
+async function fetchReelSnapshotHistory() {
+  try {
+    const range = encodeURIComponent(`${SNAPSHOT_TAB}!A2:D3000`);
+    const url   = `https://sheets.googleapis.com/v4/spreadsheets/${SNAPSHOT_SHEET_ID}/values/${range}?key=${API_KEY}&_=${Date.now()}`;
+    const res   = await fetch(url);
+    const json  = await res.json();
+    // A json.error here almost always just means the Snapshots tab doesn't
+    // exist yet (no snapshot has ever reached the sheet) — treat as "no history".
+    reelSnapshotHistory = json.error ? [] : (json.values || []).filter(r => r[0]).map(r => {
+      let data = [];
+      try { data = JSON.parse(r[2] || '[]'); } catch (e) {}
+      return { date: r[0], totalKg: parseFloat(r[1]) || 0, data, ts: r[3] || '' };
+    }).sort((a, b) => a.date.localeCompare(b.date));
+    return true;
+  } catch (e) {
+    console.error('fetchReelSnapshotHistory:', e);
+    return false;
+  }
+}
+
+// Manual, explicit "record stock right now" action — e.g. for month-end
+// counting. fetchReelStock() already snapshots (locally + to the sheet) on
+// every call, so this just re-fetches live and gives clear save feedback.
+async function takeStockSnapshotNow() {
+  const btn = document.querySelector('button[onclick="takeStockSnapshotNow()"]');
+  if (btn) { btn.textContent = '⏳ Saving...'; btn.disabled = true; }
+  await fetchReelStock();
+  _snapHistoryFetched = false; // next Monthly view open pulls today's entry fresh
+  if (btn) {
+    btn.textContent = '✅ Snapshot saved';
+    setTimeout(() => { btn.textContent = '📸 Snapshot Now'; btn.disabled = false; }, 2000);
+  }
+}
+
 // ── Fetch ──
 async function fetchReelStock() {
   setReelSyncStatus('loading', 'Fetching live reel data...');
@@ -104,6 +156,7 @@ async function fetchReelStock() {
     setReelSyncStatus('ok', `Live · ${now} · Total ${totalKg.toLocaleString('en-IN')} kg`);
 
     _saveReelSnapshot(reelData);
+    _mirrorReelSnapshot(reelData);
     renderCriticalReels();
     renderFullReels();
     updateDashboardStock();
@@ -132,6 +185,15 @@ function renderReelDateTabs() {
   liveBtn.style.cssText = 'font-size:12px';
   liveBtn.onclick = () => { tabs.dataset.active = 'live'; renderReelDateTabs(); showReelLiveView(); };
   tabs.appendChild(liveBtn);
+
+  // Monthly opening/closing report — reads the durable sheet log, not the
+  // pruned local snapshots, so it works across devices and past 30 days.
+  const monthlyBtn = document.createElement('button');
+  monthlyBtn.textContent = '📅 Monthly';
+  monthlyBtn.className   = `btn-secondary${active === 'monthly' ? ' active' : ''}`;
+  monthlyBtn.style.cssText = 'font-size:12px';
+  monthlyBtn.onclick = () => { tabs.dataset.active = 'monthly'; renderReelDateTabs(); showReelMonthlyView(); };
+  tabs.appendChild(monthlyBtn);
 
   dates.forEach(d => {
     const snap = snaps[d];
@@ -201,18 +263,139 @@ function _openCloseSummaryHtml(dateKey, snap) {
     </div>`;
 }
 
+// ── Monthly opening/closing report ──
+function _monthBounds(monthStr) {
+  const [y, m] = monthStr.split('-').map(Number);
+  const first  = `${monthStr}-01`;
+  const lastDay = new Date(y, m, 0).getDate(); // day 0 of next month = last day of this one
+  const last   = `${monthStr}-${String(lastDay).padStart(2, '0')}`;
+  return { first, last };
+}
+
+function _sizeMapFromSnap(data) {
+  const m = {};
+  (data || []).forEach(r => { m[r.size] = r; });
+  return m;
+}
+
+function _sizeRow(size, opening, closing) {
+  const o  = opening ? (opening.totalWeight || 0) : 0;
+  const c  = closing ? (closing.totalWeight || 0) : 0;
+  const oc = opening ? (opening.count || 0) : 0;
+  const cc = closing ? (closing.count || 0) : 0;
+  const delta    = c - o;
+  const deltaCol = delta > 0 ? 'var(--success)' : delta < 0 ? 'var(--danger)' : 'var(--muted)';
+  return `<tr>
+    <td style="font-weight:600">${size}"</td>
+    <td class="num">${opening ? oc + ' reels · ' : ''}${Math.round(o).toLocaleString('en-IN')} kg</td>
+    <td class="num">${closing ? cc + ' reels · ' : ''}${Math.round(c).toLocaleString('en-IN')} kg</td>
+    <td class="num" style="color:${deltaCol};font-weight:600">${delta === 0 ? '—' : (delta > 0 ? '+' : '') + Math.round(delta).toLocaleString('en-IN') + ' kg'}</td>
+  </tr>`;
+}
+
+function renderMonthlyStock() {
+  const body = document.getElementById('reel-monthly-body');
+  if (!body) return;
+  const monthStr = document.getElementById('reel-month-picker')?.value || new Date().toISOString().slice(0, 7);
+  const { first, last } = _monthBounds(monthStr);
+  const todayKey = new Date().toISOString().split('T')[0];
+  const effectiveLast  = last > todayKey ? todayKey : last;
+  const isCurrentMonth = first <= todayKey && last >= todayKey;
+
+  if (!reelSnapshotHistory.length) {
+    body.innerHTML = `<div class="empty-state">No stock snapshots recorded yet. Press "📸 Snapshot Now" above — one is also taken automatically every time this page loads. Snapshots can only cover days from when this feature went live; past months that were never recorded can't be reconstructed.</div>`;
+    return;
+  }
+
+  const inMonth = reelSnapshotHistory.filter(s => s.date >= first && s.date <= effectiveLast);
+  const before  = reelSnapshotHistory.filter(s => s.date < first);
+  const openingSnap = before.length ? before[before.length - 1] : (inMonth.length ? inMonth[0] : null);
+  const closingSnap = inMonth.length ? inMonth[inMonth.length - 1] : null;
+
+  if (!openingSnap && !closingSnap) {
+    body.innerHTML = `<div class="empty-state">No snapshots recorded for ${monthStr} yet.</div>`;
+    return;
+  }
+
+  const openingKg = openingSnap ? _snapTotalKg(openingSnap.data) : 0;
+  const closingKg = closingSnap ? _snapTotalKg(closingSnap.data) : openingKg;
+  const delta     = closingKg - openingKg;
+  const deltaCol  = delta > 0 ? 'var(--success)' : delta < 0 ? 'var(--danger)' : 'var(--muted)';
+  const openNote  = (before.length === 0 && inMonth.length > 0)
+    ? ' <span style="color:var(--muted);font-weight:400;font-size:11px">(earliest available — no prior reading)</span>' : '';
+  const closeLabel = isCurrentMonth
+    ? `As of today (${new Date(todayKey + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})`
+    : 'Closing';
+
+  const sizes = [...new Set([...(openingSnap?.data || []), ...(closingSnap?.data || [])].map(r => r.size))]
+    .sort((a, b) => b - a);
+  const openMap  = _sizeMapFromSnap(openingSnap?.data);
+  const closeMap = _sizeMapFromSnap(closingSnap?.data);
+
+  body.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
+      <div class="stat-card" style="padding:12px 14px">
+        <div class="stat-label">Opening${openNote}</div>
+        <div class="stat-value" style="font-size:19px">${Math.round(openingKg).toLocaleString('en-IN')} <span style="font-size:12px;color:var(--muted)">kg</span></div>
+        ${openingSnap ? `<div style="font-size:10px;color:var(--muted)">as of ${new Date(openingSnap.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>` : ''}
+      </div>
+      <div class="stat-card" style="padding:12px 14px">
+        <div class="stat-label">${closeLabel}</div>
+        <div class="stat-value" style="font-size:19px">${Math.round(closingKg).toLocaleString('en-IN')} <span style="font-size:12px;color:var(--muted)">kg</span></div>
+        ${closingSnap ? `<div style="font-size:10px;color:var(--muted)">as of ${new Date(closingSnap.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>` : ''}
+      </div>
+      <div class="stat-card" style="padding:12px 14px">
+        <div class="stat-label">Net Change</div>
+        <div class="stat-value" style="font-size:16px;color:${deltaCol}">${delta === 0 ? 'No change' : (delta > 0 ? '▲ +' : '▼ ') + Math.abs(Math.round(delta)).toLocaleString('en-IN') + ' kg'}</div>
+      </div>
+    </div>
+    ${sizes.length ? `
+    <div class="field-hint" style="margin-bottom:6px">By reel size</div>
+    <div class="data-table-wrap"><div class="data-table-scroll">
+    <table class="data-table">
+      <thead><tr><th>Size</th><th class="num">Opening</th><th class="num">${closeLabel}</th><th class="num">Change</th></tr></thead>
+      <tbody>${sizes.map(s => _sizeRow(s, openMap[s], closeMap[s])).join('')}</tbody>
+    </table></div></div>` : ''}
+    <div class="field-hint" style="margin-top:10px">${inMonth.length} snapshot${inMonth.length === 1 ? '' : 's'} recorded in ${monthStr}. Opening = last snapshot before the 1st of the month (i.e. the previous month's closing).</div>
+  `;
+}
+
+async function showReelMonthlyView() {
+  const live = document.getElementById('reel-view-live');
+  const hist = document.getElementById('reel-view-history');
+  const mon  = document.getElementById('reel-view-monthly');
+  if (live) live.style.display = 'none';
+  if (hist) hist.style.display = 'none';
+  if (mon)  mon.style.display  = '';
+
+  const picker = document.getElementById('reel-month-picker');
+  if (picker && !picker.value) picker.value = new Date().toISOString().slice(0, 7);
+
+  if (!_snapHistoryFetched) {
+    const body = document.getElementById('reel-monthly-body');
+    if (body) body.innerHTML = '<div class="empty-state">Loading…</div>';
+    await fetchReelSnapshotHistory();
+    _snapHistoryFetched = true;
+  }
+  renderMonthlyStock();
+}
+
 function showReelLiveView() {
   const live = document.getElementById('reel-view-live');
   const hist = document.getElementById('reel-view-history');
+  const mon  = document.getElementById('reel-view-monthly');
   if (live) live.style.display = '';
   if (hist) hist.style.display = 'none';
+  if (mon)  mon.style.display  = 'none';
 }
 
 function showReelHistoryView(dateKey, snap) {
   const live = document.getElementById('reel-view-live');
   const hist = document.getElementById('reel-view-history');
+  const mon  = document.getElementById('reel-view-monthly');
   if (live) live.style.display = 'none';
   if (hist) hist.style.display = '';
+  if (mon)  mon.style.display  = 'none';
 
   const titleEl = document.getElementById('reel-hist-title');
   const timeEl  = document.getElementById('reel-hist-time');

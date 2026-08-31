@@ -11,6 +11,7 @@ const DISPATCH_SHEET_ID  = '15BIRmrIyu4m76c_-9xau_SYC_BxsvR-kM6WadQKDV60'; // Di
 const STAFF_LOG_SHEET_ID = '14AYCaA4uQ7rSnfuOfG0Joff-LmWVCYVb9Wc_95Zr60k'; // StaffLog
 const PROD_PERF_SHEET_ID = '1cK7sbz1pwsSJOD6ZBgdj12CN3Gznw9Y37KN-U3_hTwQ'; // ProdPerf
 const SNAPSHOT_SHEET_ID  = '1bSoFhhJ4_RzD8YiFhZFAA8sW_r1ItwC_EAP-6fPdl9k'; // Reel Snapshot Log
+const SNAPSHOT_TAB       = 'Snapshots'; // durable daily stock snapshots — see js/reels.js
 const LEDGER_SHEET_ID    = '1dZKC2EtU9DAzGruKzeDIIM3XgWsqYVk2GqjHzfthdkE'; // Ledger July
 const PROD_LOG_SHEET_ID  = '1T3mED9PNC9twyc1O6S4_4XBB1aOsd6-BqTGwLopgkYU'; // Maniram Production Log
 
