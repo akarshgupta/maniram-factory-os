@@ -55,6 +55,7 @@ const STAFF_LOG_TAB      = 'Sheet1'; // StaffLog spreadsheet — tab is Sheet1
 const PROD_PERF_TAB      = 'Sheet1'; // ProdPerf spreadsheet — tab is Sheet1
 const PURCHASES_TAB      = 'Purchases';
 const TALLY_SYNC_TAB     = 'TallySync';
+const PROCESS_LOG_TAB    = 'ProcessLog'; // Process batch costing (gum, stitching, …) — see js/process-costing.js
 
 // legacy alias so any old reference to CLIENTS_TAB still works
 const CLIENTS_TAB       = 'Customers';

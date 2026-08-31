@@ -91,6 +91,8 @@ function doPost(e) {
     // ── Production Register (in-app machine-stage entries) ──
     else if (action === 'prodlogAppend')      prodlogAppend(data);
     else if (action === 'gsmSet')             gsmSet(data);
+    // ── Process Costing (gum, stitching, … batch cost/kg — js/process-costing.js) ──
+    else if (action === 'processLogAppend')   processLogAppend(data);
     // ── Frontend order contract (js/orders.js) ──
     // New orders POST with NO action; edits POST action 'update' + rowIndex.
     else if (action === 'update')             updateOrderRow(data);
@@ -851,6 +853,30 @@ function gsmSet(d) {
     }
   }
   sh.appendRow([d.orderId||'', d.gsm||'', d.ts||new Date().toISOString()]);
+}
+
+// ══════════════════════════════════════════════════════════════
+// PROCESS COSTING  →  ORDERS_SHEET_ID / "ProcessLog" tab
+// Batch entries from the Staff Portal's Process Log tab (js/staff-app.js):
+// raw material consumed + approx output produced for a process (gum,
+// stitching, …). Tab auto-creates. Cost/kg itself is computed on the main
+// app's Process Costing page (js/process-costing.js) from a ₹/kg rate the
+// owner sets there — this sheet only stores the raw quantities.
+// ══════════════════════════════════════════════════════════════
+
+function processLogAppend(d) {
+  var ss = SpreadsheetApp.openById(ORDERS_SHEET_ID);
+  var sh = ss.getSheetByName('ProcessLog');
+  if (!sh) {
+    sh = ss.insertSheet('ProcessLog');
+    sh.appendRow(['Date','Process','RawMaterialKg','OutputQty','OutputUnit','Notes','Timestamp']);
+    sh.setFrozenRows(1);
+    sh.getRange(1,1,1,7).setFontWeight('bold').setBackground('#E8F0FE');
+  }
+  sh.appendRow([
+    d.date || '', d.process || '', d.rawMaterialKg || 0, d.outputQty || 0,
+    d.outputUnit || 'kg', d.notes || '', d.ts || new Date().toISOString()
+  ]);
 }
 
 // ══════════════════════════════════════════════════════════════

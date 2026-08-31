@@ -80,6 +80,7 @@
     <div class="nav-item" onclick="showPage('registers')"><span class="nav-icon">📋</span> Production Register</div>
     <div class="nav-item" onclick="showPage('dailyreport')"><span class="nav-icon">🗓️</span> Daily Report</div>
     <div class="nav-item" onclick="showPage('costing')"><span class="nav-icon">🧮</span> Job Costing</div>
+    <div class="nav-item" onclick="showPage('processcosting')"><span class="nav-icon">⚗️</span> Process Costing</div>
     <div class="nav-item" onclick="showPage('tally')"><span class="nav-icon">📊</span> Tally Sync</div>
     <div class="nav-section">Operations</div>
     <div class="nav-item" onclick="showPage('orders')"><span class="nav-icon">📦</span> Orders</div>
@@ -262,6 +263,18 @@
         <div class="field-hint">Conversion = corrugation + pasting + stitching + labour per kg. Assumptions save automatically.<span id="jc-rate-chip"></span></div>
       </div>
       <div id="costing-body"><div class="empty-state">Loading…</div></div>
+    </div>
+
+    <!-- ══ PROCESS COSTING ══ -->
+    <div class="page" id="page-processcosting">
+      <div class="section-header">
+        <div class="section-title">Process Costing</div>
+        <select class="form-select" id="pc-filter" style="width:auto" onchange="renderProcessCosting()">
+          <option value="">All processes</option>
+        </select>
+      </div>
+      <div class="field-hint" style="margin-bottom:14px">Cost per kg for factory processes like gum-making — the supervisor logs raw material used and approximate output produced from the Staff Portal's ⚗️ Process Log tab. Set the raw material ₹/kg rate for each process below to see computed costs.</div>
+      <div id="processcosting-body"><div class="empty-state">Loading…</div></div>
     </div>
 
     <!-- ══ CALENDAR ══ -->
@@ -1777,6 +1790,7 @@
 <script src="js/job-card.js"></script>
 <script src="js/deckle.js"></script>
 <script src="js/job-costing.js"></script>
+<script src="js/process-costing.js"></script>
 <script src="js/pipeline-board.js"></script>
 <script src="js/analytics.js"></script>
 <script src="js/registers.js"></script>
