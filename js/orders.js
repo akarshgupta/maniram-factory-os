@@ -7,6 +7,7 @@ let activeOrderTab  = 'all';
 let editingOrderId  = null;
 let orderSearchQuery = '';
 const pendingOrderIds = new Set(); // saved locally, not yet confirmed in sheet
+let _justSavedOrderId = null; // scroll-to + flash this order on the next renderOrders() pass
 
 // ── Search helper (used by active + history views) ──
 function matchesSearch(o, query) {
@@ -325,6 +326,12 @@ async function saveOrderToSheet() {
     pendingOrderIds.add(id);
     clearOrderForm();
     refreshOrderId();
+    // Active Orders stays sorted by delivery date (soonest first) — a new
+    // order can land anywhere in that order, so jump/scroll to it instead of
+    // reshuffling the whole list. Also surface the Active tab itself, in
+    // case the order was saved while viewing History/Grouped/etc.
+    _justSavedOrderId = id;
+    if (activeOrderTab !== 'all') switchOrderTab('all');
     renderOrders();
     if (btn) btn.textContent = '✅ Saved!';
     setTimeout(() => { if (btn) { btn.textContent = '💾 Save Order'; btn.disabled = false; } }, 2000);
@@ -489,6 +496,11 @@ const FINISHED_STATUSES = ['Delivered', 'Dispatched', 'Cancelled'];
 
 function renderOrders() {
   const list = document.getElementById('orders-list');
+  // Consumed exactly once per render, whichever path runs below, so a flash
+  // request can never linger and re-trigger on some later, unrelated render.
+  const flashId = _justSavedOrderId;
+  _justSavedOrderId = null;
+
   const activeOrders = [...orders]
     .filter(o => !FINISHED_STATUSES.includes(o.status))
     .filter(o => matchesSearch(o, orderSearchQuery))
@@ -523,6 +535,7 @@ function renderOrders() {
       </div>` : '';
 
     const row      = document.createElement('div');
+    row.id         = 'order-row-' + o.id;
     row.className  = 'table-row';
     row.style.cursor = 'pointer';
     row.title = 'Click to edit';
@@ -552,6 +565,15 @@ function renderOrders() {
     `;
     list.appendChild(row);
   });
+
+  if (flashId) {
+    const el = document.getElementById('order-row-' + flashId);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('order-row-flash');
+      setTimeout(() => el.classList.remove('order-row-flash'), 2000);
+    }
+  }
 }
 
 // ── Shared "order is Delivered" finish line — sheet push + re-renders.
