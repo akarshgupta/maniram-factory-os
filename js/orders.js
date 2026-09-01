@@ -372,6 +372,12 @@ function clearOrderForm() {
   ['f-id','f-customer','f-qty','f-rate','f-date','f-reel-size'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   const od = document.getElementById('f-order-date');
   if (od) od.value = new Date().toISOString().split('T')[0];
+  // The date-load strip below the field isn't tied to the input's value —
+  // it only redraws on its own onchange — so clearing the field above
+  // leaves it showing the previous pick, making an empty Delivery Date
+  // look already filled in. Clear it explicitly here too.
+  const dateHint = document.getElementById('f-date-load-hint');
+  if (dateHint) dateHint.innerHTML = '';
   document.getElementById('f-product').innerHTML = '<option value="">— Select Customer First —</option>';
   clearProductFields();
   document.getElementById('f-status').value   = 'New';
@@ -408,6 +414,11 @@ function openEditModal(orderId) {
   document.getElementById('ef-status').value    = o.status;
   document.getElementById('ef-priority').value  = o.priority;
   if (typeof convertSizeCmIn === 'function') convertSizeCmIn('ef-size', 'ef-size-in');
+  // Refresh both hint strips for THIS order — they only redraw on their
+  // own onchange otherwise, so without this a strip left over from a
+  // previously edited order would show through here instead.
+  if (typeof showDateLoadHint === 'function') showDateLoadHint('ef-date');
+  if (typeof showReelHint === 'function') showReelHint(o.reelSize || '', 'ef-reel-hint');
 
   document.getElementById('edit-order-overlay').style.display = 'flex';
 }

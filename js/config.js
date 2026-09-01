@@ -87,6 +87,35 @@ function calcSheetLen(l, w, twoPart) {
   return (l + w) * 2 + 2 + (twoPart ? 2 : 0);
 }
 
+// ── Multi-lane reel matching — for a box that only needs a narrow width,
+// a reel roughly 2x/3x/4x that width can be slit and run as that many
+// lanes side by side, wasting far less paper per box than a reel just
+// wide enough for one lane. Tries doubling first, then tripling, then
+// quadrupling; accepts up to ~1.5" of trim waste over the exact multiple
+// since stocked widths rarely land on it precisely. Shared by the
+// product-page weight/reel suggestion and its live recalc, so both agree
+// on the lane count for the same reel size. ──
+function findLaneReel(pool, reqWidth) {
+  for (const lanes of [2, 3, 4]) {
+    const target = reqWidth * lanes;
+    const match = pool.filter(s => s >= target && s <= target + 1.5).sort((a, b) => a - b)[0];
+    if (match) return { size: match, lanes };
+  }
+  return null;
+}
+
+// Infer how many lanes a given reel size implies for a box needing
+// reqWidth — used when recalculating weight after the reel size field is
+// hand-edited, so the lane count stays consistent with whatever's typed
+// in rather than only ever being set at Suggest time.
+function inferLaneCount(reelSize, reqWidth) {
+  if (!reqWidth || !reelSize) return 1;
+  for (const lanes of [2, 3, 4]) {
+    if (reelSize >= reqWidth * lanes && reelSize <= reqWidth * lanes + 1.5) return lanes;
+  }
+  return 1;
+}
+
 // ── Mirror a write to Google Sheets via Apps Script (fire-and-forget, offline-safe) ──
 // Keeps localStorage as the live store; every save/delete is also pushed to its own
 // dedicated sheet so records are backed up and visible across devices.
