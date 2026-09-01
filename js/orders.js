@@ -202,19 +202,43 @@ function findSubstitutes(reelSizeStr, neededKg) {
   const base = parseFloat(reelSizeStr);
   if (isNaN(base)) return [];
   const subs = [];
+
+  // Near-width substitutes — a touch wider than needed, trim the extra. Same
+  // single lane as the order actually asked for.
   [1, 2].forEach(delta => {
     [base + delta, base + delta + 0.5].forEach(trySize => {
       const found = reelData.find(r => Math.abs(r.size - trySize) < 0.1);
       if (found) {
         const reservedKg  = getReservedKgForSize(found.size.toString());
         const availableKg = (found.totalWeight + KATRA_BUFFER_KG) - reservedKg;
-        if (availableKg >= neededKg) {
-          subs.push({ size: found.size, availableKg: Math.round(availableKg) });
-        }
+        if (availableKg >= neededKg) subs.push({ size: found.size, availableKg: Math.round(availableKg), lanes: 1 });
       }
     });
   });
-  return subs.filter((s, i, arr) => arr.findIndex(x => x.size === s.size) === i);
+
+  // Multi-lane substitutes — for a narrow box, a reel roughly 2x/3x/4x the
+  // needed width can be slit into that many lanes and run side by side, cutting
+  // multiple boxes per pass instead of one. Paper mass needed doesn't change
+  // with lane count (same total box area either way), so the same neededKg
+  // threshold applies — just search wider targets. Up to ~1.5" of trim waste
+  // over the exact multiple is accepted, since stocked widths jump in 0.5-1"
+  // steps and rarely land on the multiple exactly (e.g. 15"×2=30" also
+  // matches a 30.5" reel; 10"×4=40" also matches 41").
+  [2, 3, 4].forEach(lanes => {
+    const target = base * lanes;
+    reelData.forEach(r => {
+      if (r.size >= target && r.size <= target + 1.5) {
+        const reservedKg  = getReservedKgForSize(r.size.toString());
+        const availableKg = (r.totalWeight + KATRA_BUFFER_KG) - reservedKg;
+        if (availableKg >= neededKg) subs.push({ size: r.size, availableKg: Math.round(availableKg), lanes });
+      }
+    });
+  });
+
+  // Dedup by size — keep the fewest-lanes reading when a size qualifies more than one way
+  const bySize = {};
+  subs.forEach(s => { if (!bySize[s.size] || s.lanes < bySize[s.size].lanes) bySize[s.size] = s; });
+  return Object.values(bySize).sort((a, b) => a.size - b.size);
 }
 
 function checkStockForCurrentOrder() {
@@ -238,7 +262,7 @@ function checkStockForCurrentOrder() {
     box.style.borderLeft = '4px solid var(--danger)';
     box.innerHTML = `
       <div style="font-size:13px;font-weight:700;color:var(--danger);margin-bottom:6px;">❌ ${reelSize}" — No stock data found</div>
-      ${subs.length ? `<div style="font-size:12px;font-weight:600;color:#B45309;">🔄 Substitute:</div>${subs.map(s=>`<div style="font-size:12px;color:#92400E;">→ ${s.size}" · ${s.availableKg.toLocaleString('en-IN')} kg available</div>`).join('')}` : '<div style="font-size:12px;color:var(--danger)">No substitutes available.</div>'}`;
+      ${subs.length ? `<div style="font-size:12px;font-weight:600;color:#B45309;">🔄 Substitute:</div>${subs.map(s=>`<div style="font-size:12px;color:#92400E;">→ ${s.size}" · ${s.availableKg.toLocaleString('en-IN')} kg available${s.lanes > 1 ? ` · cut ${s.lanes} boxes per reel` : ''}</div>`).join('')}` : '<div style="font-size:12px;color:var(--danger)">No substitutes available.</div>'}`;
     return;
   }
 
@@ -262,7 +286,7 @@ function checkStockForCurrentOrder() {
         <div><span style="color:var(--muted)">Available:</span> <strong style="color:var(--danger)">${Math.max(0,Math.round(availableKg)).toLocaleString('en-IN')} kg</strong></div>
         <div><span style="color:var(--muted)">Shortage:</span> <strong style="color:var(--danger)">${shortage.toLocaleString('en-IN')} kg</strong></div>
       </div>
-      ${subs.length ? `<div style="font-size:12px;font-weight:600;color:#B45309;margin-bottom:4px;">🔄 Substitute Available:</div>${subs.map(s=>`<div style="font-size:12px;color:#92400E;">→ ${s.size}" · ${s.availableKg.toLocaleString('en-IN')} kg ✅</div>`).join('')}` : '<div style="font-size:12px;color:var(--danger);font-weight:600;">No substitutes available. Please place a purchase order first.</div>'}`;
+      ${subs.length ? `<div style="font-size:12px;font-weight:600;color:#B45309;margin-bottom:4px;">🔄 Substitute Available:</div>${subs.map(s=>`<div style="font-size:12px;color:#92400E;">→ ${s.size}" · ${s.availableKg.toLocaleString('en-IN')} kg ✅${s.lanes > 1 ? ` · cut ${s.lanes} boxes per reel` : ''}</div>`).join('')}` : '<div style="font-size:12px;color:var(--danger);font-weight:600;">No substitutes available. Please place a purchase order first.</div>'}`;
   }
 }
 
