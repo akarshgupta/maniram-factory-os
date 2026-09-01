@@ -132,6 +132,18 @@ const STATUS_CLASS = {
   'Cancelled':     'status-cancelled',
 };
 
+// Left-border accent colour per status — lets a whole list be scanned by
+// colour down the edge instead of having to read every status badge.
+// Same hue family as the STATUS_CLASS badge text colours above.
+const STATUS_ACCENT = {
+  'New':           '#93C5FD',
+  'In Production': '#F5C06B',
+  'Ready':         '#86EFAC',
+  'Dispatched':    '#C4B5FD',
+  'Delivered':     '#CBD5E1',
+  'Cancelled':     '#FCA5A5',
+};
+
 const PRODUCTION_DAYS = {
   calc(ply, qty) {
     const p = parseInt(ply) || 3;

@@ -544,24 +544,26 @@ function renderOrders() {
     const dispPct     = o.qty > 0 ? Math.min(100, Math.round((dispatched / o.qty) * 100)) : 0;
     const invPct      = o.qty > 0 ? Math.min(100, Math.round((invoiced   / o.qty) * 100)) : 0;
     const dispBar     = o.qty > 0 && dispatched > 0 ? `
-      <div style="margin-top:4px">
-        <div style="background:#e5e7eb;border-radius:3px;height:5px;width:100%">
-          <div style="background:${remaining === 0 ? 'var(--success)' : 'var(--blue)'};height:5px;border-radius:3px;width:${dispPct}%;transition:width 0.3s"></div>
+      <div style="margin-top:5px">
+        <div style="background:#EEF1F5;border-radius:2px;height:3px;width:100%">
+          <div style="background:${remaining === 0 ? 'var(--success)' : 'var(--blue)'};height:3px;border-radius:2px;width:${dispPct}%;transition:width 0.3s"></div>
         </div>
-        <div style="font-size:10px;color:var(--muted);margin-top:2px">🚚 ${dispatched.toLocaleString('en-IN')} dispatched · <strong style="color:${remaining>0?'var(--danger)':'var(--success)'}">${remaining.toLocaleString('en-IN')} pending</strong></div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">🚚 ${dispatched.toLocaleString('en-IN')} dispatched${remaining > 0 ? ` · ${remaining.toLocaleString('en-IN')} pending` : ' · <span style="color:var(--success)">done</span>'}</div>
       </div>` : '';
     const invBar      = o.qty > 0 && invoiced > 0 ? `
       <div style="margin-top:3px">
-        <div style="background:#e5e7eb;border-radius:3px;height:4px;width:100%">
-          <div style="background:#0D9488;height:4px;border-radius:3px;width:${invPct}%;transition:width 0.3s"></div>
+        <div style="background:#EEF1F5;border-radius:2px;height:3px;width:100%">
+          <div style="background:#0D9488;height:3px;border-radius:2px;width:${invPct}%;transition:width 0.3s"></div>
         </div>
-        <div style="font-size:10px;color:var(--muted);margin-top:1px">💵 ${invoiced.toLocaleString('en-IN')} invoiced${invoiced >= (o.qty||0) ? ' · <strong style="color:var(--success)">fully invoiced</strong>' : ''}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">💵 ${invoiced.toLocaleString('en-IN')} invoiced${invoiced >= (o.qty||0) ? ' · <span style="color:var(--success)">fully invoiced</span>' : ''}</div>
       </div>` : '';
 
     const row      = document.createElement('div');
     row.id         = 'order-row-' + o.id;
     row.className  = 'table-row';
     row.style.cursor = 'pointer';
+    row.style.borderLeft = `3px solid ${STATUS_ACCENT[o.status] || STATUS_ACCENT['New']}`;
+    row.style.gridTemplateColumns = '90px 1fr 90px 90px 90px 100px 90px 165px';
     row.title = 'Click to edit';
     row.onclick = () => openEditModal(o.id);
     row.innerHTML = `
@@ -578,12 +580,12 @@ function renderOrders() {
       <div style="font-size:12px">${o.weight ? o.weight + 'gm' : '—'}</div>
       <div style="font-size:12px;font-weight:500">${dateDisp}</div>
       <div><span class="status-badge ${STATUS_CLASS[o.status] || 'status-new'}">${o.status}</span></div>
-      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:5px;flex-wrap:nowrap">
         <span style="font-size:13px;font-weight:600">${o.qty ? o.qty.toLocaleString('en-IN') : '—'}</span>
-        <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();openChallanModal('${o.id}')" title="Issue Delivery Challan">🚚</button>
-        <button class="btn-sm" style="font-size:10px;padding:2px 8px;font-weight:600" onclick="event.stopPropagation();quickPrintJobCard('${o.id}')" title="Print Job Card (holds print spec if saved)">📋 Job Card</button>
+        <button class="btn-sm" style="font-size:10px;padding:2px 6px" onclick="event.stopPropagation();openChallanModal('${o.id}')" title="Issue Delivery Challan">🚚</button>
+        <button class="btn-sm" style="font-size:10px;padding:2px 6px" onclick="event.stopPropagation();quickPrintJobCard('${o.id}')" title="Print Job Card (holds print spec if saved)">📋</button>
         <button class="btn-sm" style="font-size:10px;padding:2px 6px;color:var(--muted)" onclick="event.stopPropagation();openPrintSpecModal('${o.id}')" title="Edit Print Spec">✏️</button>
-        <button class="btn-sm" style="font-size:10px;padding:2px 7px;color:var(--success)" onclick="event.stopPropagation();markOrderComplete('${o.id}')" title="Mark Complete (even if short of full quantity)">✅ Complete</button>
+        <button class="btn-sm" style="font-size:10px;padding:2px 6px;color:var(--success)" onclick="event.stopPropagation();markOrderComplete('${o.id}')" title="Mark Complete (even if short of full quantity)">✅</button>
         <button class="btn-sm" style="font-size:10px;padding:2px 6px;color:var(--danger)" onclick="event.stopPropagation();removeOrder('${o.id}')" title="Delete Order">🗑</button>
       </div>
     `;
