@@ -106,6 +106,7 @@ async function init() {
   initPayments();
   initQuotations();
   initChallans();
+  initOrderLog();
   initLeads();
   fetchLeads().then(ok => { if (ok) { updateLeadsBadge(); renderDashboardLeadsBanner(); } });
   updateLeadsBadge();

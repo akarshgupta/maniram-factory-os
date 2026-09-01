@@ -92,6 +92,7 @@ function autoInvoiceChallans() {
     invoicedDcs.add(c.dcNum);
     created++;
     _mirrorInvoice(inv);
+    if (typeof logOrderEvent === 'function' && c.orderId) logOrderEvent(c.orderId, 'Invoiced', `${inv.id} · ₹${inv.total.toLocaleString('en-IN')} (auto, from ${c.dcNum})`);
   });
 
   if (created > 0) {
@@ -356,6 +357,11 @@ function _persistInvoice() {
   const inv = _buildInvoiceRecord();
   if (!inv) return null;
 
+  // Mutates inv.autoDeliveredOrders (order id + its status before this
+  // invoice touched it) — must happen before the invoice itself is saved,
+  // so that record is there for rollbackInvoice() to read back later.
+  _markInvoicedOrdersDelivered(inv);
+
   if (_ciEditingId) {
     const idx = invoiceList.findIndex(x => x.id === _ciEditingId);
     if (idx >= 0) {
@@ -370,7 +376,10 @@ function _persistInvoice() {
   }
   saveInvoiceList();
   _mirrorInvoice(inv);
-  _markInvoicedOrdersDelivered(inv);
+  if (typeof logOrderEvent === 'function') {
+    [...new Set((inv.items || []).map(i => i.orderId).filter(Boolean))]
+      .forEach(oid => logOrderEvent(oid, 'Invoiced', `${inv.id} · ₹${inv.total.toLocaleString('en-IN')}`));
+  }
   return inv;
 }
 
@@ -387,15 +396,21 @@ function _mirrorInvoice(inv) {
 }
 
 // Any order linked from this invoice's items is considered fully billed → Delivered.
+// Records each order's status just before the flip on inv.autoDeliveredOrders,
+// so rollbackInvoice() can put it back exactly where it was instead of guessing.
 function _markInvoicedOrdersDelivered(inv) {
   if (typeof orders === 'undefined') return;
   const orderIds = [...new Set((inv.items || []).map(i => i.orderId).filter(Boolean))];
+  const autoDelivered = [];
   orderIds.forEach(oid => {
     const o = orders.find(x => x.id === oid);
     if (o && o.status !== 'Delivered' && o.status !== 'Cancelled') {
+      autoDelivered.push({ orderId: oid, prevStatus: o.status });
       markOrderDelivered(o);
+      if (typeof logOrderEvent === 'function') logOrderEvent(oid, 'Status Changed', `${autoDelivered[autoDelivered.length-1].prevStatus} → Delivered (auto — invoiced ${inv.id})`);
     }
   });
+  if (autoDelivered.length) inv.autoDeliveredOrders = autoDelivered;
 }
 
 // Flip an order to Delivered — optimistic local update + push to the sheet.
@@ -522,14 +537,36 @@ function reprintInvoice(invId) {
   if (inv) _populateInvoiceOverlay(inv);
 }
 
+// Deleting an invoice that auto-marked an order Delivered also rolls that
+// order back to whatever status it was in right before — otherwise the
+// order would be left showing Delivered with no invoice to justify it.
+// autoDeliveredOrders (set in _markInvoicedOrdersDelivered) is only
+// present on invoices created after that tracking was added; older
+// invoices just delete with no order-status side effect, same as before.
 function deleteInvoice(invId) {
-  if (!confirm(`Delete invoice ${invId}? This cannot be undone.`)) return;
+  const inv = invoiceList.find(i => i.id === invId);
+  const revertList = inv?.autoDeliveredOrders || [];
+  const confirmMsg = revertList.length
+    ? `Roll back invoice ${invId}? This deletes it and reverts ${revertList.length} order(s) it marked Delivered back to their previous status.`
+    : `Delete invoice ${invId}? This cannot be undone.`;
+  if (!confirm(confirmMsg)) return;
+
+  revertList.forEach(({ orderId, prevStatus }) => {
+    const o = typeof orders !== 'undefined' ? orders.find(x => x.id === orderId) : null;
+    if (o && o.status === 'Delivered') {
+      o.status = prevStatus || 'New';
+      if (typeof _pushOrderUpdate === 'function') _pushOrderUpdate(o);
+      if (typeof logOrderEvent === 'function') logOrderEvent(orderId, 'Rolled Back', `Invoice ${invId} rolled back — status reverted to ${o.status}`);
+    }
+  });
+
   invoiceList = invoiceList.filter(inv => inv.id !== invId);
   saveInvoiceList();
   if (typeof mirrorToSheet === 'function') mirrorToSheet('deleteInvoice', { id: invId });
   renderInvoicingPage();
   renderUnratedChallanBanner();
   if (typeof renderOrders === 'function') renderOrders();
+  if (typeof updateDashboardOrders === 'function') updateDashboardOrders();
 }
 
 function closeInvoice() {
@@ -659,7 +696,7 @@ function renderInvoicingPage() {
                   <div style="display:flex;gap:5px;align-items:center">
                     <button class="btn-secondary" style="font-size:10px;padding:3px 7px" onclick="editInvoice('${inv.id}')" title="Edit">✏️</button>
                     <button class="btn-secondary" style="font-size:10px;padding:3px 7px" onclick="reprintInvoice('${inv.id}')" title="Print">🖨</button>
-                    <button style="background:none;border:none;cursor:pointer;font-size:15px;color:var(--danger)" onclick="deleteInvoice('${inv.id}')" title="Delete">🗑</button>
+                    <button style="background:none;border:none;cursor:pointer;font-size:15px;color:var(--danger)" onclick="deleteInvoice('${inv.id}')" title="${inv.autoDeliveredOrders?.length ? 'Roll back — deletes this invoice and reverts the order(s) it marked Delivered' : 'Delete'}">${inv.autoDeliveredOrders?.length ? '↩️' : '🗑'}</button>
                   </div>
                 </div>`;
               }).join('')}

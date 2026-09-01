@@ -3,11 +3,11 @@
 // Static shell: cache-first with background refresh.
 // Google APIs / Apps Script: network-only (live data must be live).
 // ══════════════════════════════════════════════════════════════
-const CACHE = 'mi-factory-os-v50';
+const CACHE = 'mi-factory-os-v51';
 const SHELL = [
   './', './index.html', './staff.html', './supervisor.html', './css/style.css', './manifest.json',
   './js/config.js', './js/auth.js', './js/app.js',
-  './js/orders.js', './js/reels.js', './js/clients.js', './js/leads.js', './js/calendar.js',
+  './js/order-log.js', './js/orders.js', './js/reels.js', './js/clients.js', './js/leads.js', './js/calendar.js',
   './js/quotations.js', './js/reminders.js', './js/dashboard.js',
   './js/purchase.js', './js/receivables.js', './js/invoices.js', './js/expenses.js',
   './js/production-plan.js', './js/analytics.js', './js/dispatch.js',

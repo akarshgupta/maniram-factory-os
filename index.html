@@ -427,7 +427,7 @@
 
       <div id="tab-all">
         <div class="orders-table">
-          <div class="table-header" style="grid-template-columns:90px 1fr 90px 90px 90px 100px 90px 165px">
+          <div class="table-header" style="grid-template-columns:90px 1fr 90px 90px 90px 100px 90px 195px">
             <div>Order ID</div><div>Customer & Product</div><div>Size</div>
             <div>Colour</div><div>Wt(gm)</div><div>Delivery</div><div>Status</div><div>Qty</div>
           </div>
@@ -1277,6 +1277,15 @@
   </div>
 </div>
 
+<!-- ORDER HISTORY MODAL -->
+<div class="popup-overlay" id="order-history-overlay" style="display:none" onclick="if(event.target===this)closeOrderHistory()">
+  <div class="popup-box" style="width:min(480px,95vw);padding:24px;max-height:80vh;display:flex;flex-direction:column" onclick="event.stopPropagation()" onkeydown="if(event.key==='Escape')closeOrderHistory()">
+    <div class="popup-title" id="order-history-title">🕐 Order History</div>
+    <div id="order-history-body" style="overflow-y:auto;flex:1;margin:8px 0 16px"></div>
+    <button class="btn-secondary" onclick="closeOrderHistory()">Close</button>
+  </div>
+</div>
+
 <!-- LEAD MODAL -->
 <div class="popup-overlay" id="lead-modal-overlay" style="display:none" onclick="if(event.target===this)closeLeadModal()">
   <div class="popup-box" style="width:min(460px,95vw);padding:24px" onclick="event.stopPropagation()" onkeydown="if(event.key==='Escape')closeLeadModal()">
@@ -1770,6 +1779,7 @@
 <script src="js/leads.js"></script>
 <script src="js/purchase.js"></script>
 <script src="js/reels.js"></script>
+<script src="js/order-log.js"></script>
 <script src="js/orders.js"></script>
 <script src="js/quotations.js"></script>
 <script src="js/reminders.js"></script>

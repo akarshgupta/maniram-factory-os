@@ -26,6 +26,7 @@ var RECEIVABLES_SHEET_ID = '';
 var CHALLANS_SHEET_ID    = '';
 var QUOTATIONS_SHEET_ID  = '';
 var LEADS_SHEET_ID       = '';
+var ORDER_LOG_SHEET_ID   = '';
 
 // ── Supervisor Dispatch form — Order ID dropdown ──
 // This is the FORM's own editable ID (from its /edit URL — Extensions >
@@ -83,6 +84,7 @@ function doPost(e) {
     else if (action === 'deleteQuotation')   deleteFinanceRow(QUOTATIONS_SHEET_ID, 'Quotations', data.id);
     else if (action === 'saveLead')          saveLead(data);
     else if (action === 'deleteLead')        deleteFinanceRow(LEADS_SHEET_ID, 'Leads', data.id);
+    else if (action === 'logOrderEvent')     logOrderEvent(data);
     else if (action === 'createNotionPage')  { /* handled separately if needed */ }
     // ── Supervisor data collection ──
     else if (action === 'saveDispatchWeight') saveDispatchWeight(data);
@@ -751,6 +753,16 @@ function saveLead(data) {
      data.status || 'New', data.lastContact || '', data.nextCall || '', data.notes || '', data.createdAt || '']);
 }
 
+// Pure append, never upserted by ID — a log is a record of events, not a
+// row you edit in place. Each entry is timestamped client-side (data.ts).
+function logOrderEvent(data) {
+  if (!ORDER_LOG_SHEET_ID) return;
+  var ss    = SpreadsheetApp.openById(ORDER_LOG_SHEET_ID);
+  var sheet = ss.getSheetByName('OrderLog') || ss.getSheets()[0];
+  if (sheet.getLastRow() === 0) sheet.appendRow(['Timestamp', 'OrderID', 'Event', 'Detail']);
+  sheet.appendRow([data.ts || '', data.orderId || '', data.event || '', data.detail || '']);
+}
+
 // ══════════════════════════════════════════════════════════════
 // SUPERVISOR DATA COLLECTION
 // All three write to ORDERS_SHEET_ID for easy access.
@@ -894,6 +906,7 @@ function setupSheets() {
     { name: 'Maniram — Challans',    tab: 'Challans',    headers: ['ChallanNo','Date','OrderID','Customer','Product','Qty','Vehicle','Notes'] },
     { name: 'Maniram — Quotations',  tab: 'Quotations',  headers: ['ID','Date','Customer','BoxSize','Ply','RatePerBox','Status','Notes'] },
     { name: 'Maniram — Leads',       tab: 'Leads',       headers: ['ID','Name','Company','Phone','Source','Status','LastContact','NextCall','Notes','CreatedAt'] },
+    { name: 'Maniram — Order Log',   tab: 'OrderLog',    headers: ['Timestamp','OrderID','Event','Detail'] },
   ];
   var out = [];
   for (var i = 0; i < defs.length; i++) {
@@ -940,6 +953,7 @@ function formatAllSheets() {
     { id: CHALLANS_SHEET_ID,    tabs: ['Challans'] },
     { id: QUOTATIONS_SHEET_ID,  tabs: ['Quotations'] },
     { id: LEADS_SHEET_ID,       tabs: ['Leads'] },
+    { id: ORDER_LOG_SHEET_ID,   tabs: ['OrderLog'] },
     { id: SUPERVISOR_SHEET_ID,  tabs: ['Production', 'Dispatch'] },
   ];
 

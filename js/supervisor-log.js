@@ -162,6 +162,7 @@ function _svCreateChallanFor(e, o, matchedBy) {
       qty: record.qty, vehicle: '', notes: record.note,
     });
   }
+  if (typeof logOrderEvent === 'function') logOrderEvent(record.orderId, 'Dispatched', `${record.dcNum} · ${record.qty} pcs · matched by ${matchedBy}`);
   if (typeof notifyDispatchWA === 'function') notifyDispatchWA(record);
   if (typeof checkOrderFullyDispatched === 'function') checkOrderFullyDispatched(record.orderId);
   if (typeof renderOrders === 'function') renderOrders();

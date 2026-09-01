@@ -129,6 +129,7 @@ function savePrintSpec() {
 function printJobCard(orderId) {
   const o = orders.find(x => x.id === orderId);
   if (!o) { alert('Order not found.'); return; }
+  if (typeof logOrderEvent === 'function') logOrderEvent(orderId, 'Job Card Issued', `${o.product || o.size || ''} · Qty ${o.qty || 0}`);
 
   const spec   = getPrintSpec(o.customer, o.product) || {};
   const today  = new Date();
