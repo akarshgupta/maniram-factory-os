@@ -348,12 +348,14 @@ async function saveOrderToSheet() {
     // Optimistic update so generateOrderId() increments correctly on next save
     orders.push({ ...savedOrder, status, priority, reelSize, reservedKg, remarks: '', rowIndex: 9999 });
     pendingOrderIds.add(id);
+    logOrderEvent(id, 'Order Received', `${customer} · ${product || size || ''} · ${qty || 0} pcs`);
     clearOrderForm();
     refreshOrderId();
-    // Active Orders stays sorted by delivery date (soonest first) — a new
-    // order can land anywhere in that order, so jump/scroll to it instead of
-    // reshuffling the whole list. Also surface the Active tab itself, in
-    // case the order was saved while viewing History/Grouped/etc.
+    // Active Orders is sorted newest-entered-first (rowIndex desc), so a
+    // freshly saved order already lands at the top — still flash/scroll to
+    // it so it's obviously the one that just got added. Also surface the
+    // Active tab itself, in case the order was saved while viewing
+    // History/Grouped/etc.
     _justSavedOrderId = id;
     if (activeOrderTab !== 'all') switchOrderTab('all');
     renderOrders();
@@ -434,6 +436,7 @@ async function saveEditedOrder() {
   if (!editingOrderId) return;
   const o = orders.find(x => x.id === editingOrderId);
   if (!o) return;
+  const prevStatus = o.status;
 
   const product  = document.getElementById('ef-product').value.trim();
   const size     = document.getElementById('ef-size').value.trim();
@@ -476,6 +479,7 @@ async function saveEditedOrder() {
     if (idx >= 0) {
       orders[idx] = { ...orders[idx], product, size, ply, colour, reelSize, weight, twoPart, qty: parseInt(qty)||0, rate: parseFloat(rate)||0, date: dateVal, orderDate: orderDateVal, status, priority, reservedKg };
     }
+    if (status !== prevStatus) logOrderEvent(editingOrderId, 'Status Changed', `${prevStatus} → ${status}`);
     document.getElementById('edit-order-overlay').style.display = 'none';
     editingOrderId = null;
     renderOrders();
@@ -536,10 +540,14 @@ function renderOrders() {
   const flashId = _justSavedOrderId;
   _justSavedOrderId = null;
 
+  // Most-recently-entered order first — rowIndex reflects append order in
+  // the sheet (and pending, not-yet-synced orders sit at the sentinel 9999,
+  // so a brand new order is always on top immediately, before the next
+  // fetch confirms its real row).
   const activeOrders = [...orders]
     .filter(o => !FINISHED_STATUSES.includes(o.status))
     .filter(o => matchesSearch(o, orderSearchQuery))
-    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    .sort((a, b) => (b.rowIndex || 0) - (a.rowIndex || 0));
 
   if (!activeOrders.length) {
     const msg = orderSearchQuery ? `No orders found matching "${orderSearchQuery}".` : 'No active orders. All delivered! 🎉';
@@ -574,7 +582,7 @@ function renderOrders() {
     row.className  = 'table-row';
     row.style.cursor = 'pointer';
     row.style.borderLeft = `3px solid ${STATUS_ACCENT[o.status] || STATUS_ACCENT['New']}`;
-    row.style.gridTemplateColumns = '90px 1fr 90px 90px 90px 100px 90px 165px';
+    row.style.gridTemplateColumns = '90px 1fr 90px 90px 90px 100px 90px 195px';
     row.title = 'Click to edit';
     row.onclick = () => openEditModal(o.id);
     row.innerHTML = `
@@ -597,6 +605,7 @@ function renderOrders() {
         <button class="btn-sm" style="font-size:10px;padding:2px 6px" onclick="event.stopPropagation();quickPrintJobCard('${o.id}')" title="Print Job Card (holds print spec if saved)">📋</button>
         <button class="btn-sm" style="font-size:10px;padding:2px 6px;color:var(--muted)" onclick="event.stopPropagation();openPrintSpecModal('${o.id}')" title="Edit Print Spec">✏️</button>
         <button class="btn-sm" style="font-size:10px;padding:2px 6px;color:var(--success)" onclick="event.stopPropagation();markOrderComplete('${o.id}')" title="Mark Complete (even if short of full quantity)">✅</button>
+        <button class="btn-sm" style="font-size:10px;padding:2px 6px;color:var(--muted)" onclick="event.stopPropagation();openOrderHistory('${o.id}')" title="Order History">🕐</button>
         <button class="btn-sm" style="font-size:10px;padding:2px 6px;color:var(--danger)" onclick="event.stopPropagation();removeOrder('${o.id}')" title="Delete Order">🗑</button>
       </div>
     `;
@@ -657,6 +666,7 @@ function checkOrderFullyDispatched(orderId) {
   if (!total || dispatched < total) return false;
 
   o.status = 'Delivered';
+  logOrderEvent(orderId, 'Delivered', `Auto — fully dispatched (${dispatched}/${total} pcs)`);
   if (typeof clearDispatch === 'function') clearDispatch(orderId);
   _finalizeOrderDelivered(o);
   return true;
@@ -691,6 +701,7 @@ function markOrderComplete(orderId) {
   o.remarks = [o.remarks, shortfallNote].filter(Boolean).join(' · ');
   o.qty     = actual;
   o.status  = 'Delivered';
+  logOrderEvent(orderId, 'Delivered', shortfallNote || `Completed ${actual}/${ordered} — Mark Complete`);
 
   if (typeof clearDispatch === 'function') clearDispatch(orderId);
   _finalizeOrderDelivered(o);

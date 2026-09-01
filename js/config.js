@@ -39,6 +39,13 @@ const QUOTATIONS_TAB  = 'Quotations';
 const LEADS_SHEET_ID = ''; // Leads
 const LEADS_TAB      = 'Leads';
 
+// ── Order activity log (order received / job card issued / status
+// changes / dispatched / invoiced / rolled back). Same blank-until-setup
+// pattern — the log works fully offline via localStorage either way, this
+// just makes the trail durable across devices/browser wipes. ──
+const ORDER_LOG_SHEET_ID = ''; // OrderLog
+const ORDER_LOG_TAB      = 'OrderLog';
+
 // ── Production Register (tabs live in the Orders spreadsheet; writes via main Apps Script) ──
 const REGISTERS_SHEET_ID  = '1JVWfffLht7X_mGOyQb0QK1cB3vx68TTM1yx9pGZbb30'; // = ORDERS_SHEET_ID (ProdLog + GSMeta tabs)
 const REGISTERS_SCRIPT_URL = ''; // blank = writes fall back to main APPS_SCRIPT_URL (prodlogAppend/gsmSet in Code.gs)

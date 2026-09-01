@@ -110,6 +110,7 @@ function saveAndPrintChallan() {
       qty: record.qty, vehicle: '', notes: record.note,
     });
   }
+  if (typeof logOrderEvent === 'function') logOrderEvent(record.orderId, 'Dispatched', `${record.dcNum} · ${record.qty} pcs`);
   if (typeof notifyDispatchWA === 'function') notifyDispatchWA(record);
   if (typeof autoInvoiceChallans === 'function') autoInvoiceChallans(); // bill this challan if it has a rate on file
 
