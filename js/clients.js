@@ -99,8 +99,19 @@ function suggestWeightAndReel() {
   const known = (typeof _deckleReelSizes === 'function' ? _deckleReelSizes() : [])
     .map(r => r.size).filter(s => s > 0);
   const pool  = known.length ? known : [30, 32, 33, 35, 35.5, 36, 38, 40, 42, 44, 46, 48];
-  const fits  = pool.filter(s => s >= reqWidth).sort((a, b) => a - b);
-  const reelSize = fits.length ? fits[0] : Math.ceil(reqWidth * 2) / 2;
+
+  // A multi-lane reel (2x/3x/4x the needed width, cut into that many lanes)
+  // wastes far less paper per box than the narrowest single-lane fit — try
+  // that first, and only fall back to plain narrowest-fit if none matches.
+  const laneMatch = findLaneReel(pool, reqWidth);
+  let reelSize, lanes;
+  if (laneMatch) {
+    reelSize = laneMatch.size; lanes = laneMatch.lanes;
+  } else {
+    const fits = pool.filter(s => s >= reqWidth).sort((a, b) => a - b);
+    reelSize = fits.length ? fits[0] : Math.ceil(reqWidth * 2) / 2;
+    lanes = 1;
+  }
   document.getElementById('pm-reelsize').value = reelSize;
 
   // Weight needs real GSM per layer — ask for it instead of assuming a default.
@@ -113,7 +124,10 @@ function suggestWeightAndReel() {
     return;
   }
 
-  const area = (sheetLen * reelSize) / 1550; // sqm
+  // Lanes boxes come off one full-width sheet, so each box's true paper
+  // share is the sheet's area divided by the lane count — not the whole
+  // reel width, which would overstate every box's weight by lanes×.
+  const area = (sheetLen * reelSize) / 1550 / lanes; // sqm, per box
   let weight = 0;
   const gsmUsed = layers.map((layer, i) => {
     const gsm = parseInt(gsmInputs[i].value);
@@ -123,7 +137,7 @@ function suggestWeightAndReel() {
   document.getElementById('pm-weight').value = weight.toFixed(1);
 
   if (hint) {
-    hint.innerHTML = `Sheet ${_fmtN(sheetLen)}×${_fmtN(reqWidth)}" (${ply}-ply${twoPart ? ', 2 parts' : ''}) → reel <b>${reelSize}"</b> → est. weight <b>${weight.toFixed(1)} gm</b> from GSM ${gsmUsed.join('/')}. Edit either field above if actuals differ.`;
+    hint.innerHTML = `Sheet ${_fmtN(sheetLen)}×${_fmtN(reqWidth)}" (${ply}-ply${twoPart ? ', 2 parts' : ''}) → reel <b>${reelSize}"</b>${lanes > 1 ? ` · <b>${lanes} boxes per reel</b> (cut side by side)` : ' · 1 box per reel'} → est. weight <b>${weight.toFixed(1)} gm</b> from GSM ${gsmUsed.join('/')}. Edit either field above if actuals differ.`;
   }
 }
 
@@ -142,7 +156,9 @@ function recalcWeightFromReelSize() {
   const layers  = PLY_LAYERS[ply] || PLY_LAYERS[3];
   const twoPart = !!document.getElementById('pm-two-part')?.checked;
   const sheetLen = calcSheetLen(dims.l, dims.w, twoPart);
-  const area     = (sheetLen * reelSize) / 1550;
+  const reqWidth = dims.w + dims.h + 0.5;
+  const lanes    = inferLaneCount(reelSize, reqWidth);
+  const area     = (sheetLen * reelSize) / 1550 / lanes; // sqm, per box
 
   let weight = 0, anyGsm = false;
   layers.forEach((layer, i) => {
@@ -154,7 +170,7 @@ function recalcWeightFromReelSize() {
 
   document.getElementById('pm-weight').value = weight.toFixed(1);
   const hint = document.getElementById('pm-suggest-hint');
-  if (hint) hint.innerHTML = `Weight recalculated for reel <b>${reelSize}"</b> → <b>${weight.toFixed(1)} gm</b>. Edit either field above if actuals differ.`;
+  if (hint) hint.innerHTML = `Weight recalculated for reel <b>${reelSize}"</b>${lanes > 1 ? ` · <b>${lanes} boxes per reel</b> (cut side by side)` : ' · 1 box per reel'} → <b>${weight.toFixed(1)} gm</b>. Edit either field above if actuals differ.`;
 }
 
 // ── State ──
@@ -689,6 +705,10 @@ function clearProductFields() {
   document.getElementById('f-two-part').checked = false;
   const hint = document.getElementById('f-size-in');
   if (hint) hint.textContent = '';
+  // Same staleness risk as the date-load strip — this doesn't redraw just
+  // because the Reel Size field above was cleared, so wipe it explicitly.
+  const reelHint = document.getElementById('f-reel-hint');
+  if (reelHint) reelHint.innerHTML = '';
   hideStockCheck();
 }
 
