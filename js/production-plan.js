@@ -639,11 +639,13 @@ function applySuggestedDate(dateStr) {
 function quickUpdateStatus(orderId, newStatus) {
   const o = orders.find(x => x.id === orderId);
   if (!o || o.status === newStatus) return;
+  const prevStatus = o.status;
 
   if (newStatus === 'Delivered' && typeof recordDeliveredOrder === 'function') {
     recordDeliveredOrder(o);
   }
   o.status = newStatus;
+  if (typeof logOrderEvent === 'function') logOrderEvent(orderId, 'Status Changed', `${prevStatus} → ${newStatus}`);
 
   if (o.rowIndex && o.rowIndex !== 9999) {
     const d   = new Date(o.date + 'T00:00:00');
@@ -665,6 +667,7 @@ function quickUpdateStatus(orderId, newStatus) {
   renderProductionPlan();
   updateDashboardOrders();
   renderCalendar();
+  if (typeof renderOrders === 'function') renderOrders();
 }
 
 function prodOrderRow(o, stage) {

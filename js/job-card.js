@@ -442,13 +442,21 @@ function _buildSchematic(dims, spec, actualReelSize, twoPart) {
 
   const stitch  = 2;                         // stitch/joint allowance — matches the "+2" in the cutting-size formula
   const flapH   = w / 2;                     // all flaps = W/2 deep
-  const totalW  = 2 * l + 2 * w + stitch;    // == (l+w)×2+2 — same as the Cutting Size sheet length
+  // A two-part box is cut as two separate flat pieces — [stitch][W][L] each —
+  // pasted together afterward, rather than one continuous [stitch][W][L][W][L]
+  // loop. Drawing the full loop for a two-part job would show a piece the
+  // machine can never actually cut in one pass (that's the whole reason it's
+  // two-part), so the diagram shows just ONE piece: half the panels, its own
+  // stitch tab, at half the length. Sheet Width (flap/reel direction) is
+  // unaffected — only the length-wise loop gets split.
+  const totalW  = twoPart ? (w + l + stitch) : (2 * l + 2 * w + stitch);
   const totalH  = H + 2 * flapH;
 
   // Authoritative cutting-size numbers — always match the order-grid "Cutting Size" cell exactly,
   // reel-size (width) first per the notation standard. The actual reel size on the order wins over
-  // the W+H+0.5 estimate once one's on record.
-  const sheetLenLabel = calcSheetLen(l, w, twoPart);
+  // the W+H+0.5 estimate once one's on record. For two-part, this is the PER-PIECE length — half
+  // the combined Cutting Size figure shown elsewhere on the card, which is the two pieces together.
+  const sheetLenLabel = totalW;
   const sheetWidLabel = actualReelSize || (w + h + 0.5);
 
   // Scale to fit 460 × 182 px canvas
@@ -523,11 +531,16 @@ function _buildSchematic(dims, spec, actualReelSize, twoPart) {
     return ticks + line + label_;
   };
 
+  // Right edge of the drawn loop — stops after L1 for a two-part piece
+  // instead of continuing on to W2/L2.
+  const xEnd = twoPart ? xL1 + sl : xL2 + sl;
+
   const parts = [
     `<svg width="${VW}" height="${VH}" viewBox="0 0 ${VW} ${VH}" xmlns="http://www.w3.org/2000/svg" style="font-family:Arial,sans-serif;display:block;max-width:100%">`,
 
     // Overall dimensions — always match the "Cutting Size" figure on the order-grid exactly
-    dimLine(xSt, 11, xL2 + sl, 11, `SHEET LENGTH ${fmtN(sheetLenLabel)}"`, false),
+    // (for two-part, this is the per-piece half — see sheetLenLabel above)
+    dimLine(xSt, 11, xEnd, 11, `SHEET LENGTH ${fmtN(sheetLenLabel)}"${twoPart ? ' (PIECE 1 of 2)' : ''}`, false),
     dimLine(VW - 12, PAD + DIM_TOP, VW - 12, PAD + DIM_TOP + totalH * sc, `SHEET WIDTH ${fmtN(sheetWidLabel)}"`, true),
 
     `<g transform="translate(0,${DIM_TOP})">`,
@@ -551,31 +564,39 @@ function _buildSchematic(dims, spec, actualReelSize, twoPart) {
     fRect(xL1, yBot, sl, sf),
     sH > 14 ? t(xL1+sl/2, yBody+9, 'middle', 7, '#042C53', 'bold', `L=${fmtN(l)}`) : '',
 
-    // W2
-    bRect(xW2, yBody, sw, sH),
-    fRect(xW2, yTop,  sw, sf),
-    fRect(xW2, yBot,  sw, sf),
-    t(xW2+sw/2, yBody+sH/2-3,  'middle', 8, '#042C53', 'bold',   'W'),
-    sw > 20 ? t(xW2+sw/2, yBody+sH/2+9, 'middle', 7, '#555',    'normal', fmtN(w)) : '',
+    // W2 / L2 — only for a single-piece box. A two-part piece stops at L1;
+    // the second, identical/mirrored piece is pasted on afterward, not
+    // drawn here (this diagram is per-piece, not per-box).
+    twoPart ? '' : [
+      // W2
+      bRect(xW2, yBody, sw, sH),
+      fRect(xW2, yTop,  sw, sf),
+      fRect(xW2, yBot,  sw, sf),
+      t(xW2+sw/2, yBody+sH/2-3,  'middle', 8, '#042C53', 'bold',   'W'),
+      sw > 20 ? t(xW2+sw/2, yBody+sH/2+9, 'middle', 7, '#555',    'normal', fmtN(w)) : '',
 
-    // L2
-    bRect(xL2, yBody, sl, sH),
-    pRect(xL2+sl*0.07, yBody+sH*0.1, sl*0.86, sH*0.8),
-    printTxt(xL2+sl*0.07, yBody+sH*0.1, sl*0.86, sH*0.8),
-    fRect(xL2, yTop, sl, sf),
-    fRect(xL2, yBot, sl, sf),
-    sH > 14 ? t(xL2+sl/2, yBody+9, 'middle', 7, '#042C53', 'bold', `L=${fmtN(l)}`) : '',
+      // L2
+      bRect(xL2, yBody, sl, sH),
+      pRect(xL2+sl*0.07, yBody+sH*0.1, sl*0.86, sH*0.8),
+      printTxt(xL2+sl*0.07, yBody+sH*0.1, sl*0.86, sH*0.8),
+      fRect(xL2, yTop, sl, sf),
+      fRect(xL2, yBot, sl, sf),
+      sH > 14 ? t(xL2+sl/2, yBody+9, 'middle', 7, '#042C53', 'bold', `L=${fmtN(l)}`) : '',
+    ].join(''),
 
     // Right-side annotations — flap depth is always W/2, show the actual inches too
-    sf > 14 ? t(xL2+sl+3, yTop+sf/2+3,  'start', 7, '#1d4ed8', 'normal', `W/2 = ${fmtN(flapH)}"`) : '',
-    sf > 14 ? t(xL2+sl+3, yBot+sf/2+3,  'start', 7, '#1d4ed8', 'normal', `W/2 = ${fmtN(flapH)}"`) : '',
+    sf > 14 ? t(xEnd+3, yTop+sf/2+3,  'start', 7, '#1d4ed8', 'normal', `W/2 = ${fmtN(flapH)}"`) : '',
+    sf > 14 ? t(xEnd+3, yBot+sf/2+3,  'start', 7, '#1d4ed8', 'normal', `W/2 = ${fmtN(flapH)}"`) : '',
+    twoPart ? t(xEnd+3, yBody+sH/2+3, 'start', 7, '#dc2626', 'bold', '⇢ paste') : '',
 
     '</g>',
     '</svg>',
   ];
 
+  const caption = twoPart
+    ? `Flat Blank — PIECE 1 of 2 (paste to matching piece) · L=${fmtN(l)} × W=${fmtN(w)} × H=${fmtN(H)} · Cutting size per piece ${fmtN(sheetWidLabel)}" × ${fmtN(sheetLenLabel)}" · Print area on the Length panel`
+    : `Flat Blank · L=${fmtN(l)} × W=${fmtN(w)} × H=${fmtN(H)} · Cutting size ${fmtN(sheetWidLabel)}" × ${fmtN(sheetLenLabel)}" · Print areas on both Length panels`;
+
   return `<div style="overflow-x:auto">${parts.join('')}</div>
-    <div style="font-size:9px;color:#888;text-align:center;margin-top:4px">
-      Flat Blank · L=${fmtN(l)} × W=${fmtN(w)} × H=${fmtN(H)} · Cutting size ${fmtN(sheetWidLabel)}" × ${fmtN(sheetLenLabel)}" · Print areas on both Length panels
-    </div>`;
+    <div style="font-size:9px;color:#888;text-align:center;margin-top:4px">${caption}</div>`;
 }
