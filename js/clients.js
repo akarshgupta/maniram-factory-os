@@ -3,7 +3,8 @@
 // Data backend: Google Sheets (Clients + ClientProducts tabs in ORDERS_SHEET_ID)
 // ══════════════════════════════════════════════════════════════
 
-const pendingClientNames = new Set(); // saved locally, not yet confirmed in sheet
+const pendingClientNames  = new Set(); // saved locally, not yet confirmed in sheet
+const pendingProductKeys  = new Set(); // `${clientName}::${productName}` saved locally, not yet confirmed in sheet
 
 const DEFAULT_CLIENTS = [
   {
@@ -320,14 +321,19 @@ async function fetchClients() {
     // (writes are fire-and-forget), and this fetch runs 2s after every save.
     const stillPending = CLIENTS.filter(c => pendingClientNames.has(c.name));
 
+    // Same race, but for a product just added/edited on an EXISTING client
+    // (not a brand new one) — the product write may not have reached the
+    // sheet yet either, and a wholesale CLIENTS overwrite would otherwise
+    // silently drop it from that client's product list.
+    const stillPendingProducts = [];
+    CLIENTS.forEach(c => (c.products || []).forEach(p => {
+      const key = `${c.name}::${p.name}`;
+      if (pendingProductKeys.has(key)) stillPendingProducts.push({ clientName: c.name, product: p, key });
+    }));
+
     CLIENTS = allCRows.map(r => {
         pendingClientNames.delete(r[0]); // confirmed in sheet
-        return {
-        name:     r[0] || '',
-        contact:  r[1] || '',
-        phone:    r[2] || '',
-        city:     r[3] || '',
-        products: pRows
+        const products = pRows
           .filter(p => p[0] === r[0])
           .map(p => ({
             name:        p[1] || '',
@@ -343,12 +349,28 @@ async function fetchClients() {
             printDesign: p[18] || '',
             bf:          [p[19],p[20],p[21],p[22],p[23],p[24],p[25],p[26],p[27]].map(v => Number(v) || 0),
             twoPart:     String(p[28] || '').toUpperCase() === 'TRUE',
-          })),
+          }));
+        products.forEach(p => pendingProductKeys.delete(`${r[0]}::${p.name}`)); // confirmed in sheet
+        return {
+        name:     r[0] || '',
+        contact:  r[1] || '',
+        phone:    r[2] || '',
+        city:     r[3] || '',
+        products,
       };
       });
 
     // Re-inject any locally-saved clients the sheet hasn't confirmed yet
     stillPending.forEach(c => { if (pendingClientNames.has(c.name)) CLIENTS.push(c); });
+
+    // Re-inject any locally-saved products the sheet hasn't confirmed yet,
+    // onto whichever client object now represents that client.
+    stillPendingProducts.forEach(({ clientName, product, key }) => {
+      if (!pendingProductKeys.has(key)) return; // confirmed above
+      const client = CLIENTS.find(c => c.name === clientName);
+      if (client && !client.products.some(p => p.name === product.name)) client.products.push(product);
+    });
+
     CLIENTS.sort((a, b) => a.name.localeCompare(b.name));
 
     return true;
@@ -881,6 +903,7 @@ function saveProductModal() {
     CLIENTS[ci].products.push(product);
     postClient({ action: 'saveProduct', clientName: CLIENTS[ci].name, ...product, gsm, bf });
   }
+  pendingProductKeys.add(`${CLIENTS[ci].name}::${name}`);
 
   // Save / remove print reference photo in localStorage
   const key = _photoKey(CLIENTS[ci].name, name);
