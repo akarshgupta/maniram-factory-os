@@ -140,22 +140,37 @@ function printJobCard(orderId) {
   // Box schematic: parse L×W×H from size field
   const dims = _parseDims(o.size);
 
+  // Two-part box detection. A box is made as two pasted halves when a single
+  // flat blank would exceed the pasting machine's single-piece limit (76" for
+  // 5/7/9-ply, 82" for 3-ply) — same rule as the rate calculator
+  // (calcBoxWeight in quotations.js). It's a physical consequence of the box
+  // size, not a preference, so derive it here instead of trusting the "two
+  // part" flag to have been ticked on every such order; a ticked o.twoPart
+  // still forces it on.
+  const plyCount    = parseInt(o.ply) || 3;
+  const autoTwoPart = dims ? ((dims.l + dims.w) * 2 + 2) > (plyCount >= 5 ? 76 : 82) : false;
+  const isTwoPart   = !!o.twoPart || autoTwoPart;
+
   // Cutting (sheet) size — notation is ALWAYS reel-size (width) first, then
   // length (skills/rate-calculator.md: "34.5 × 93, never 93×34.5"). The
   // actual reel size on the order IS the real sheet width once one's on
   // record ("Sheet Width = Reel Size the box will be made from") — the
   // W+H+0.5 formula is only the estimate used before that's known, and the
   // doc calls for a flag when the two disagree by a meaningful amount.
-  const sheetLen       = dims ? calcSheetLen(dims.l, dims.w, o.twoPart) : null;
+  // For a two-part box the operator cuts ONE piece per pass — W + L + its own
+  // 2" stitch tab, i.e. half the combined blank — so that per-piece length is
+  // the real cutting size (and matches the schematic's "PIECE 1 of 2").
+  const perPieceLen    = dims ? dims.l + dims.w + 2 : null;
+  const sheetLen       = dims ? (isTwoPart ? perPieceLen : calcSheetLen(dims.l, dims.w, false)) : null;
   const calcSheetWid   = dims ? dims.w + dims.h + 0.5 : null;
   const actualReelSize = parseFloat(o.reelSize) || null;
   const sheetWid        = actualReelSize || calcSheetWid;
   const reelMismatch    = !!(actualReelSize && calcSheetWid && Math.abs(actualReelSize - calcSheetWid) > 0.5);
   const cutSizeStr = dims
-    ? `${_fmtN(sheetWid)}" × ${_fmtN(sheetLen)}"${o.twoPart ? ' (2 parts)' : ''}`
+    ? `${_fmtN(sheetWid)}" × ${_fmtN(sheetLen)}"${isTwoPart ? ' per piece · 2 pieces/box' : ''}`
     : '______ × ______';
 
-  const schematic = dims ? _buildSchematic(dims, spec, sheetWid, o.twoPart) : '';
+  const schematic = dims ? _buildSchematic(dims, spec, sheetWid, isTwoPart) : '';
 
   // Product master lookup — GSM/BF per layer + print flag
   const client  = (typeof CLIENTS !== 'undefined' ? CLIENTS : []).find(c => c.name === o.customer);
