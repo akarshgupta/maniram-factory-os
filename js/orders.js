@@ -582,7 +582,7 @@ function renderOrders() {
     row.className  = 'table-row';
     row.style.cursor = 'pointer';
     row.style.borderLeft = `3px solid ${STATUS_ACCENT[o.status] || STATUS_ACCENT['New']}`;
-    row.style.gridTemplateColumns = '90px 1fr 90px 90px 90px 100px 90px 195px';
+    row.style.gridTemplateColumns = '90px 1fr 90px 90px 90px 100px 90px 220px';
     row.title = 'Click to edit';
     row.onclick = () => openEditModal(o.id);
     row.innerHTML = `
@@ -601,6 +601,7 @@ function renderOrders() {
       <div><span class="status-badge ${STATUS_CLASS[o.status] || 'status-new'}">${o.status}</span></div>
       <div style="display:flex;align-items:center;gap:5px;flex-wrap:nowrap">
         <span style="font-size:13px;font-weight:600">${o.qty ? o.qty.toLocaleString('en-IN') : '—'}</span>
+        ${['New', 'In Production'].includes(o.status) ? `<button class="btn-sm" style="font-size:10px;padding:2px 6px;color:#0D9488" onclick="event.stopPropagation();quickUpdateStatus('${o.id}','Ready')" title="Mark Ready to Dispatch (boxes made, not yet shipped)">📦</button>` : ''}
         <button class="btn-sm" style="font-size:10px;padding:2px 6px" onclick="event.stopPropagation();openChallanModal('${o.id}')" title="Issue Delivery Challan">🚚</button>
         <button class="btn-sm" style="font-size:10px;padding:2px 6px" onclick="event.stopPropagation();quickPrintJobCard('${o.id}')" title="Print Job Card (holds print spec if saved)">📋</button>
         <button class="btn-sm" style="font-size:10px;padding:2px 6px;color:var(--muted)" onclick="event.stopPropagation();openPrintSpecModal('${o.id}')" title="Edit Print Spec">✏️</button>
