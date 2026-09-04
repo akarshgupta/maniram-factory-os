@@ -720,6 +720,24 @@ function _svDailySummaryHtml() {
   const days = _svDailySummary();
   if (!days.length) return `<div class="empty-state">No entries in ${_svMonthLabel(_svMonth)}.</div>`;
 
+  const totPlyPcs = days.reduce((s, [, d]) => s + d.plyPcs, 0);
+  const totSheets = days.reduce((s, [, d]) => s + d.sheets, 0);
+  const totRolls  = days.reduce((s, [, d]) => s + d.rolls, 0);
+  const totProdKg = days.reduce((s, [, d]) => s + d.prodKg, 0);
+  const totDispPcs = days.reduce((s, [, d]) => s + d.dispPcs, 0);
+  const totDispKg  = days.reduce((s, [, d]) => s + d.dispKg, 0);
+
+  const summary = `
+    <div class="add-order-form" style="margin-bottom:12px;display:flex;gap:24px;flex-wrap:wrap">
+      <div><div class="form-label">Days</div><div style="font-size:20px;font-weight:700">${days.length}</div></div>
+      <div><div class="form-label">Ply pieces cut</div><div style="font-size:20px;font-weight:700">${totPlyPcs ? totPlyPcs.toLocaleString('en-IN') : '—'}</div></div>
+      <div><div class="form-label">Sheets cut</div><div style="font-size:20px;font-weight:700">${totSheets ? totSheets.toLocaleString('en-IN') : '—'}</div></div>
+      <div><div class="form-label">Rolls</div><div style="font-size:20px;font-weight:700">${totRolls || '—'}</div></div>
+      <div><div class="form-label" title="Paper consumed">Production wt</div><div style="font-size:20px;font-weight:700;color:var(--accent,#2980B9)">${totProdKg ? totProdKg.toLocaleString('en-IN', {maximumFractionDigits:1}) + ' kg' : '—'}</div></div>
+      <div><div class="form-label">Dispatched</div><div style="font-size:20px;font-weight:700">${totDispPcs ? totDispPcs.toLocaleString('en-IN') + ' pcs' : '—'}</div></div>
+      <div><div class="form-label">Dispatch wt</div><div style="font-size:20px;font-weight:700">${totDispKg ? totDispKg.toLocaleString('en-IN', {maximumFractionDigits:1}) + ' kg' : '—'}</div></div>
+    </div>`;
+
   const blocks = days.map(([date, d]) => {
     const entryRows = d.prodEntries.map(e => {
       const reels = [
@@ -766,7 +784,7 @@ function _svDailySummaryHtml() {
     </details>`;
   }).join('');
 
-  return blocks + `<div class="field-hint" style="margin:8px 0 14px">Click a day to see its individual production entries (reels, GSM, cutting size). Production weight = paper consumed, calculated per entry as reel width × cutting size × GSM (Reel 2 counted at 1.5× for flute take-up). Roll-only entries have no weight — length is unknown.</div>`;
+  return summary + blocks + `<div class="field-hint" style="margin:8px 0 14px">Click a day to see its individual production entries (reels, GSM, cutting size). Production weight = paper consumed, calculated per entry as reel width × cutting size × GSM (Reel 2 counted at 1.5× for flute take-up). Roll-only entries have no weight — length is unknown.</div>`;
 }
 
 function _svProductionHtml() {
