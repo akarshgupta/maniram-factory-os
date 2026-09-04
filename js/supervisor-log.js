@@ -18,6 +18,7 @@
 let _svProd = [];
 let _svDisp = [];
 let _svTab  = 'dispatch';
+let _svMonth = todayStr.slice(0, 7); // 'YYYY-MM' — both tabs share one month selector
 
 async function fetchSupervisorLog() {
   const get = async (tab, range) => {
@@ -484,6 +485,13 @@ function renderSupervisorLog(loading, error) {
     `<button class="btn-secondary" onclick="svShowTab('${id}')"
        style="font-size:12px;padding:6px 14px;${_svTab === id ? 'background:var(--accent,#2980B9);color:#fff;border-color:var(--accent,#2980B9)' : ''}">${label}</button>`;
 
+  const monthNav = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <button class="btn-secondary" style="padding:6px 12px" onclick="svShiftMonth(-1)">◀</button>
+      <div style="font-weight:700;font-size:15px;min-width:160px;text-align:center">${_svMonthLabel(_svMonth)}</div>
+      <button class="btn-secondary" style="padding:6px 12px" onclick="svShiftMonth(1)" ${_svMonth >= todayStr.slice(0, 7) ? 'disabled title="Already at the current month"' : ''}>▶</button>
+    </div>`;
+
   let body;
   if (loading) {
     body = '<div class="empty-state">Loading supervisor register…</div>';
@@ -500,80 +508,123 @@ function renderSupervisorLog(loading, error) {
       ${tabBtn('dispatch', `🚚 Dispatch Weights (${_svDisp.length})`)}
       ${tabBtn('production', `⚙️ Production (${_svProd.length})`)}
     </div>
+    ${monthNav}
     ${body}`;
 }
 
+function _svDispatchRow(e) {
+  const totalKg = e.pcs && e.wtPc ? (e.pcs * e.wtPc / 1000) : 0;
+  const exp = _svExpectedWeight(e.party, e.product);
+  let deltaHtml = '<span style="color:var(--muted,#888)">—</span>';
+  if (exp && e.wtPc) {
+    const d = ((e.wtPc - exp.weight) / exp.weight) * 100;
+    const col = Math.abs(d) <= 3 ? 'var(--success,#27AE60)' : Math.abs(d) <= 7 ? '#E67E22' : '#E74C3C';
+    deltaHtml = `<span style="color:${col};font-weight:700" title="Master: ${exp.weight} gm (${exp.client} / ${exp.product})">${d > 0 ? '+' : ''}${d.toFixed(1)}%</span>`;
+  }
+  let dcHtml = '<span style="color:var(--muted,#888)">—</span>';
+  const dc = typeof challanList !== 'undefined' ? challanList.find(c => c.svTs === e.ts) : null;
+  if (dc) {
+    dcHtml = `<span style="color:var(--success,#27AE60);font-weight:700" title="Auto-generated ${dc.dcNum} against ${dc.orderId}">✓ ${dc.dcNum} → ${dc.orderId}</span>`;
+  } else if (e.orderId) {
+    const matchedOrder = typeof orders !== 'undefined' ? orders.find(x => (x.id || '').toLowerCase() === e.orderId.toLowerCase()) : null;
+    dcHtml = matchedOrder
+      ? `<span style="color:var(--muted,#888)" title="Will challan on next refresh">${e.orderId} · pending</span>`
+      : `<span style="color:var(--danger,#E74C3C);font-weight:600" title="No order with this ID — fix the Order ID on the form response">⚠ ${e.orderId}</span>`;
+  } else {
+    const m = _svMatchOrderByProduct(e);
+    if (m.order) {
+      dcHtml = `<span style="color:var(--muted,#888)" title="Matched by ${m.reason} — will challan on next refresh">${m.order.id} · pending</span>`;
+    } else if (m.reason === 'ambiguous') {
+      dcHtml = `<span style="color:#E67E22;font-weight:600" title="More than one pending order matches this product/party — add an Order ID to disambiguate">⚠ ambiguous</span>`;
+    }
+  }
+  // No challan yet for this entry — offer a manual picker regardless of why
+  // (unmatched, ambiguous, or a mistyped Order ID) so nothing has to stay stuck.
+  if (!dc) {
+    dcHtml += ` <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="openSvLinkModal('${e.ts.replace(/'/g, "\\'")}')" title="Pick the order this dispatch belongs to">🔗 Link</button>`;
+  }
+  return `<tr style="border-top:1px solid var(--border,#e5e7eb)">
+    <td style="padding:8px 10px;font-weight:600">${e.party || '—'}</td>
+    <td style="padding:8px 10px">${e.product || '<span style="color:var(--muted,#888)">—</span>'}</td>
+    <td style="padding:8px 10px">${e.size || '—'}</td>
+    <td style="padding:8px 10px">${e.pcs.toLocaleString('en-IN')}</td>
+    <td style="padding:8px 10px;font-weight:700">${e.wtPc ? e.wtPc + ' gm' : '—'}</td>
+    <td style="padding:8px 10px">${totalKg ? totalKg.toLocaleString('en-IN', {maximumFractionDigits:1}) + ' kg' : '—'}</td>
+    <td style="padding:8px 10px">${deltaHtml}</td>
+    <td style="padding:8px 10px;font-family:monospace;font-size:11px">${dcHtml}</td>
+  </tr>`;
+}
+
+// Grouped by date, newest first, within the selected month (_svMonth) —
+// each day collapsed to one summary line (date, entry count, and totals
+// for Pieces/Weight/Amount/Rate) so a busy day doesn't repeat its date
+// once per entry. Amount only counts entries with a resolvable order
+// (_svEntryOrder) — dispatches with no matched order don't get a value.
 function _svDispatchHtml() {
   if (!_svDisp.length) return '<div class="empty-state">No dispatch entries yet. They will appear here once the supervisor fills the form.</div>';
 
-  const rows = _svDisp.map(e => {
-    const totalKg = e.pcs && e.wtPc ? (e.pcs * e.wtPc / 1000) : 0;
-    const exp = _svExpectedWeight(e.party, e.product);
-    let deltaHtml = '<span style="color:var(--muted,#888)">—</span>';
-    if (exp && e.wtPc) {
-      const d = ((e.wtPc - exp.weight) / exp.weight) * 100;
-      const col = Math.abs(d) <= 3 ? 'var(--success,#27AE60)' : Math.abs(d) <= 7 ? '#E67E22' : '#E74C3C';
-      deltaHtml = `<span style="color:${col};font-weight:700" title="Master: ${exp.weight} gm (${exp.client} / ${exp.product})">${d > 0 ? '+' : ''}${d.toFixed(1)}%</span>`;
-    }
-    let dcHtml = '<span style="color:var(--muted,#888)">—</span>';
-    const dc = typeof challanList !== 'undefined' ? challanList.find(c => c.svTs === e.ts) : null;
-    if (dc) {
-      dcHtml = `<span style="color:var(--success,#27AE60);font-weight:700" title="Auto-generated ${dc.dcNum} against ${dc.orderId}">✓ ${dc.dcNum} → ${dc.orderId}</span>`;
-    } else if (e.orderId) {
-      const matchedOrder = typeof orders !== 'undefined' ? orders.find(x => (x.id || '').toLowerCase() === e.orderId.toLowerCase()) : null;
-      dcHtml = matchedOrder
-        ? `<span style="color:var(--muted,#888)" title="Will challan on next refresh">${e.orderId} · pending</span>`
-        : `<span style="color:var(--danger,#E74C3C);font-weight:600" title="No order with this ID — fix the Order ID on the form response">⚠ ${e.orderId}</span>`;
-    } else {
-      const m = _svMatchOrderByProduct(e);
-      if (m.order) {
-        dcHtml = `<span style="color:var(--muted,#888)" title="Matched by ${m.reason} — will challan on next refresh">${m.order.id} · pending</span>`;
-      } else if (m.reason === 'ambiguous') {
-        dcHtml = `<span style="color:#E67E22;font-weight:600" title="More than one pending order matches this product/party — add an Order ID to disambiguate">⚠ ambiguous</span>`;
-      }
-    }
-    // No challan yet for this entry — offer a manual picker regardless of why
-    // (unmatched, ambiguous, or a mistyped Order ID) so nothing has to stay stuck.
-    if (!dc) {
-      dcHtml += ` <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="openSvLinkModal('${e.ts.replace(/'/g, "\\'")}')" title="Pick the order this dispatch belongs to">🔗 Link</button>`;
-    }
-    return `<tr style="border-top:1px solid var(--border,#e5e7eb)">
-      <td style="padding:8px 10px;white-space:nowrap">${_svFmtDate(e.date)}</td>
-      <td style="padding:8px 10px;font-weight:600">${e.party || '—'}</td>
-      <td style="padding:8px 10px">${e.product || '<span style="color:var(--muted,#888)">—</span>'}</td>
-      <td style="padding:8px 10px">${e.size || '—'}</td>
-      <td style="padding:8px 10px">${e.pcs.toLocaleString('en-IN')}</td>
-      <td style="padding:8px 10px;font-weight:700">${e.wtPc ? e.wtPc + ' gm' : '—'}</td>
-      <td style="padding:8px 10px">${totalKg ? totalKg.toLocaleString('en-IN', {maximumFractionDigits:1}) + ' kg' : '—'}</td>
-      <td style="padding:8px 10px">${deltaHtml}</td>
-      <td style="padding:8px 10px;font-family:monospace;font-size:11px">${dcHtml}</td>
-    </tr>`;
-  }).join('');
+  const monthEntries = _svDisp.filter(e => _svInMonth(e.date));
+  if (!monthEntries.length) return `<div class="empty-state">No dispatch entries in ${_svMonthLabel(_svMonth)}.</div>`;
 
-  const totKg = _svDisp.reduce((s, e) => s + (e.pcs * e.wtPc / 1000 || 0), 0);
-  const totPcs = _svDisp.reduce((s, e) => s + (e.pcs || 0), 0);
+  const byDate = {};
+  monthEntries.forEach(e => {
+    const d = _svNormDate(e.date) || '?';
+    (byDate[d] || (byDate[d] = [])).push(e);
+  });
+
+  const days = Object.keys(byDate).sort((a, b) => b.localeCompare(a)).map(d => {
+    const entries = byDate[d];
+    const pcs = entries.reduce((s, e) => s + (e.pcs || 0), 0);
+    const kg  = entries.reduce((s, e) => s + (e.pcs * e.wtPc / 1000 || 0), 0);
+    const amt = entries.reduce((s, e) => {
+      const o = _svEntryOrder(e);
+      return s + (o ? (e.pcs || 0) * (o.rate || 0) : 0);
+    }, 0);
+    return { date: d, entries, pcs, kg, amt, rate: kg > 0 ? amt / kg : 0 };
+  });
+
+  const totPcs = days.reduce((s, d) => s + d.pcs, 0);
+  const totKg  = days.reduce((s, d) => s + d.kg, 0);
+  const totAmt = days.reduce((s, d) => s + d.amt, 0);
+
+  const dayBlocks = days.map(d => `
+    <details style="margin-bottom:8px;border:1px solid var(--border,#e5e7eb);border-radius:10px;overflow:hidden">
+      <summary style="cursor:pointer;padding:12px 14px;background:var(--bg,#f8fafc);display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <span style="font-weight:700;font-size:14px;min-width:80px">${_svFmtDate(d.date)}</span>
+        <span style="font-size:11px;color:var(--muted,#888)">${d.entries.length} entr${d.entries.length === 1 ? 'y' : 'ies'}</span>
+        <span style="margin-left:auto;display:flex;gap:18px;flex-wrap:wrap;font-size:12px">
+          <span title="Total pieces dispatched">Production: <strong>${d.pcs.toLocaleString('en-IN')} pcs</strong></span>
+          <span title="Total material weight dispatched">Weight: <strong>${d.kg.toLocaleString('en-IN', {maximumFractionDigits:1})} kg</strong></span>
+          <span title="Sum of qty × order rate, for entries matched to an order">Amount: <strong>${d.amt ? '₹' + Math.round(d.amt).toLocaleString('en-IN') : '—'}</strong></span>
+          <span title="Amount ÷ Weight">Rate: <strong>${d.rate ? '₹' + d.rate.toFixed(2) + '/kg' : '—'}</strong></span>
+        </span>
+      </summary>
+      <div style="overflow-x:auto">
+      <table class="data-table" style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="text-align:left">
+          <th style="padding:8px 10px">Party</th>
+          <th style="padding:8px 10px">Product</th>
+          <th style="padding:8px 10px">Size</th>
+          <th style="padding:8px 10px">Pieces</th>
+          <th style="padding:8px 10px">Wt / piece</th>
+          <th style="padding:8px 10px">Total wt</th>
+          <th style="padding:8px 10px" title="Measured vs product master weight">vs Master</th>
+          <th style="padding:8px 10px" title="Auto-generates a Delivery Challan — by Order ID if present, otherwise by matching product/party against pending orders">Order / DC</th>
+        </tr></thead><tbody>${d.entries.map(_svDispatchRow).join('')}</tbody></table>
+      </div>
+    </details>`).join('');
 
   return `
     <div class="add-order-form" style="margin-bottom:12px;display:flex;gap:24px;flex-wrap:wrap">
-      <div><div class="form-label">Entries</div><div style="font-size:20px;font-weight:700">${_svDisp.length}</div></div>
+      <div><div class="form-label">Days</div><div style="font-size:20px;font-weight:700">${days.length}</div></div>
       <div><div class="form-label">Total pieces</div><div style="font-size:20px;font-weight:700">${totPcs.toLocaleString('en-IN')}</div></div>
       <div><div class="form-label">Total weight</div><div style="font-size:20px;font-weight:700">${totKg.toLocaleString('en-IN', {maximumFractionDigits:1})} kg</div></div>
+      <div><div class="form-label">Total amount</div><div style="font-size:20px;font-weight:700">${totAmt ? '₹' + Math.round(totAmt).toLocaleString('en-IN') : '—'}</div></div>
+      <div><div class="form-label">Avg rate</div><div style="font-size:20px;font-weight:700">${totKg ? '₹' + (totAmt / totKg).toFixed(2) + '/kg' : '—'}</div></div>
     </div>
-    <div class="add-order-form" style="padding:0;overflow-x:auto">
-    <table class="data-table" style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead><tr style="text-align:left">
-        <th style="padding:8px 10px">Date</th>
-        <th style="padding:8px 10px">Party</th>
-        <th style="padding:8px 10px">Product</th>
-        <th style="padding:8px 10px">Size</th>
-        <th style="padding:8px 10px">Pieces</th>
-        <th style="padding:8px 10px">Wt / piece</th>
-        <th style="padding:8px 10px">Total wt</th>
-        <th style="padding:8px 10px" title="Measured vs product master weight">vs Master</th>
-        <th style="padding:8px 10px" title="Auto-generates a Delivery Challan — by Order ID if present, otherwise by matching product/party against pending orders">Order / DC</th>
-      </tr></thead><tbody>${rows}</tbody></table></div>
-    <div class="field-hint" style="margin-top:8px">vs Master compares the supervisor's measured weight against the product weight on the Clients page. Within ±3% green, ±7% orange, beyond that red — red means check the paper GSM or size. Order / DC: a ✓ means a Delivery Challan was auto-created from this entry, reducing that order's pending quantity (see the Challans tab). With no Order ID, it's matched by product name (falling back to party) against pending orders — orange "ambiguous" means more than one pending order matches and nothing was guessed; a red ⚠ means a typed Order ID matches no order. Anything not yet matched shows a <strong>🔗 Link</strong> button — pick the right order by hand (any order, any status) and it'll challan immediately, no need to wait for a form fix.
-    ${_svDisp.some(e => !e.product) ? '<br>⚠️ Older entries have no separate Product Name — see the note below on adding that question to the form.' : ''}</div>`;
+    ${dayBlocks}
+    <div class="field-hint" style="margin-top:8px">Click a day to see its individual entries. vs Master compares the supervisor's measured weight against the product weight on the Clients page — within ±3% green, ±7% orange, beyond that red (check the paper GSM or size). Amount only counts entries matched to a real order (by Order ID, or by product/party) at that order's Rate — entries with no match show no amount. Order / DC: a ✓ means a Delivery Challan was auto-created from this entry, reducing that order's pending quantity (see the Challans tab). Anything not yet matched shows a <strong>🔗 Link</strong> button — pick the right order by hand (any order, any status) and it'll challan immediately.
+    ${monthEntries.some(e => !e.product) ? '<br>⚠️ Older entries have no separate Product Name — see the note below on adding that question to the form.' : ''}</div>`;
 }
 
 // Paper weight consumed by one entry, in kg.
@@ -605,90 +656,120 @@ function _svFmtDate(s) {
   return m ? `${m[2].padStart(2,'0')}/${m[1].padStart(2,'0')}/${m[3].slice(-2)}` : (s || '—');
 }
 
+// ── Month selector — shared by both tabs ──
+function _svInMonth(dateStr) {
+  return _svNormDate(dateStr).slice(0, 7) === _svMonth;
+}
+function _svMonthLabel(m) {
+  const [y, mo] = m.split('-').map(Number);
+  return new Date(y, mo - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+}
+function svShiftMonth(delta) {
+  const [y, mo] = _svMonth.split('-').map(Number);
+  const d = new Date(y, mo - 1 + delta, 1);
+  _svMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  renderSupervisorLog(false);
+}
+
+// Which real order (if any) a dispatch entry is billed against — same
+// resolution order as the Order/DC column: an already-created challan's
+// order first (svTs match), then a direct Order ID match, then the same
+// unambiguous fuzzy product/party match used for auto-challan creation.
+// Used only to value a day's dispatches at the order's actual Rate —
+// entries with no resolvable order simply don't contribute an amount.
+function _svEntryOrder(e) {
+  if (typeof orders === 'undefined') return null;
+  const dc = typeof challanList !== 'undefined' ? challanList.find(c => c.svTs === e.ts) : null;
+  if (dc) return orders.find(o => o.id === dc.orderId) || null;
+  if (e.orderId) {
+    const o = orders.find(x => (x.id || '').toLowerCase() === e.orderId.toLowerCase());
+    if (o) return o;
+  }
+  return _svMatchOrderByProduct(e).order;
+}
+
 // Group production + dispatch entries by date → daily totals.
+// Grouped by date within the selected month (_svMonth), newest first —
+// Production entries are kept per day (not just aggregated) so each day
+// can be expanded to show exactly what was logged in the Production sheet
+// that day; Dispatch is aggregated-only here (it has its own drill-down on
+// the Dispatch tab).
 function _svDailySummary() {
   const days = {};
   const day = d => {
-    if (!days[d]) days[d] = { plyPcs: 0, sheets: 0, rolls: 0, prodKg: 0, prodEntries: 0, dispPcs: 0, dispKg: 0 };
+    if (!days[d]) days[d] = { plyPcs: 0, sheets: 0, rolls: 0, prodKg: 0, prodEntries: [], dispPcs: 0, dispKg: 0 };
     return days[d];
   };
-  _svProd.forEach(e => {
-    const d = day(e.date || '?');
+  _svProd.filter(e => _svInMonth(e.date)).forEach(e => {
+    const d = day(_svNormDate(e.date) || '?');
     d.plyPcs += parseInt(e.plyPcs) || 0;
     d.sheets += parseInt(e.sheets) || 0;
     d.rolls  += parseInt(e.rolls) || 0;
     d.prodKg += _svEntryKg(e);
-    d.prodEntries++;
+    d.prodEntries.push(e);
   });
-  _svDisp.forEach(e => {
-    const d = day(e.date || '?');
+  _svDisp.filter(e => _svInMonth(e.date)).forEach(e => {
+    const d = day(_svNormDate(e.date) || '?');
     d.dispPcs += e.pcs || 0;
     d.dispKg  += (e.pcs * e.wtPc / 1000) || 0;
   });
-  // newest date first
-  return Object.entries(days).sort((a, b) => _svNormDate(b[0]).localeCompare(_svNormDate(a[0])));
+  return Object.entries(days).sort((a, b) => b[0].localeCompare(a[0]));
 }
 
 function _svDailySummaryHtml() {
   const days = _svDailySummary();
-  if (!days.length) return '';
-  return `
-    <div class="add-order-form" style="padding:0;overflow-x:auto;margin-bottom:14px">
-    <table class="data-table" style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead><tr style="text-align:left">
-        <th style="padding:8px 10px">📅 Day</th>
-        <th style="padding:8px 10px">Ply pieces cut</th>
-        <th style="padding:8px 10px">Sheets cut</th>
-        <th style="padding:8px 10px">Rolls</th>
-        <th style="padding:8px 10px" title="Paper consumed, computed from reel widths × GSM × cutting size">Production wt</th>
-        <th style="padding:8px 10px">Dispatched</th>
-        <th style="padding:8px 10px">Dispatch wt</th>
-      </tr></thead><tbody>` +
-    days.map(([date, d]) => `
-      <tr style="border-top:1px solid var(--border,#e5e7eb)">
-        <td style="padding:8px 10px;font-weight:700;white-space:nowrap">${_svFmtDate(date)}</td>
-        <td style="padding:8px 10px;font-weight:600">${d.plyPcs ? d.plyPcs.toLocaleString('en-IN') : '—'}</td>
-        <td style="padding:8px 10px">${d.sheets ? d.sheets.toLocaleString('en-IN') : '—'}</td>
-        <td style="padding:8px 10px">${d.rolls || '—'}</td>
-        <td style="padding:8px 10px;font-weight:700;color:var(--accent,#2980B9)">${d.prodKg ? d.prodKg.toLocaleString('en-IN', {maximumFractionDigits:1}) + ' kg' : '—'}</td>
-        <td style="padding:8px 10px">${d.dispPcs ? d.dispPcs.toLocaleString('en-IN') + ' pcs' : '—'}</td>
-        <td style="padding:8px 10px">${d.dispKg ? d.dispKg.toLocaleString('en-IN', {maximumFractionDigits:1}) + ' kg' : '—'}</td>
-      </tr>`).join('') + `
-    </tbody></table></div>
-    <div class="field-hint" style="margin-bottom:14px">Production weight = paper consumed, calculated per entry as reel width × cutting size × GSM (Reel 2 counted at 1.5× for flute take-up). Roll-only entries have no weight — length is unknown.</div>`;
+  if (!days.length) return `<div class="empty-state">No entries in ${_svMonthLabel(_svMonth)}.</div>`;
+
+  const blocks = days.map(([date, d]) => {
+    const entryRows = d.prodEntries.map(e => {
+      const reels = [
+        e.r1w ? `${e.r1w}" @ ${e.r1g || '?'}g` : '',
+        e.r2w ? `${e.r2w}" @ ${e.r2g || '?'}g` : '',
+      ].filter(Boolean).join(' + ');
+      const kg = _svEntryKg(e);
+      return `<tr style="border-top:1px solid var(--border,#e5e7eb)">
+        <td style="padding:8px 10px">${reels || '—'}</td>
+        <td style="padding:8px 10px">${e.cutSize ? e.cutSize + '"' : '—'}</td>
+        <td style="padding:8px 10px">${e.plyPcs ? parseInt(e.plyPcs).toLocaleString('en-IN') : '—'}</td>
+        <td style="padding:8px 10px">${e.sheets ? parseInt(e.sheets).toLocaleString('en-IN') : '—'}</td>
+        <td style="padding:8px 10px">${e.rolls || '—'}</td>
+        <td style="padding:8px 10px;font-weight:600">${kg ? kg.toLocaleString('en-IN', {maximumFractionDigits:1}) + ' kg' : '—'}</td>
+      </tr>`;
+    }).join('');
+
+    return `
+    <details style="margin-bottom:8px;border:1px solid var(--border,#e5e7eb);border-radius:10px;overflow:hidden">
+      <summary style="cursor:pointer;padding:12px 14px;background:var(--bg,#f8fafc);display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <span style="font-weight:700;font-size:14px;min-width:80px">${_svFmtDate(date)}</span>
+        <span style="font-size:11px;color:var(--muted,#888)">${d.prodEntries.length} prod. entr${d.prodEntries.length === 1 ? 'y' : 'ies'}</span>
+        <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-size:12px">
+          <span>Ply cut: <strong>${d.plyPcs ? d.plyPcs.toLocaleString('en-IN') : '—'}</strong></span>
+          <span>Sheets: <strong>${d.sheets ? d.sheets.toLocaleString('en-IN') : '—'}</strong></span>
+          <span>Rolls: <strong>${d.rolls || '—'}</strong></span>
+          <span title="Paper consumed">Prod wt: <strong style="color:var(--accent,#2980B9)">${d.prodKg ? d.prodKg.toLocaleString('en-IN', {maximumFractionDigits:1}) + ' kg' : '—'}</strong></span>
+          <span>Dispatched: <strong>${d.dispPcs ? d.dispPcs.toLocaleString('en-IN') + ' pcs' : '—'}</strong></span>
+          <span>Dispatch wt: <strong>${d.dispKg ? d.dispKg.toLocaleString('en-IN', {maximumFractionDigits:1}) + ' kg' : '—'}</strong></span>
+        </span>
+      </summary>
+      ${d.prodEntries.length ? `
+      <div style="overflow-x:auto">
+      <table class="data-table" style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="text-align:left">
+          <th style="padding:8px 10px">Reels (width @ GSM)</th>
+          <th style="padding:8px 10px">Cutting size</th>
+          <th style="padding:8px 10px">Ply pieces</th>
+          <th style="padding:8px 10px">Sheets</th>
+          <th style="padding:8px 10px">Rolls</th>
+          <th style="padding:8px 10px">Paper used</th>
+        </tr></thead><tbody>${entryRows}</tbody></table>
+      </div>` : '<div class="field-hint" style="padding:0 14px 12px">No production entries logged this day — dispatch only.</div>'}
+    </details>`;
+  }).join('');
+
+  return blocks + `<div class="field-hint" style="margin:8px 0 14px">Click a day to see its individual production entries (reels, GSM, cutting size). Production weight = paper consumed, calculated per entry as reel width × cutting size × GSM (Reel 2 counted at 1.5× for flute take-up). Roll-only entries have no weight — length is unknown.</div>`;
 }
 
 function _svProductionHtml() {
   if (!_svProd.length) return '<div class="empty-state">No production entries yet.</div>';
-
-  const rows = _svProd.map(e => {
-    const reels = [
-      e.r1w ? `${e.r1w}" @ ${e.r1g || '?'}g` : '',
-      e.r2w ? `${e.r2w}" @ ${e.r2g || '?'}g` : '',
-    ].filter(Boolean).join(' + ');
-    const kg = _svEntryKg(e);
-    return `<tr style="border-top:1px solid var(--border,#e5e7eb)">
-      <td style="padding:8px 10px;white-space:nowrap">${_svFmtDate(e.date)}</td>
-      <td style="padding:8px 10px">${reels || '—'}</td>
-      <td style="padding:8px 10px">${e.cutSize ? e.cutSize + '"' : '—'}</td>
-      <td style="padding:8px 10px">${e.plyPcs ? parseInt(e.plyPcs).toLocaleString('en-IN') : '—'}</td>
-      <td style="padding:8px 10px">${e.sheets ? parseInt(e.sheets).toLocaleString('en-IN') : '—'}</td>
-      <td style="padding:8px 10px">${e.rolls || '—'}</td>
-      <td style="padding:8px 10px;font-weight:600">${kg ? kg.toLocaleString('en-IN', {maximumFractionDigits:1}) + ' kg' : '—'}</td>
-    </tr>`;
-  }).join('');
-
-  return _svDailySummaryHtml() + `
-    <div class="form-title" style="margin-bottom:8px">Entry details</div>
-    <div class="add-order-form" style="padding:0;overflow-x:auto">
-    <table class="data-table" style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead><tr style="text-align:left">
-        <th style="padding:8px 10px">Date</th>
-        <th style="padding:8px 10px">Reels (width @ GSM)</th>
-        <th style="padding:8px 10px">Cutting size</th>
-        <th style="padding:8px 10px">Ply pieces</th>
-        <th style="padding:8px 10px">Sheets</th>
-        <th style="padding:8px 10px">Rolls</th>
-        <th style="padding:8px 10px">Paper used</th>
-      </tr></thead><tbody>${rows}</tbody></table></div>`;
+  return _svDailySummaryHtml();
 }
