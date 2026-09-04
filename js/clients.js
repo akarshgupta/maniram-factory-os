@@ -349,6 +349,8 @@ async function fetchClients() {
             printDesign: p[18] || '',
             bf:          [p[19],p[20],p[21],p[22],p[23],p[24],p[25],p[26],p[27]].map(v => Number(v) || 0),
             twoPart:     String(p[28] || '').toUpperCase() === 'TRUE',
+            extraPrice:          p[29] || '',
+            specialInstructions: p[30] || '',
           }));
         products.forEach(p => pendingProductKeys.delete(`${r[0]}::${p.name}`)); // confirmed in sheet
         return {
@@ -715,7 +717,20 @@ function onProductChange() {
   document.getElementById('f-weight').value    = p.weight   || '';
   document.getElementById('f-reel-size').value = p.reelSize || '';
   document.getElementById('f-two-part').checked = !!p.twoPart;
-  if (p.rate) document.getElementById('f-rate').value = p.rate;
+  if (p.rate || p.extraPrice) {
+    document.getElementById('f-rate').value = (parseFloat(p.rate) || 0) + (parseFloat(p.extraPrice) || 0);
+  }
+  const instrEl = document.getElementById('f-product-instructions');
+  if (instrEl) {
+    if (p.specialInstructions) {
+      instrEl.style.display = 'block';
+      instrEl.innerHTML = `⚠️ <strong>Special instructions:</strong> ${p.specialInstructions}` +
+        (p.extraPrice ? ` <span style="color:var(--muted)">(includes +₹${parseFloat(p.extraPrice).toFixed(2)}/pc surcharge)</span>` : '');
+    } else {
+      instrEl.style.display = 'none';
+      instrEl.innerHTML = '';
+    }
+  }
 
   checkStockForCurrentOrder();
 }
@@ -725,6 +740,8 @@ function clearProductFields() {
     document.getElementById(id).value = '';
   });
   document.getElementById('f-two-part').checked = false;
+  const instrEl = document.getElementById('f-product-instructions');
+  if (instrEl) { instrEl.style.display = 'none'; instrEl.innerHTML = ''; }
   const hint = document.getElementById('f-size-in');
   if (hint) hint.textContent = '';
   // Same staleness risk as the date-load strip — this doesn't redraw just
@@ -844,6 +861,10 @@ function openProductModal(ci, pi, callback) {
   document.getElementById('pm-two-part').checked = p ? !!p.twoPart : false;
   const pmRate = document.getElementById('pm-rate');
   if (pmRate) pmRate.value = p ? (p.rate || '') : '';
+  const pmExtra = document.getElementById('pm-extra-price');
+  if (pmExtra) pmExtra.value = p ? (p.extraPrice || '') : '';
+  const pmInstr = document.getElementById('pm-special-instructions');
+  if (pmInstr) pmInstr.value = p ? (p.specialInstructions || '') : '';
   // Print fields — print colour reuses the Colour field above, never asked twice
   const hpEl = document.getElementById('pm-has-print');
   if (hpEl) hpEl.checked = p ? !!p.hasPrint : false;
@@ -880,6 +901,8 @@ function saveProductModal() {
   const weight   = document.getElementById('pm-weight').value.trim();
   const reelSize = document.getElementById('pm-reelsize').value.trim();
   const rate     = document.getElementById('pm-rate')?.value.trim() || '';
+  const extraPrice          = document.getElementById('pm-extra-price')?.value.trim() || '';
+  const specialInstructions = document.getElementById('pm-special-instructions')?.value.trim() || '';
   const layers   = PLY_LAYERS[parseInt(ply)] || PLY_LAYERS[3];
   // gsm/bf keep one slot per layer (including zeros) so index i always lines up with PLY_LAYERS[i]
   const gsm      = layers.map((_, i) => parseInt(document.getElementById('pm-gsm-' + (i+1))?.value) || 0);
@@ -892,7 +915,7 @@ function saveProductModal() {
   const printColour = hasPrint ? colour : ''; // same value as the Colour field — never asked twice
   const printDesign = hasPrint ? (document.getElementById('pm-print-design')?.value || '') : '';
   const twoPart     = !!document.getElementById('pm-two-part')?.checked;
-  const product = { name, size, ply, colour, weight, reelSize, rate, gsm, bf, hasPrint, printColour, printDesign, twoPart };
+  const product = { name, size, ply, colour, weight, reelSize, rate, extraPrice, specialInstructions, gsm, bf, hasPrint, printColour, printDesign, twoPart };
   const ci      = _productModalCi;
 
   if (_productModalPi >= 0) {

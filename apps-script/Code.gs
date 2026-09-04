@@ -242,7 +242,7 @@ var PRODUCT_HEADERS = ['ClientName','Product','Size','Ply','Colour','Weight','Re
                         'GSM1','GSM2','GSM3','GSM4','GSM5','GSM6','GSM7','GSM8','GSM9',
                         'HasPrint','PrintColour','PrintDesign',
                         'BF1','BF2','BF3','BF4','BF5','BF6','BF7','BF8','BF9',
-                        'TwoPart'];
+                        'TwoPart','ExtraPrice','SpecialInstructions'];
 
 function saveProduct(data) {
   var ss    = SpreadsheetApp.openById(PRODUCTS_SHEET_ID);
@@ -258,6 +258,9 @@ function saveProduct(data) {
     if (curHeader.indexOf('TwoPart') < 0) {
       sheet.getRange(1, 29, 1, 1).setValues([['TwoPart']]);
     }
+    if (curHeader.indexOf('ExtraPrice') < 0) {
+      sheet.getRange(1, 30, 1, 2).setValues([PRODUCT_HEADERS.slice(29, 31)]);
+    }
   }
 
   var gsm  = Array.isArray(data.gsm) ? data.gsm : [];
@@ -272,7 +275,9 @@ function saveProduct(data) {
     data.printDesign || '',
     bf[0]||'', bf[1]||'', bf[2]||'', bf[3]||'', bf[4]||'',
     bf[5]||'', bf[6]||'', bf[7]||'', bf[8]||'',
-    data.twoPart ? 'TRUE' : 'FALSE'
+    data.twoPart ? 'TRUE' : 'FALSE',
+    data.extraPrice || '',
+    data.specialInstructions || ''
   ];
 
   var rows       = sheet.getDataRange().getValues();
