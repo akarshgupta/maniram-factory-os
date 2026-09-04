@@ -353,7 +353,7 @@ function updateGsmFields(existingGsm, existingBf) {
 async function fetchClients() {
   try {
     const cUrl = `https://sheets.googleapis.com/v4/spreadsheets/${CUSTOMERS_SHEET_ID}/values/${encodeURIComponent(CUSTOMERS_TAB + '!A1:D500')}?key=${API_KEY}`;
-    const pUrl = `https://sheets.googleapis.com/v4/spreadsheets/${PRODUCTS_SHEET_ID}/values/${encodeURIComponent(PRODUCTS_TAB + '!A1:AB2000')}?key=${API_KEY}`;
+    const pUrl = `https://sheets.googleapis.com/v4/spreadsheets/${PRODUCTS_SHEET_ID}/values/${encodeURIComponent(PRODUCTS_TAB + '!A1:AF2000')}?key=${API_KEY}`;
 
     const [cRes, pRes]   = await Promise.all([fetch(cUrl), fetch(pUrl)]);
     const [cJson, pJson] = await Promise.all([cRes.json(), pRes.json()]);
@@ -918,6 +918,16 @@ function openProductModal(ci, pi, callback) {
   if (pmInstr) pmInstr.value = p ? (p.specialInstructions || '') : '';
   const pmBopp = document.getElementById('pm-bopp-lamination');
   if (pmBopp) pmBopp.checked = p ? !!p.boppLamination : false;
+  // Reset the Additional Price hint too — it's otherwise left showing
+  // whatever the previously-opened product's BOPP calc said. Shows the
+  // saved surcharge (not a fresh recompute) so reopening a product never
+  // silently overwrites a price that's since been hand-edited.
+  const extraHint = document.getElementById('pm-extra-price-hint');
+  if (extraHint) {
+    extraHint.textContent = (p && p.boppLamination && p.extraPrice)
+      ? `BOPP lamination surcharge on file: ₹${parseFloat(p.extraPrice).toFixed(2)}/pc. Added on top of Rate above when this product auto-fills a new order. Edit box size or Two-Part above (while checked) to recalculate.`
+      : 'Added on top of Rate above when this product auto-fills a new order — so the order\'s Rate already includes it.';
+  }
   // Print fields — print colour reuses the Colour field above, never asked twice
   const hpEl = document.getElementById('pm-has-print');
   if (hpEl) hpEl.checked = p ? !!p.hasPrint : false;
