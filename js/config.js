@@ -73,6 +73,7 @@ const KATRA_BUFFER_KG  = 5000;
 const MAX_DAILY_KG     = 1500;  // max box weight (kg) ready per day
 const CRITICAL_SIZES   = ['35.5', '44', '42', '35'];
 const MIN_REELS        = 4;
+const BOPP_LAMINATION_RATE_PER_SQIN = 0.0042; // ₹ per sq inch of sheet area — see skills/rate-calculator.md
 
 const LS_ORDER_HISTORY = 'mi_order_history';
 const LS_REMINDER_SENT = 'mi_reminder_sent';

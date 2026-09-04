@@ -325,6 +325,11 @@ function printJobCard(orderId) {
     <div class="order-cell"><div class="order-cell-label">Status</div><div class="order-cell-val">${o.status || '—'}</div></div>
   </div>
 
+  ${product?.specialInstructions ? `
+  <div style="background:#FFFBEB;border:2px solid #F59E0B;border-radius:6px;padding:10px 14px;margin:12px 0;font-size:13px;color:#92400E">
+    <strong>⚠️ SPECIAL INSTRUCTIONS:</strong> ${product.specialInstructions}
+  </div>` : ''}
+
   <!-- Paper Layer Specification: GSM + BF per layer, always shown -->
   <div class="section-title">📄 Paper Specification — GSM &amp; BF per Layer (${o.ply ? o.ply + ' Ply' : '—'})</div>
   <div class="bordered" style="padding:8px 10px">
