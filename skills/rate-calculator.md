@@ -55,6 +55,37 @@ Amount (₹/box)  = (Total Weight / 1000) × Paper Rate
 Inc GST (5%)    = Amount × 1.05   [Maniram standard — corrugated boxes]
 ```
 
+## BOPP Lamination Surcharge ✅
+Product Master → "BOPP Lamination" checkbox (Add/Edit Product modal). When
+checked, auto-fills Additional Price (₹/pc) from the sheet's own area —
+reusing the same Sheet Length/Sheet Width numbers as the main formula above,
+just in sq inch instead of sqm (no ÷1550):
+```
+Area (sq inch) = Sheet Length × Sheet Width     [same L/W as above, inches]
+Lamination Price (₹/pc) = Area (sq inch) × 0.0042
+```
+Example — 12×6×9" box, 3-ply, single piece:
+```
+Sheet L = (12+6)×2+2 = 38"
+Sheet W = 6+9+0.5    = 15.5"
+Area    = 38×15.5    = 589 sq in
+Lamination = 589 × 0.0042 = ₹2.47/pc
+```
+Recalculates live if box size (or the Two-Part checkbox) changes while
+BOPP Lamination stays checked; unchecking stops touching Additional Price
+but doesn't clear it, since the value may since have been hand-edited.
+Additional Price adds on top of Rate when the product auto-fills a new
+order, so the order's Rate already includes the surcharge — no separate
+line item to remember. Checking the box also appends "BOPP Lamination
+required" to Special Instructions (removed again on uncheck), which shows
+on the printed Job Card and as a hint when the product is picked on a new
+order — see `js/job-card.js` and `onProductChange()` in `js/clients.js`.
+
+Implemented in `js/clients.js` (`_laminationCost()`, `recalcBoppLamination()`,
+`onBoppLaminationChange()`); rate constant is `BOPP_LAMINATION_RATE_PER_SQIN`
+in `js/config.js`. Persisted to the Products sheet as `BoppLamination`
+(alongside `ExtraPrice`/`SpecialInstructions`) via `apps-script/Code.gs`.
+
 ## Example — 20×14×28", 3-ply, 100 GSM all layers
 ```
 Sheet L = (20+14)×2+2 = 70"

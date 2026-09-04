@@ -174,6 +174,56 @@ function recalcWeightFromReelSize() {
   if (hint) hint.innerHTML = `Weight recalculated for reel <b>${reelSize}"</b>${lanes > 1 ? ` · <b>${lanes} boxes per reel</b> (cut side by side)` : ' · 1 box per reel'} → <b>${weight.toFixed(1)} gm</b>. Edit either field above if actuals differ.`;
 }
 
+// ── BOPP Lamination — checkbox auto-fills Additional Price from sheet area.
+// Rate is ₹ per sq inch of sheet area (skills/rate-calculator.md), using the
+// same box-dimension formula as everywhere else — sheetLen × reqWidth, the
+// box's own paper share, not a wider multi-lane reel. Recalculates live as
+// box size / two-part change while checked. Unchecking only removes the
+// auto-added note text — it never clears Additional Price, since the value
+// there may since have been hand-edited.
+function _laminationCost() {
+  const dims = typeof _parseDims === 'function' ? _parseDims(document.getElementById('pm-size')?.value || '') : null;
+  if (!dims || !dims.l || !dims.w || !dims.h) return null;
+  const twoPart  = !!document.getElementById('pm-two-part')?.checked;
+  const sheetLen = calcSheetLen(dims.l, dims.w, twoPart);
+  const reqWidth = dims.w + dims.h + 0.5;
+  const areaSqIn = sheetLen * reqWidth;
+  return areaSqIn * BOPP_LAMINATION_RATE_PER_SQIN;
+}
+
+function recalcBoppLamination() {
+  if (!document.getElementById('pm-bopp-lamination')?.checked) return;
+  const cost    = _laminationCost();
+  const priceEl = document.getElementById('pm-extra-price');
+  const hint    = document.getElementById('pm-extra-price-hint');
+  if (cost === null) {
+    if (hint) hint.textContent = 'Enter box size above to calculate the BOPP lamination price.';
+    return;
+  }
+  if (priceEl) priceEl.value = cost.toFixed(2);
+  if (hint) hint.innerHTML = `BOPP lamination: sheet area × ₹${BOPP_LAMINATION_RATE_PER_SQIN}/sq in = <b>₹${cost.toFixed(2)}</b>/pc. Added on top of Rate above when this product auto-fills a new order — edit if actuals differ.`;
+}
+
+const _BOPP_LAMINATION_NOTE = 'BOPP Lamination required';
+
+function onBoppLaminationChange() {
+  const checked = !!document.getElementById('pm-bopp-lamination')?.checked;
+  const notesEl = document.getElementById('pm-special-instructions');
+  if (notesEl) {
+    const parts = (notesEl.value || '').split(' · ').map(s => s.trim()).filter(Boolean);
+    const has   = parts.includes(_BOPP_LAMINATION_NOTE);
+    if (checked && !has) parts.push(_BOPP_LAMINATION_NOTE);
+    if (!checked && has) parts.splice(parts.indexOf(_BOPP_LAMINATION_NOTE), 1);
+    notesEl.value = parts.join(' · ');
+  }
+  if (checked) {
+    recalcBoppLamination();
+  } else {
+    const hint = document.getElementById('pm-extra-price-hint');
+    if (hint) hint.textContent = 'Added on top of Rate above when this product auto-fills a new order — so the order\'s Rate already includes it.';
+  }
+}
+
 // ── State ──
 let CLIENTS       = [];
 let acSelectedIdx = -1;
@@ -351,6 +401,7 @@ async function fetchClients() {
             twoPart:     String(p[28] || '').toUpperCase() === 'TRUE',
             extraPrice:          p[29] || '',
             specialInstructions: p[30] || '',
+            boppLamination:      String(p[31] || '').toUpperCase() === 'TRUE',
           }));
         products.forEach(p => pendingProductKeys.delete(`${r[0]}::${p.name}`)); // confirmed in sheet
         return {
@@ -865,6 +916,8 @@ function openProductModal(ci, pi, callback) {
   if (pmExtra) pmExtra.value = p ? (p.extraPrice || '') : '';
   const pmInstr = document.getElementById('pm-special-instructions');
   if (pmInstr) pmInstr.value = p ? (p.specialInstructions || '') : '';
+  const pmBopp = document.getElementById('pm-bopp-lamination');
+  if (pmBopp) pmBopp.checked = p ? !!p.boppLamination : false;
   // Print fields — print colour reuses the Colour field above, never asked twice
   const hpEl = document.getElementById('pm-has-print');
   if (hpEl) hpEl.checked = p ? !!p.hasPrint : false;
@@ -903,6 +956,7 @@ function saveProductModal() {
   const rate     = document.getElementById('pm-rate')?.value.trim() || '';
   const extraPrice          = document.getElementById('pm-extra-price')?.value.trim() || '';
   const specialInstructions = document.getElementById('pm-special-instructions')?.value.trim() || '';
+  const boppLamination      = !!document.getElementById('pm-bopp-lamination')?.checked;
   const layers   = PLY_LAYERS[parseInt(ply)] || PLY_LAYERS[3];
   // gsm/bf keep one slot per layer (including zeros) so index i always lines up with PLY_LAYERS[i]
   const gsm      = layers.map((_, i) => parseInt(document.getElementById('pm-gsm-' + (i+1))?.value) || 0);
@@ -915,7 +969,7 @@ function saveProductModal() {
   const printColour = hasPrint ? colour : ''; // same value as the Colour field — never asked twice
   const printDesign = hasPrint ? (document.getElementById('pm-print-design')?.value || '') : '';
   const twoPart     = !!document.getElementById('pm-two-part')?.checked;
-  const product = { name, size, ply, colour, weight, reelSize, rate, extraPrice, specialInstructions, gsm, bf, hasPrint, printColour, printDesign, twoPart };
+  const product = { name, size, ply, colour, weight, reelSize, rate, extraPrice, specialInstructions, boppLamination, gsm, bf, hasPrint, printColour, printDesign, twoPart };
   const ci      = _productModalCi;
 
   if (_productModalPi >= 0) {
