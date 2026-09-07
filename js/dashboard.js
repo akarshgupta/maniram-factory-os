@@ -68,6 +68,25 @@ function updateDashboardOrders() {
     }
   }
 
+  // ── Aging orders banner — separate from delivery-date overdue above.
+  // An order can have a comfortable delivery date but still be stuck: still
+  // New/In Production weeks after it was placed, with nothing moving it
+  // along. Same threshold as the per-row age badge (js/orders.js). ──
+  const agingBanner = document.getElementById('dashboard-aging-banner');
+  if (agingBanner) {
+    const aging = active
+      .filter(o => typeof _orderAgeDays === 'function' && (_orderAgeDays(o) || 0) >= 14)
+      .sort((a, b) => _orderAgeDays(b) - _orderAgeDays(a));
+    if (!aging.length) {
+      agingBanner.style.display = 'none';
+    } else {
+      agingBanner.style.display = 'block';
+      agingBanner.innerHTML = `<div style="font-weight:700;margin-bottom:6px">⏳ ${aging.length} order${aging.length > 1 ? 's' : ''} aging 14+ days without progressing</div>` +
+        aging.slice(0, 6).map(o => `<div style="font-size:12px;margin-top:2px">→ <strong>${o.id}</strong> · ${o.customer} · ${o.product || o.size || ''} · <strong>${_orderAgeDays(o)}d old</strong> · ${o.status}</div>`).join('') +
+        (aging.length > 6 ? `<div style="font-size:11px;margin-top:6px">+ ${aging.length - 6} more — see Orders page</div>` : '');
+    }
+  }
+
   // ── Row 2: Business metrics ──────────────────────────────────
   _renderMonthlyMetrics();
 
