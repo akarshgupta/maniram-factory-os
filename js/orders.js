@@ -621,15 +621,9 @@ function renderOrders() {
           ${dispBar}
           ${invBar}
         </div>
-        <div style="display:flex;align-items:center;gap:18px;flex:none">
-          ${o.product ? `<div style="text-align:right">
-            <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px">Product</div>
-            <div style="font-size:15px;font-weight:700;color:var(--navy);white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis" title="${o.product}">${o.product}</div>
-          </div>` : ''}
-          ${o.size ? `<div style="text-align:right">
-            <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px">Size</div>
-            <div style="font-family:monospace;font-size:16px;font-weight:700;color:var(--navy);white-space:nowrap" title="Box size">${o.size}</div>
-          </div>` : ''}
+        <div style="display:flex;align-items:center;gap:16px;flex:none">
+          ${o.product ? `<div style="font-size:14px;font-weight:700;color:var(--navy);white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis" title="Product: ${o.product}">${o.product}</div>` : ''}
+          ${o.size ? `<div style="font-family:monospace;font-size:15px;font-weight:700;color:var(--navy);white-space:nowrap" title="Box size">${o.size}</div>` : ''}
           ${_ageBadgeHtml(o)}
         </div>
       </div>
