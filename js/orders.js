@@ -533,6 +533,32 @@ function switchOrderTab(tab, e) {
 
 const FINISHED_STATUSES = ['Delivered', 'Dispatched', 'Cancelled'];
 
+// ── Order age — days since the order was placed (o.orderDate), so a
+// lingering order can be spotted at a glance instead of getting lost in
+// the list. Neutral under a week, amber 7-13 days, red 14+.
+function _orderAgeDays(o) {
+  if (!o.orderDate) return null;
+  const start = new Date(o.orderDate);
+  if (isNaN(start)) return null;
+  const now = new Date();
+  start.setHours(0, 0, 0, 0);
+  now.setHours(0, 0, 0, 0);
+  return Math.round((now - start) / 86400000);
+}
+
+function _ageBadgeHtml(o) {
+  const days = _orderAgeDays(o);
+  if (days === null || days < 0) return '';
+  let bg = '#F1F5F9', fg = '#64748B', label = `${days}d`;
+  if (days >= 14)      { bg = '#FEE2E2'; fg = '#991B1B'; label = `⚠ ${days}d old`; }
+  else if (days >= 7)  { bg = '#FEF3C7'; fg = '#92400E'; label = `${days}d old`; }
+  return `<span style="font-size:10px;font-weight:700;color:${fg};background:${bg};padding:3px 8px;border-radius:10px;white-space:nowrap" title="Days since order date (${_fmtOrderDate(o.orderDate)})">${label}</span>`;
+}
+
+function _fmtOrderDate(d) {
+  try { return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); } catch { return d; }
+}
+
 function renderOrders() {
   const list = document.getElementById('orders-list');
   // Consumed exactly once per render, whichever path runs below, so a flash
@@ -587,12 +613,18 @@ function renderOrders() {
     row.onclick = () => openEditModal(o.id);
     row.innerHTML = `
       <div style="font-family:monospace;font-size:11px;color:var(--muted)">${o.id}</div>
-      <div>
-        <div style="font-weight:600;font-size:13px">${o.customer}${o.priority === 'Urgent' ? '<span class="priority-urgent">URG</span>' : ''}</div>
-        <div style="font-size:11px;color:var(--muted)">${o.product || '—'}${o.orderDate ? ' · <span style="color:var(--muted);font-size:10px">Ordered: ' + new Date(o.orderDate).toLocaleDateString('en-IN',{day:'numeric',month:'short'}) + '</span>' : ''}</div>
-        ${stockBadgeHtml(o)}
-        ${dispBar}
-        ${invBar}
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:14px">
+        <div style="min-width:0;flex:1">
+          <div style="font-weight:600;font-size:13px">${o.customer}${o.priority === 'Urgent' ? '<span class="priority-urgent">URG</span>' : ''}</div>
+          <div style="font-size:11px;color:var(--muted)">${o.product || '—'}${o.orderDate ? ' · <span style="color:var(--muted);font-size:10px">Ordered: ' + _fmtOrderDate(o.orderDate) + '</span>' : ''}</div>
+          ${stockBadgeHtml(o)}
+          ${dispBar}
+          ${invBar}
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;flex:none">
+          ${o.size ? `<div style="font-family:monospace;font-size:16px;font-weight:700;color:var(--navy);white-space:nowrap" title="Box size">${o.size}</div>` : ''}
+          ${_ageBadgeHtml(o)}
+        </div>
       </div>
       <div style="font-size:12px;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${o.size || ''}">${o.size || '—'}</div>
       <div style="font-size:12px">${colourDot(o.colour)}${o.colour || '—'}</div>
