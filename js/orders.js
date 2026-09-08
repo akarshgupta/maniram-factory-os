@@ -191,7 +191,7 @@ function getReservedKgForSize(reelSizeStr, excludeOrderId) {
 
 function getTotalKgForSize(reelSizeStr) {
   if (!reelSizeStr || !reelData.length) return 0;
-  const found = reelData.find(r =>
+  const found = reelSizesAggregated().find(r =>
     r.size.toString() === reelSizeStr.toString() ||
     Math.floor(r.size).toString() === reelSizeStr.toString()
   );
@@ -202,12 +202,13 @@ function findSubstitutes(reelSizeStr, neededKg) {
   const base = parseFloat(reelSizeStr);
   if (isNaN(base)) return [];
   const subs = [];
+  const byWidth = reelSizesAggregated();
 
   // Near-width substitutes — a touch wider than needed, trim the extra. Same
   // single lane as the order actually asked for.
   [1, 2].forEach(delta => {
     [base + delta, base + delta + 0.5].forEach(trySize => {
-      const found = reelData.find(r => Math.abs(r.size - trySize) < 0.1);
+      const found = byWidth.find(r => Math.abs(r.size - trySize) < 0.1);
       if (found) {
         const reservedKg  = getReservedKgForSize(found.size.toString());
         const availableKg = (found.totalWeight + KATRA_BUFFER_KG) - reservedKg;
@@ -226,7 +227,7 @@ function findSubstitutes(reelSizeStr, neededKg) {
   // matches a 30.5" reel; 10"×4=40" also matches 41").
   [2, 3, 4].forEach(lanes => {
     const target = base * lanes;
-    reelData.forEach(r => {
+    byWidth.forEach(r => {
       if (r.size >= target && r.size <= target + 1.5) {
         const reservedKg  = getReservedKgForSize(r.size.toString());
         const availableKg = (r.totalWeight + KATRA_BUFFER_KG) - reservedKg;

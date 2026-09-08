@@ -85,9 +85,13 @@ async function fetchReelStock() {
       });
     }
 
+    // Grouped by size AND GSM — a width that stocks both 100 GSM and some
+    // other GSM shows as two separate rows instead of one blended total,
+    // so each GSM's stock stays visible on its own.
     const grouped = {};
     parsed.forEach(r => {
-      const k = r.size.toString();
+      const gsmKey = (r.gsm || '—').toString();
+      const k = r.size.toString() + '|' + gsmKey;
       if (!grouped[k]) grouped[k] = {
         size: r.size, count: 0, plain100Count: 0, colouredCount: 0,
         totalWeight: 0, gsm: r.gsm, bf: r.bf, hasColoured: false,
@@ -98,7 +102,13 @@ async function fetchReelStock() {
       if (r.isColoured) { grouped[k].colouredCount += r.qty; grouped[k].hasColoured = true; }
     });
 
-    reelData = Object.values(grouped).sort((a, b) => b.size - a.size);
+    // Same width: 100 GSM row first, then other GSMs ascending.
+    reelData = Object.values(grouped).sort((a, b) => {
+      if (b.size !== a.size) return b.size - a.size;
+      const aG = parseFloat(a.gsm) || 0, bG = parseFloat(b.gsm) || 0;
+      const a100 = aG === 100 ? 0 : 1, b100 = bG === 100 ? 0 : 1;
+      return a100 !== b100 ? a100 - b100 : aG - bG;
+    });
     const totalKg = reelData.reduce((s, r) => s + r.totalWeight, 0) + KATRA_BUFFER_KG;
     const now     = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
     setReelSyncStatus('ok', `Live · ${now} · Total ${totalKg.toLocaleString('en-IN')} kg`);
@@ -269,15 +279,14 @@ function showReelHistoryView(dateKey, snap) {
 function getReelStatusFromData(r, data) {
   const s = r.size.toString();
   if (s === '35' || s === '35.5') {
-    const g35  = data.find(x => x.size.toString() === '35');
-    const g355 = data.find(x => x.size.toString() === '35.5');
-    const pool = ((g35 && g35.plain100Count) || 0) + ((g355 && g355.plain100Count) || 0);
+    const pool = data.filter(x => x.size.toString() === '35' || x.size.toString() === '35.5')
+      .reduce((sum, x) => sum + (x.plain100Count || 0), 0);
     if (pool < MIN_REELS)  return 'critical';
     if (pool === MIN_REELS) return 'low';
     return 'ok';
   }
   if (s === '42' || s === '44') {
-    const cnt = r.plain100Count;
+    const cnt = data.filter(x => x.size.toString() === s).reduce((sum, x) => sum + (x.plain100Count || 0), 0);
     if (cnt < MIN_REELS)  return 'critical';
     if (cnt === MIN_REELS) return 'low';
     return 'ok';
@@ -304,17 +313,16 @@ function getReelStatus(r) {
 
   // 35 and 35.5 are a single pool — same machine, interchangeable
   if (s === '35' || s === '35.5') {
-    const g35  = reelData.find(x => x.size.toString() === '35');
-    const g355 = reelData.find(x => x.size.toString() === '35.5');
-    const pool = ((g35 && g35.plain100Count) || 0) + ((g355 && g355.plain100Count) || 0);
+    const pool = reelData.filter(x => x.size.toString() === '35' || x.size.toString() === '35.5')
+      .reduce((sum, x) => sum + (x.plain100Count || 0), 0);
     if (pool < MIN_REELS)  return 'critical';
     if (pool === MIN_REELS) return 'low';
     return 'ok';
   }
 
-  // 42 and 44: only 100 GSM plain count matters
+  // 42 and 44: only 100 GSM plain count matters, summed across any other-GSM rows at that width
   if (s === '42' || s === '44') {
-    const cnt = r.plain100Count;
+    const cnt = reelData.filter(x => x.size.toString() === s).reduce((sum, x) => sum + (x.plain100Count || 0), 0);
     if (cnt < MIN_REELS)  return 'critical';
     if (cnt === MIN_REELS) return 'low';
     return 'ok';
@@ -328,17 +336,13 @@ function renderCriticalReels() {
   const list = document.getElementById('critical-reel-list');
   if (!list) return;
 
-  const g35  = reelData.find(r => r.size.toString() === '35');
-  const g355 = reelData.find(r => r.size.toString() === '35.5');
-  const g42  = reelData.find(r => r.size.toString() === '42');
-  const g44  = reelData.find(r => r.size.toString() === '44');
-
-  const pool35 = ((g35 && g35.plain100Count) || 0) + ((g355 && g355.plain100Count) || 0);
+  const sumPlain100 = sizes => reelData.filter(r => sizes.includes(r.size.toString()))
+    .reduce((sum, r) => sum + (r.plain100Count || 0), 0);
 
   const entries = [
-    { label: '35 + 35.5"', count: pool35, note: '100 GSM pooled' },
-    { label: '42"',        count: g42 ? g42.plain100Count : 0, note: '100 GSM' },
-    { label: '44"',        count: g44 ? g44.plain100Count : 0, note: '100 GSM' },
+    { label: '35 + 35.5"', count: sumPlain100(['35', '35.5']), note: '100 GSM pooled' },
+    { label: '42"',        count: sumPlain100(['42']), note: '100 GSM' },
+    { label: '44"',        count: sumPlain100(['44']), note: '100 GSM' },
   ];
 
   const max = Math.max(...entries.map(e => e.count), 1);
@@ -396,16 +400,13 @@ function renderFullReels() {
 
 // ── Dashboard Stock Summary ──
 function updateDashboardStock() {
-  const g35  = reelData.find(r => r.size.toString() === '35');
-  const g355 = reelData.find(r => r.size.toString() === '35.5');
-  const g42  = reelData.find(r => r.size.toString() === '42');
-  const g44  = reelData.find(r => r.size.toString() === '44');
+  const sumPlain100 = sizes => reelData.filter(r => sizes.includes(r.size.toString()))
+    .reduce((sum, r) => sum + (r.plain100Count || 0), 0);
 
-  const pool35 = ((g35 && g35.plain100Count) || 0) + ((g355 && g355.plain100Count) || 0);
   const critCount = [
-    pool35 < MIN_REELS,
-    (g42 ? g42.plain100Count : 0) < MIN_REELS,
-    (g44 ? g44.plain100Count : 0) < MIN_REELS,
+    sumPlain100(['35', '35.5']) < MIN_REELS,
+    sumPlain100(['42']) < MIN_REELS,
+    sumPlain100(['44']) < MIN_REELS,
   ].filter(Boolean).length;
 
   const card = document.getElementById('stock-status-card');
@@ -424,11 +425,25 @@ function updateDashboardStock() {
   }
 }
 
+// ── Aggregated by width only (ignores GSM) — for stock-availability and
+// substitute math, where any GSM's paper counts toward filling a
+// reel-width need. reelData itself stays split by size+GSM for display. ──
+function reelSizesAggregated() {
+  const byWidth = {};
+  reelData.forEach(r => {
+    const k = r.size.toString();
+    if (!byWidth[k]) byWidth[k] = { size: r.size, count: 0, totalWeight: 0 };
+    byWidth[k].count       += r.count;
+    byWidth[k].totalWeight += r.totalWeight;
+  });
+  return Object.values(byWidth);
+}
+
 // ── Check reel availability for a given size ──
 // Returns { available: bool, count: number, totalWeight: number }
 function checkReelAvailability(reelSize) {
   const sizeStr = reelSize.toString();
-  const found   = reelData.find(r => r.size.toString() === sizeStr || Math.floor(r.size).toString() === sizeStr);
+  const found   = reelSizesAggregated().find(r => r.size.toString() === sizeStr || Math.floor(r.size).toString() === sizeStr);
   if (!found || found.count === 0) return { available: false, count: 0, totalWeight: 0 };
   return { available: found.count >= MIN_REELS, count: found.count, totalWeight: found.totalWeight };
 }

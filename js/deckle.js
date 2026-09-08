@@ -9,8 +9,9 @@ const DECKLE_FALLBACK_SIZES = [30, 32, 33, 35, 35.5, 36, 38, 40, 42, 44, 46, 48]
 
 function _deckleReelSizes() {
   if (typeof reelData !== 'undefined' && Array.isArray(reelData) && reelData.length > 0) {
-    return reelData.map(r => ({ size: parseFloat(r.size), live: true, count: r.count, kg: r.totalWeight }))
-                   .filter(r => r.size > 0);
+    const byWidth = typeof reelSizesAggregated === 'function' ? reelSizesAggregated() : reelData;
+    return byWidth.map(r => ({ size: parseFloat(r.size), live: true, count: r.count, kg: r.totalWeight }))
+                  .filter(r => r.size > 0);
   }
   return DECKLE_FALLBACK_SIZES.map(s => ({ size: s, live: false }));
 }
