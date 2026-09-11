@@ -94,7 +94,8 @@ function doPost(e) {
     else if (action === 'prodlogAppend')      prodlogAppend(data);
     else if (action === 'gsmSet')             gsmSet(data);
     // ── Process Costing (gum, stitching, … batch cost/kg — js/process-costing.js) ──
-    else if (action === 'processLogAppend')   processLogAppend(data);
+    else if (action === 'processLogAppend')      processLogAppend(data);
+    else if (action === 'processPurchaseAppend') processPurchaseAppend(data);
     // ── Frontend order contract (js/orders.js) ──
     // New orders POST with NO action; edits POST action 'update' + rowIndex.
     else if (action === 'update')             updateOrderRow(data);
@@ -901,6 +902,29 @@ function processLogAppend(d) {
 }
 
 // ══════════════════════════════════════════════════════════════
+// PROCESS STOCK  →  ORDERS_SHEET_ID / "ProcessPurchases" tab
+// Raw material bought for a process (gum, stitching, …), logged from the
+// office-side Process Costing page (js/process-costing.js). Current stock
+// there = sum of these purchases − sum of ProcessLog's RawMaterialKg for
+// the same process. Tab auto-creates, same pattern as ProcessLog.
+// ══════════════════════════════════════════════════════════════
+
+function processPurchaseAppend(d) {
+  var ss = SpreadsheetApp.openById(ORDERS_SHEET_ID);
+  var sh = ss.getSheetByName('ProcessPurchases');
+  if (!sh) {
+    sh = ss.insertSheet('ProcessPurchases');
+    sh.appendRow(['Date','Process','Supplier','Kg','RatePerKg','Notes','Timestamp']);
+    sh.setFrozenRows(1);
+    sh.getRange(1,1,1,7).setFontWeight('bold').setBackground('#E8F0FE');
+  }
+  sh.appendRow([
+    d.date || '', d.process || '', d.supplier || '', d.kg || 0,
+    d.ratePerKg || 0, d.notes || '', d.ts || new Date().toISOString()
+  ]);
+}
+
+// ══════════════════════════════════════════════════════════════
 // ONE-TIME SETUP — run this once from the Apps Script editor.
 // Creates a SEPARATE spreadsheet for each finance operation, makes each
 // readable by link (so the web app can read it), and logs the IDs.
@@ -949,7 +973,7 @@ function formatAllSheets() {
   var SUPERVISOR_SHEET_ID = '1ArpIy-BTUzHAKmVlcX8_7LChLM8MRiWtO7lmRW2V3sk'; // Maniram — Register Responses
 
   var jobs = [
-    { id: ORDERS_SHEET_ID, tabs: ['Orders', 'Purchases', 'Overheads', 'TallySync', 'ProdLog', 'GSMeta', 'SupvProdLog', 'WeightLog', 'ReadyStock'] },
+    { id: ORDERS_SHEET_ID, tabs: ['Orders', 'Purchases', 'Overheads', 'TallySync', 'ProdLog', 'GSMeta', 'SupvProdLog', 'WeightLog', 'ReadyStock', 'ProcessLog', 'ProcessPurchases'] },
     { id: CUSTOMERS_SHEET_ID, tabs: ['Sheet1'] },
     { id: PRODUCTS_SHEET_ID,  tabs: ['Sheet1'] },
     { id: DISPATCH_SHEET_ID,  tabs: ['Sheet1'] },
