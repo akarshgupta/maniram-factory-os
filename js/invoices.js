@@ -436,7 +436,7 @@ function renderInvoiceItemRows() {
         <input class="form-input" type="text" placeholder="Type or click to see this party's products…" value="${(item.desc || '').replace(/"/g,'&quot;')}"
           autocomplete="off" style="font-size:12px;padding:6px 8px;${item.orderId ? 'border-color:#86EFAC;background:#F0FDF4' : ''}"
           oninput="onInvoiceItemProductInput(${i}, this.value)" onfocus="onInvoiceItemProductFocus(${i})">
-        <div id="ci-item-dd-${i}" class="ci-item-dd" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;max-height:200px;overflow-y:auto;z-index:${200 - i};box-shadow:0 6px 20px rgba(0,0,0,0.15)"></div>
+        <div id="ci-item-dd-${i}" class="ci-item-dd" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--white);border:1px solid var(--border);border-radius:8px;max-height:200px;overflow-y:auto;z-index:${200 - i};box-shadow:0 6px 20px rgba(0,0,0,0.15)"></div>
         ${linked}
       </div>
       <input class="form-input" type="number" placeholder="0" value="${item.qty !== '' ? item.qty : ''}"
@@ -582,6 +582,17 @@ function markOrderDelivered(o) {
   } catch (e) { /* non-fatal */ }
 }
 
+// The invoice form is a fixed overlay that no longer navigates away from
+// wherever it was opened (Supervisor Log included) — so if that table is
+// the page sitting underneath, it needs telling to re-render after a save,
+// or its "already invoiced" checkmarks stay stale until the next unrelated
+// refresh. Re-renders from data already in memory; never re-fetches.
+function _refreshSvlogIfOpen() {
+  if (document.getElementById('svlog-root') && typeof renderSupervisorLog === 'function') {
+    renderSupervisorLog(false);
+  }
+}
+
 function saveInvoiceOnly() {
   const inv = _persistInvoice();
   if (!inv) return;
@@ -591,6 +602,7 @@ function saveInvoiceOnly() {
   renderUnratedChallanBanner();
   if (typeof renderOrders === 'function') renderOrders();
   if (typeof updateDashboardOrders === 'function') updateDashboardOrders();
+  _refreshSvlogIfOpen();
   alert(`✅ ${inv.id} ${wasEditing ? 'updated' : 'saved'}!`);
 }
 
@@ -602,6 +614,7 @@ function saveAndPrintInvoice() {
   renderUnratedChallanBanner();
   if (typeof renderOrders === 'function') renderOrders();
   if (typeof updateDashboardOrders === 'function') updateDashboardOrders();
+  _refreshSvlogIfOpen();
   _populateInvoiceOverlay(inv);
 }
 
@@ -714,6 +727,7 @@ function deleteInvoice(invId) {
   renderUnratedChallanBanner();
   if (typeof renderOrders === 'function') renderOrders();
   if (typeof updateDashboardOrders === 'function') updateDashboardOrders();
+  _refreshSvlogIfOpen();
 }
 
 function closeInvoice() {

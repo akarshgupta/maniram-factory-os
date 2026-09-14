@@ -190,7 +190,7 @@ function _renderWeekView(active) {
       const isToday = d === todayStr;
       const over = d < todayStr;
       const dotColor = list.length === 0 ? 'var(--border)' : over ? 'var(--danger)' : isToday ? 'var(--blue)' : 'var(--success)';
-      return `<div style="text-align:center;padding:8px 4px;border-radius:8px;background:${isToday ? 'var(--blue)' : 'var(--card-bg)'};border:1.5px solid ${isToday ? 'var(--blue)' : 'var(--border)'}">
+      return `<div style="text-align:center;padding:8px 4px;border-radius:8px;background:${isToday ? 'var(--blue)' : 'var(--white)'};border:1.5px solid ${isToday ? 'var(--blue)' : 'var(--border)'}">
         <div style="font-size:9px;font-weight:700;text-transform:uppercase;color:${isToday ? '#fff' : 'var(--muted)'}">${dow}</div>
         <div style="font-size:15px;font-weight:800;color:${isToday ? '#fff' : 'var(--text)'};line-height:1.3">${dom}</div>
         <div style="margin-top:4px;width:22px;height:22px;border-radius:50%;background:${list.length > 0 ? dotColor : 'transparent'};border:2px solid ${dotColor};color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin:4px auto 0">
