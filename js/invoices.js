@@ -827,7 +827,7 @@ function renderInvoicingPage() {
     </select>`;
 
   el.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <div style="position:sticky;top:56px;z-index:40;background:var(--bg);padding:10px 0;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px">
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
         ${monthSelect}
         <div class="stat-card good" style="padding:10px 16px;min-width:140px">
