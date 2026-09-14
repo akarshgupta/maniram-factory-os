@@ -206,6 +206,23 @@ function openCreateInvoiceForm(orderId) {
   recalcInvoiceTotals();
 }
 
+// Open the invoice form pre-filled from raw dispatch info (party/product/qty)
+// with no order attached at all — for goods that went out with nothing on
+// the Orders page to link back to (e.g. a Supervisor Log dispatch entry that
+// never matched any order). Same fully-editable form as any other invoice;
+// the item's orderId simply stays null, which every other part of invoicing
+// already treats as a valid, unlinked line item.
+function openDirectInvoiceForm(party, desc, qty, date) {
+  openCreateInvoiceForm(null);
+  const partyEl = document.getElementById('ci-party');
+  if (partyEl) partyEl.value = party || '';
+  const dateEl = document.getElementById('ci-date');
+  if (dateEl && date) dateEl.value = date;
+  _ciItems = [{ desc: desc || '', qty: qty || '', rate: '', orderId: null, challanDc: null }];
+  renderInvoiceItemRows();
+  recalcInvoiceTotals();
+}
+
 function closeCreateInvoice() {
   const overlay = document.getElementById('create-invoice-overlay');
   if (overlay) overlay.style.display = 'none';
