@@ -411,9 +411,15 @@
       </div>
 
       <!-- Search Bar -->
-      <div id="order-search-bar" style="display:flex">
-        <span class="search-icon">🔍</span>
-        <input type="text" id="order-search" placeholder="Search by customer, product, order ID, size..." oninput="onOrderSearch()" autocomplete="off">
+      <div id="order-search-bar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;flex:1;min-width:200px">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="order-search" placeholder="Search by customer, product, order ID, size..." oninput="onOrderSearch()" autocomplete="off">
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn-secondary order-sort-btn active" data-mode="newest" onclick="setOrderSortMode('newest')" style="font-size:11px;padding:5px 10px" title="Newest orders first">🕐 Newest</button>
+          <button class="btn-secondary order-sort-btn" data-mode="reel" onclick="setOrderSortMode('reel')" style="font-size:11px;padding:5px 10px" title="Group orders by reel size — see which ones can run together">🧻 By Reel</button>
+        </div>
       </div>
 
       <!-- Tabs -->

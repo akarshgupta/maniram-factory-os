@@ -6,19 +6,30 @@ let orders          = [];
 let activeOrderTab  = 'all';
 let editingOrderId  = null;
 let orderSearchQuery = '';
+let orderSortMode    = 'newest'; // 'newest' | 'reel'
+
+function setOrderSortMode(mode) {
+  orderSortMode = mode;
+  document.querySelectorAll('.order-sort-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  renderOrders();
+}
 const pendingOrderIds = new Set(); // saved locally, not yet confirmed in sheet
 let _justSavedOrderId = null; // scroll-to + flash this order on the next renderOrders() pass
 
 // ── Search helper (used by active + history views) ──
 function matchesSearch(o, query) {
   if (!query) return true;
-  const q = query.toLowerCase();
-  return (
-    o.customer.toLowerCase().includes(q) ||
-    (o.product || '').toLowerCase().includes(q) ||
-    o.id.toLowerCase().includes(q) ||
-    (o.size || '').toLowerCase().includes(q)
-  );
+  const q = query.toLowerCase().trim();
+  // Plain substring first; if that misses, retry with whitespace/punctuation
+  // stripped from both sides — "JK" should find "J K Food" and "J K" should
+  // find "JK Enterprises", regardless of which one has the space.
+  const qStripped = q.replace(/[\s.,()-]/g, '');
+  const fields = [o.customer, o.product || '', o.id, o.size || ''];
+  return fields.some(f => {
+    const fl = (f || '').toLowerCase();
+    if (fl.includes(q)) return true;
+    return !!qStripped && fl.replace(/[\s.,()-]/g, '').includes(qStripped);
+  });
 }
 
 function onOrderSearch() {
@@ -570,11 +581,14 @@ function renderOrders() {
   // Most-recently-entered order first — rowIndex reflects append order in
   // the sheet (and pending, not-yet-synced orders sit at the sentinel 9999,
   // so a brand new order is always on top immediately, before the next
-  // fetch confirms its real row).
+  // fetch confirms its real row). Sorting by reel groups orders that can
+  // physically run on the same reel together, newest first within a reel.
   const activeOrders = [...orders]
     .filter(o => !FINISHED_STATUSES.includes(o.status))
     .filter(o => matchesSearch(o, orderSearchQuery))
-    .sort((a, b) => (b.rowIndex || 0) - (a.rowIndex || 0));
+    .sort(orderSortMode === 'reel'
+      ? (a, b) => (parseFloat(a.reelSize) || 999) - (parseFloat(b.reelSize) || 999) || (b.rowIndex || 0) - (a.rowIndex || 0)
+      : (a, b) => (b.rowIndex || 0) - (a.rowIndex || 0));
 
   if (!activeOrders.length) {
     const msg = orderSearchQuery ? `No orders found matching "${orderSearchQuery}".` : 'No active orders. All delivered! 🎉';
@@ -582,7 +596,26 @@ function renderOrders() {
     return;
   }
   list.innerHTML = '';
+
+  // Reel-size counts for the "can run together" hint below — only orders
+  // that actually have a reel size on file count toward a group.
+  const reelCounts = {};
+  if (orderSortMode === 'reel') {
+    activeOrders.forEach(o => { if (o.reelSize) reelCounts[o.reelSize] = (reelCounts[o.reelSize] || 0) + 1; });
+  }
+  let prevReelSize = null;
+
   activeOrders.forEach(o => {
+    if (orderSortMode === 'reel' && o.reelSize !== prevReelSize) {
+      prevReelSize = o.reelSize;
+      const count = o.reelSize ? (reelCounts[o.reelSize] || 0) : 0;
+      const header = document.createElement('div');
+      header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 14px;margin-top:10px;background:var(--bg);border-radius:8px;font-size:12px;font-weight:700;color:var(--muted)';
+      header.innerHTML = o.reelSize
+        ? `<span>${o.reelSize}&quot; Reel</span>${count >= 2 ? `<span style="color:var(--success)">💡 ${count} orders can run together on this reel</span>` : `<span>${count} order</span>`}`
+        : `<span>No reel size on file</span>`;
+      list.appendChild(header);
+    }
     const dateDisp    = o.date ? new Date(o.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—';
     const dispatched  = typeof getDispatchedQty === 'function' ? getDispatchedQty(o.id) : 0;
     const invoiced    = typeof getInvoicedQty   === 'function' ? getInvoicedQty(o.id)   : 0;
@@ -623,7 +656,7 @@ function renderOrders() {
           ${invBar}
         </div>
         <div style="display:flex;align-items:center;gap:16px;flex:none">
-          ${o.product ? `<div style="font-size:14px;font-weight:700;color:var(--navy);white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis" title="Product: ${o.product}">${o.product}</div>` : ''}
+          ${o.reelSize ? `<div style="font-size:13px;font-weight:700;color:var(--blue);white-space:nowrap" title="Reel size">${o.reelSize}&quot; reel</div>` : ''}
           ${o.size ? `<div style="font-family:monospace;font-size:15px;font-weight:700;color:var(--navy);white-space:nowrap" title="Box size">${o.size}</div>` : ''}
           ${_ageBadgeHtml(o)}
         </div>
