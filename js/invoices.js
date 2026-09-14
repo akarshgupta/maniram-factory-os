@@ -263,51 +263,141 @@ function _normDims(s) {
   return (s || '').toLowerCase().replace(/[×x*]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-// ── Per-row product search — fires on every keystroke in a row's product input ──
+// ── Per-row product search ──
+// Fires on every keystroke AND on focus (with whatever text is already
+// there, including none) — so clicking into an empty field for a party
+// that's already filled in shows that party's open orders and product
+// catalog immediately, not just once you start typing.
 function onInvoiceItemProductInput(i, val) {
   if (!_ciItems[i]) return;
   _ciItems[i].desc    = val;
   _ciItems[i].orderId = null; // typing unlinks any previous match until re-picked
+  _updateItemDropdown(i, val);
+}
 
-  const party    = (document.getElementById('ci-party')?.value || '').toLowerCase().trim();
-  const product  = (val || '').toLowerCase().trim();
-  const productD = _normDims(val);
-  const dropdown = document.getElementById('ci-item-dd-' + i);
+function onInvoiceItemProductFocus(i) {
+  if (!_ciItems[i]) return;
+  _updateItemDropdown(i, _ciItems[i].desc || '');
+}
+
+function _findClientForParty(party) {
+  if (typeof CLIENTS === 'undefined' || !party) return null;
+  const p = party.toLowerCase().trim();
+  return CLIENTS.find(c => c.name.toLowerCase() === p) ||
+         CLIENTS.find(c => c.name.toLowerCase().includes(p) || p.includes(c.name.toLowerCase())) ||
+         null;
+}
+
+function _updateItemDropdown(i, val) {
+  const party     = (document.getElementById('ci-party')?.value || '').trim();
+  const partyLow  = party.toLowerCase();
+  const product   = (val || '').toLowerCase().trim();
+  const productD  = _normDims(val);
+  const dropdown  = document.getElementById('ci-item-dd-' + i);
   if (!dropdown) return;
 
-  if (!product) { dropdown.style.display = 'none'; return; }
-
-  const matchesText = o => (o.product || '').toLowerCase().includes(product) ||
+  const matchesText = o => !product || (o.product || '').toLowerCase().includes(product) ||
     _normDims(o.size).includes(productD) ||
     o.id.toLowerCase().includes(product);
 
   const notCancelled = (typeof orders !== 'undefined' ? orders : []).filter(o => o.status !== 'Cancelled');
 
-  // Party + text match first; if that comes up empty (e.g. the party field
-  // doesn't exactly match how this order's customer is spelled in the
-  // sheet), fall back to matching on the typed text alone across every
-  // customer — a product/size/order-ID match should never come up blank
-  // just because the party string didn't line up.
-  let matches = notCancelled
-    .filter(o => !party || o.customer.toLowerCase().includes(party))
+  // Party + text match first; if that comes up empty while actively
+  // searching (e.g. the party field doesn't exactly match how this order's
+  // customer is spelled in the sheet), fall back to matching on the typed
+  // text alone across every customer — a product/size/order-ID match
+  // should never come up blank just because the party string didn't line up.
+  let orderMatches = notCancelled
+    .filter(o => !partyLow || o.customer.toLowerCase().includes(partyLow))
     .filter(matchesText);
-  if (!matches.length && party) matches = notCancelled.filter(matchesText);
-  matches = matches.slice(0, 8);
+  if (!orderMatches.length && partyLow && product) orderMatches = notCancelled.filter(matchesText);
+  orderMatches = orderMatches.slice(0, 6);
 
-  if (!matches.length) { dropdown.style.display = 'none'; return; }
+  // The party's full product catalog (Clients page) — every product they've
+  // ever ordered, not just ones with an order open right now, plus a way to
+  // add one on the spot if it isn't there yet.
+  const client = _findClientForParty(party);
+  const productMatches = client
+    ? client.products
+        .map((p, pi) => ({ p, pi }))
+        .filter(({ p }) => !product || p.name.toLowerCase().includes(product) || _normDims(p.size).includes(productD))
+        .slice(0, 8)
+    : [];
 
+  if (!orderMatches.length && !productMatches.length && !client) { dropdown.style.display = 'none'; return; }
+
+  const sectionLabel = txt => `<div style="padding:6px 11px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;background:var(--bg)">${txt}</div>`;
+
+  let html = '';
+  if (orderMatches.length) {
+    html += sectionLabel('Open Orders');
+    html += orderMatches.map(o => {
+      const remaining = orderRemainingToInvoice(o);
+      const fullyDone = remaining === 0;
+      return `
+      <div onclick="selectInvoiceItemOrder(${i}, '${o.id}')"
+        style="padding:9px 11px;cursor:pointer;border-bottom:1px solid var(--border);${fullyDone ? 'opacity:0.5' : ''}"
+        onmouseover="this.style.background='var(--hover-bg,#f5f7fa)'" onmouseout="this.style.background=''">
+        <div style="font-size:12px;font-weight:700">${o.customer} — ${o.product || '—'}</div>
+        <div style="font-size:11px;color:var(--muted)">${o.id} · ${[o.size, o.ply ? o.ply+' Ply':''].filter(Boolean).join(' · ')} · <strong style="color:${remaining>0?'#B45309':'var(--success)'}">${remaining.toLocaleString('en-IN')} to invoice</strong></div>
+      </div>`;
+    }).join('');
+  }
+  if (productMatches.length) {
+    html += sectionLabel(`${client.name}'s Products`);
+    html += productMatches.map(({ p, pi }) => `
+      <div onclick="selectInvoiceItemProduct(${i}, '${escStr(client.name)}', ${pi})"
+        style="padding:9px 11px;cursor:pointer;border-bottom:1px solid var(--border)"
+        onmouseover="this.style.background='var(--hover-bg,#f5f7fa)'" onmouseout="this.style.background=''">
+        <div style="font-size:12px;font-weight:700">${p.name}</div>
+        <div style="font-size:11px;color:var(--muted)">${[p.size, p.ply ? p.ply+' Ply':''].filter(Boolean).join(' · ')}${p.rate ? ' · ₹'+p.rate+'/pc on file' : ' · no rate on file — enter one after picking'}</div>
+      </div>`).join('');
+  }
+  if (client) {
+    html += `
+      <div onclick="_addProductForInvoiceItem(${i}, '${escStr(client.name)}')"
+        style="padding:9px 11px;cursor:pointer;color:var(--blue);font-weight:600;font-size:12px"
+        onmouseover="this.style.background='var(--hover-bg,#f5f7fa)'" onmouseout="this.style.background=''">
+        + Add Product for ${client.name}
+      </div>`;
+  }
+
+  dropdown.innerHTML = html;
   dropdown.style.display = 'block';
-  dropdown.innerHTML = matches.map(o => {
-    const remaining = orderRemainingToInvoice(o);
-    const fullyDone = remaining === 0;
-    return `
-    <div onclick="selectInvoiceItemOrder(${i}, '${o.id}')"
-      style="padding:9px 11px;cursor:pointer;border-bottom:1px solid var(--border);${fullyDone ? 'opacity:0.5' : ''}"
-      onmouseover="this.style.background='var(--hover-bg,#f5f7fa)'" onmouseout="this.style.background=''">
-      <div style="font-size:12px;font-weight:700">${o.customer} — ${o.product || '—'}</div>
-      <div style="font-size:11px;color:var(--muted)">${o.id} · ${[o.size, o.ply ? o.ply+' Ply':''].filter(Boolean).join(' · ')} · <strong style="color:${remaining>0?'#B45309':'var(--success)'}">${remaining.toLocaleString('en-IN')} to invoice</strong></div>
-    </div>`;
-  }).join('');
+}
+
+// Fill item i from a client's existing product-master entry — no order
+// behind it, so qty/orderId are left alone (rate fills in if the product
+// has one on file).
+function selectInvoiceItemProduct(i, clientName, pi) {
+  const client = _findClientForParty(clientName);
+  const p = client && client.products[pi];
+  if (!p || !_ciItems[i]) return;
+  _ciItems[i].desc      = [p.name, p.size, p.ply ? p.ply + ' Ply' : '', p.colour].filter(Boolean).join(' · ');
+  _ciItems[i].rate      = p.rate || _ciItems[i].rate || '';
+  _ciItems[i].orderId   = null;
+  _ciItems[i].challanDc = null;
+  const dd = document.getElementById('ci-item-dd-' + i);
+  if (dd) dd.style.display = 'none';
+  renderInvoiceItemRows();
+  recalcInvoiceTotals();
+}
+
+// Add a brand-new product to this party's master from right inside the
+// invoice form, then drop straight back in with it filled into this item.
+function _addProductForInvoiceItem(i, clientName) {
+  const ci = typeof CLIENTS !== 'undefined' ? CLIENTS.findIndex(c => c.name === clientName) : -1;
+  if (ci < 0 || typeof openProductModal !== 'function') return;
+  _hideAllItemDropdowns();
+  openProductModal(ci, -1, product => {
+    if (!_ciItems[i]) return;
+    _ciItems[i].desc      = [product.name, product.size, product.ply ? product.ply + ' Ply' : '', product.colour].filter(Boolean).join(' · ');
+    _ciItems[i].rate      = product.rate || '';
+    _ciItems[i].orderId   = null;
+    _ciItems[i].challanDc = null;
+    renderInvoiceItemRows();
+    recalcInvoiceTotals();
+  });
 }
 
 function selectInvoiceItemOrder(i, orderId) {
@@ -343,9 +433,9 @@ function renderInvoiceItemRows() {
       return `
     <div style="display:grid;grid-template-columns:2fr 80px 90px 88px 24px;gap:6px;margin-bottom:8px;align-items:start">
       <div style="position:relative">
-        <input class="form-input" type="text" placeholder="Type product to find order…" value="${(item.desc || '').replace(/"/g,'&quot;')}"
+        <input class="form-input" type="text" placeholder="Type or click to see this party's products…" value="${(item.desc || '').replace(/"/g,'&quot;')}"
           autocomplete="off" style="font-size:12px;padding:6px 8px;${item.orderId ? 'border-color:#86EFAC;background:#F0FDF4' : ''}"
-          oninput="onInvoiceItemProductInput(${i}, this.value)">
+          oninput="onInvoiceItemProductInput(${i}, this.value)" onfocus="onInvoiceItemProductFocus(${i})">
         <div id="ci-item-dd-${i}" class="ci-item-dd" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;max-height:200px;overflow-y:auto;z-index:${200 - i};box-shadow:0 6px 20px rgba(0,0,0,0.15)"></div>
         ${linked}
       </div>
