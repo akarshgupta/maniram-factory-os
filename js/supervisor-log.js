@@ -523,7 +523,17 @@ function _svDispatchRow(e) {
   }
   let dcHtml = '<span style="color:var(--muted,#888)">—</span>';
   const dc = typeof challanList !== 'undefined' ? challanList.find(c => c.svTs === e.ts) : null;
-  if (dc) {
+  // An entry invoiced directly (no challan at all — the "🧾 Invoice" button
+  // below) is stamped with this entry's own ts on the invoice item. Check
+  // this before anything else: once invoiced, that's the end state
+  // regardless of challan/order-match status, and must never offer to
+  // invoice (or link) the same dispatch again.
+  const directInv = typeof invoiceList !== 'undefined'
+    ? invoiceList.find(iv => (iv.items || []).some(it => it.svTs === e.ts))
+    : null;
+  if (directInv) {
+    dcHtml = `<span style="color:var(--success,#27AE60);font-weight:700">✓ invoiced</span> <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="editInvoice('${directInv.id}')" title="Open ${directInv.id}">📄 ${directInv.id}</button>`;
+  } else if (dc) {
     dcHtml = `<span style="color:var(--success,#27AE60);font-weight:700" title="Auto-generated ${dc.dcNum} against ${dc.orderId}">✓ ${dc.dcNum} → ${dc.orderId}</span>`;
     // Jump straight from this row to the invoice — view/edit it if one
     // already exists for this challan, otherwise open the same "enter
@@ -531,8 +541,10 @@ function _svDispatchRow(e) {
     const inv = typeof invoiceList !== 'undefined'
       ? invoiceList.find(iv => (iv.items || []).some(it => it.challanDc === dc.dcNum))
       : null;
+    // Opens as a fixed overlay on top of this page — no navigation, so
+    // closing it leaves you right back on Supervisor Log.
     dcHtml += inv
-      ? ` <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="showPage('invoicing');editInvoice('${inv.id}')" title="Open ${inv.id}">📄 ${inv.id}</button>`
+      ? ` <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="editInvoice('${inv.id}')" title="Open ${inv.id}">📄 ${inv.id}</button>`
       : ` <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="resolveChallanInvoice('${dc.dcNum.replace(/'/g, "\\'")}','${(dc.orderId||'').replace(/'/g, "\\'")}')" title="No invoice yet for this challan">🧾 Invoice</button>`;
   } else if (e.orderId) {
     const matchedOrder = typeof orders !== 'undefined' ? orders.find(x => (x.id || '').toLowerCase() === e.orderId.toLowerCase()) : null;
@@ -549,14 +561,15 @@ function _svDispatchRow(e) {
   }
   // No challan yet for this entry — offer a manual picker regardless of why
   // (unmatched, ambiguous, or a mistyped Order ID) so nothing has to stay stuck.
-  if (!dc) {
+  // Skipped entirely once already invoiced directly (directInv above).
+  if (!dc && !directInv) {
     dcHtml += ` <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="openSvLinkModal('${e.ts.replace(/'/g, "\\'")}')" title="Pick the order this dispatch belongs to">🔗 Link</button>`;
     // Some dispatches genuinely have no order behind them (a one-off sale,
     // an order entered wrong, etc.) — invoicing shouldn't be blocked on
     // finding/forcing a link that doesn't exist. Goes straight to the same
     // invoice form, just with no order attached.
     if (typeof openDirectInvoiceForm === 'function') {
-      dcHtml += ` <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="showPage('invoicing');openDirectInvoiceForm('${(e.party||'').replace(/'/g, "\\'")}', '${(e.product||e.size||'').replace(/'/g, "\\'")}', ${e.pcs||0}, '${_svNormDate(e.date)}')" title="No matching order — invoice this dispatch directly">🧾 Invoice</button>`;
+      dcHtml += ` <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="openDirectInvoiceForm('${(e.party||'').replace(/'/g, "\\'")}', '${(e.product||e.size||'').replace(/'/g, "\\'")}', ${e.pcs||0}, '${_svNormDate(e.date)}', '${e.ts.replace(/'/g, "\\'")}')" title="No matching order — invoice this dispatch directly">🧾 Invoice</button>`;
     }
   }
   return `<tr style="border-top:1px solid var(--border,#e5e7eb)">
