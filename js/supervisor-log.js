@@ -687,10 +687,13 @@ function _svNormDate(s) {
   return m ? `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}` : (s || '');
 }
 
-// Display-format the form's M/D/YYYY date as DD/MM/YY.
+// Display-format either the form's raw M/D/YYYY date, or an already-
+// normalized YYYY-MM-DD key (e.g. a day block's grouping key), as DD/MM/YY.
 function _svFmtDate(s) {
-  const m = String(s || '').match(/(\d+)\/(\d+)\/(\d+)/);
-  return m ? `${m[2].padStart(2,'0')}/${m[1].padStart(2,'0')}/${m[3].slice(-2)}` : (s || '—');
+  const iso = String(s || '').match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (iso) return `${iso[3].padStart(2,'0')}/${iso[2].padStart(2,'0')}/${iso[1].slice(-2)}`;
+  const mdy = String(s || '').match(/(\d+)\/(\d+)\/(\d+)/);
+  return mdy ? `${mdy[2].padStart(2,'0')}/${mdy[1].padStart(2,'0')}/${mdy[3].slice(-2)}` : (s || '—');
 }
 
 // ── Month selector — shared by both tabs ──
