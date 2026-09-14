@@ -444,10 +444,10 @@ function renderInvoiceItemRows() {
         ${linked}
       </div>
       <input class="form-input" type="number" placeholder="0" value="${item.qty !== '' ? item.qty : ''}"
-        style="font-size:12px;padding:6px 8px" oninput="_ciItems[${i}].qty=+this.value||0;recalcInvoiceTotals()">
+        style="font-size:12px;padding:6px 8px" oninput="_ciItems[${i}].qty=+this.value||0;updateInvoiceItemAmount(${i});recalcInvoiceTotals()">
       <input class="form-input" type="number" placeholder="0.00" step="0.01" value="${item.rate !== '' ? item.rate : ''}"
-        style="font-size:12px;padding:6px 8px" oninput="_ciItems[${i}].rate=+this.value||0;recalcInvoiceTotals()">
-      <div style="font-size:12px;font-weight:700;padding:6px 0;text-align:right">₹${(+(item.qty||0) * +(item.rate||0)).toFixed(2)}</div>
+        style="font-size:12px;padding:6px 8px" oninput="_ciItems[${i}].rate=+this.value||0;updateInvoiceItemAmount(${i});recalcInvoiceTotals()">
+      <div id="ci-amount-${i}" style="font-size:12px;font-weight:700;padding:6px 0;text-align:right">₹${(+(item.qty||0) * +(item.rate||0)).toFixed(2)}</div>
       ${_ciItems.length > 1
         ? `<button onclick="removeInvoiceItem(${i})" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--danger);line-height:1;padding:4px 0">×</button>`
         : '<div></div>'}
@@ -465,6 +465,17 @@ function removeInvoiceItem(i) {
   _ciItems.splice(i, 1);
   renderInvoiceItemRows();
   recalcInvoiceTotals();
+}
+
+// Per-row Amount — updated on every qty/rate keystroke so it never lags
+// behind what's actually typed (it used to only reflect whatever qty/rate
+// the row last fully re-rendered with, e.g. right after an order auto-fill,
+// so typing a rate afterwards left Amount stuck at ₹0.00).
+function updateInvoiceItemAmount(i) {
+  const item = _ciItems[i];
+  const el = document.getElementById('ci-amount-' + i);
+  if (!item || !el) return;
+  el.textContent = '₹' + (+(item.qty || 0) * +(item.rate || 0)).toFixed(2);
 }
 
 function recalcInvoiceTotals() {
