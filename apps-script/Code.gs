@@ -58,6 +58,7 @@ function doPost(e) {
     else if (action === 'updateOrderStatus') updateOrderStatus(data);
     else if (action === 'deleteOrder')       deleteOrder(data);
     else if (action === 'saveClient')        saveClient(data);
+    else if (action === 'deleteClient')      deleteClient(data);
     else if (action === 'saveProduct')       saveProduct(data);
     else if (action === 'deleteProduct')     deleteProduct(data);
     else if (action === 'saveDispatch')      saveDispatch(data);
@@ -305,6 +306,32 @@ function deleteProduct(data) {
     if ((rows[i][0]||'').trim() === data.clientName.trim() && (rows[i][1]||'').trim() === data.productName.trim()) {
       sheet.deleteRow(i + 1);
       return;
+    }
+  }
+}
+
+// Deletes the client row from Customers, and cascades to every product of
+// theirs in Products — an orphaned product with no client wouldn't be
+// reachable from the UI at all otherwise.
+function deleteClient(data) {
+  var name = (data.clientName || '').trim();
+  if (!name) return;
+
+  var custSs    = SpreadsheetApp.openById(CUSTOMERS_SHEET_ID);
+  var custSheet = custSs.getSheetByName('Sheet1') || custSs.getSheets()[0];
+  if (custSheet) {
+    var custRows = custSheet.getDataRange().getValues();
+    for (var i = custRows.length - 1; i >= 1; i--) {
+      if ((custRows[i][0] || '').toString().trim() === name) { custSheet.deleteRow(i + 1); break; }
+    }
+  }
+
+  var prodSs    = SpreadsheetApp.openById(PRODUCTS_SHEET_ID);
+  var prodSheet = prodSs.getSheetByName('Sheet1') || prodSs.getSheets()[0];
+  if (prodSheet) {
+    var prodRows = prodSheet.getDataRange().getValues();
+    for (var j = prodRows.length - 1; j >= 1; j--) {
+      if ((prodRows[j][0] || '').toString().trim() === name) prodSheet.deleteRow(j + 1);
     }
   }
 }

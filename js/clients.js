@@ -834,6 +834,7 @@ function renderClients() {
         <div class="client-edit-btn" style="display:flex;gap:6px">
           <button class="btn-sm" onclick="editClient(${ci})">✏️ Edit</button>
           <button class="btn-sm" style="color:var(--success)" onclick="addProduct(${ci})">+ Product</button>
+          <button class="btn-sm" style="color:var(--danger)" onclick="deleteClient(${ci})" title="Delete client">🗑</button>
         </div>
       </div>
       <div class="client-products">${productsHtml || '<span style="font-size:12px;color:var(--muted)">No products defined yet</span>'}</div>
@@ -1021,6 +1022,17 @@ function editClient(ci)    { openClientModal(ci); }
 function addNewClient()    { openClientModal(-1); }
 function addProduct(ci)    { openProductModal(ci, -1); }
 function editProduct(ci, pi) { openProductModal(ci, pi); }
+
+function deleteClient(ci) {
+  const c = CLIENTS[ci];
+  if (!c) return;
+  const productNote = c.products.length ? ` and its ${c.products.length} product${c.products.length !== 1 ? 's' : ''}` : '';
+  if (!confirm(`Delete "${c.name}"${productNote}? This cannot be undone.`)) return;
+  postClient({ action: 'deleteClient', clientName: c.name });
+  CLIENTS.splice(ci, 1);
+  renderClients();
+  setTimeout(fetchClients, 2000);
+}
 
 function deleteProduct(ci, pi) {
   if (!confirm(`Delete "${CLIENTS[ci].products[pi].name}"?`)) return;
