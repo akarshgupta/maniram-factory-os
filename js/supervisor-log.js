@@ -537,7 +537,15 @@ function _svDispatchRow(e) {
   const directInv = typeof invoiceList !== 'undefined'
     ? invoiceList.find(iv => (iv.items || []).some(it => it.svTs === e.ts)) ||
       invoiceList.find(iv => _svFuzzyEq(iv.party, e.party) && (iv.items || []).some(it =>
-        !it.orderId && !it.challanDc && +it.qty === +e.pcs && _svFuzzyEq(it.desc, e.product || e.party)))
+        !it.orderId && !it.challanDc && +it.qty === +e.pcs && _svFuzzyEq(it.desc, e.product || e.party))) ||
+      // Some supervisor entries have the product name typed into the party
+      // field (e.g. "Jalpari" as both party and product), while the real
+      // invoice was correctly billed to the actual customer — party never
+      // lines up there. Fall back to matching on product text + exact qty
+      // alone, still restricted to an unlinked item, when there's a real
+      // product to match on.
+      (e.product ? invoiceList.find(iv => (iv.items || []).some(it =>
+        !it.orderId && !it.challanDc && +it.qty === +e.pcs && _svFuzzyEq(it.desc, e.product))) : null)
     : null;
   if (directInv) {
     dcHtml = `<span style="color:var(--success,#27AE60);font-weight:700">✓ invoiced</span> <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="editInvoice('${directInv.id}')" title="Open ${directInv.id}">📄 ${directInv.id}</button>`;

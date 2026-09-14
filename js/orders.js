@@ -622,12 +622,23 @@ function renderOrders() {
     const remaining   = Math.max(0, (o.qty || 0) - dispatched);
     const dispPct     = o.qty > 0 ? Math.min(100, Math.round((dispatched / o.qty) * 100)) : 0;
     const invPct      = o.qty > 0 ? Math.min(100, Math.round((invoiced   / o.qty) * 100)) : 0;
+    // 90%+ dispatched but not fully closed out — likely to never reach exactly
+    // 100% (a bit of wastage/shortfall is normal), so nudge toward a manual
+    // decision instead of leaving it sitting open indefinitely or silently
+    // auto-completing behind the office's back.
+    const nearlyDone  = o.qty > 0 && remaining > 0 && dispPct >= 90;
+    const dispBarColor = nearlyDone ? '#F59E0B' : (remaining === 0 ? 'var(--success)' : 'var(--blue)');
     const dispBar     = o.qty > 0 && dispatched > 0 ? `
       <div style="margin-top:5px">
         <div style="background:#EEF1F5;border-radius:2px;height:3px;width:100%">
-          <div style="background:${remaining === 0 ? 'var(--success)' : 'var(--blue)'};height:3px;border-radius:2px;width:${dispPct}%;transition:width 0.3s"></div>
+          <div style="background:${dispBarColor};height:3px;border-radius:2px;width:${dispPct}%;transition:width 0.3s"></div>
         </div>
         <div style="font-size:10px;color:var(--muted);margin-top:2px">🚚 ${dispatched.toLocaleString('en-IN')} dispatched${remaining > 0 ? ` · ${remaining.toLocaleString('en-IN')} pending` : ' · <span style="color:var(--success)">done</span>'}</div>
+      </div>` : '';
+    const nearlyDoneBanner = nearlyDone ? `
+      <div style="margin-top:4px;background:#FEF3C7;border:1px solid #FBBF24;border-radius:6px;padding:4px 8px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <span style="font-size:10px;color:#92400E;font-weight:700">⚠ ${dispPct}% dispatched, ${remaining.toLocaleString('en-IN')} pcs pending — mark complete?</span>
+        <button class="btn-sm" style="font-size:9px;padding:2px 8px;background:#F59E0B;color:#fff;border:none;border-radius:4px;font-weight:700" onclick="event.stopPropagation();markOrderComplete('${o.id}')" title="Mark Complete (accepts the shortfall)">✅ Complete</button>
       </div>` : '';
     const invBar      = o.qty > 0 && invoiced > 0 ? `
       <div style="margin-top:3px">
@@ -641,7 +652,7 @@ function renderOrders() {
     row.id         = 'order-row-' + o.id;
     row.className  = 'table-row';
     row.style.cursor = 'pointer';
-    row.style.borderLeft = `3px solid ${STATUS_ACCENT[o.status] || STATUS_ACCENT['New']}`;
+    row.style.borderLeft = `3px solid ${nearlyDone ? '#F59E0B' : (STATUS_ACCENT[o.status] || STATUS_ACCENT['New'])}`;
     row.style.gridTemplateColumns = '90px 1fr 90px 90px 90px 100px 90px 220px';
     row.title = 'Click to edit';
     row.onclick = () => openEditModal(o.id);
@@ -653,6 +664,7 @@ function renderOrders() {
           <div style="font-size:11px;color:var(--muted)">${o.product || '—'}${o.orderDate ? ' · <span style="color:var(--muted);font-size:10px">Ordered: ' + _fmtOrderDate(o.orderDate) + '</span>' : ''}</div>
           ${stockBadgeHtml(o)}
           ${dispBar}
+          ${nearlyDoneBanner}
           ${invBar}
         </div>
         <div style="display:flex;align-items:center;gap:16px;flex:none">
