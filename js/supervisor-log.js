@@ -504,6 +504,11 @@ function renderSupervisorLog(loading, error) {
     body = _svProductionHtml();
   }
 
+  // Any day block the user had expanded (e.g. before invoicing a row from
+  // it) would otherwise re-collapse on every re-render, since a fresh
+  // <details> always starts closed — restore whichever days were open.
+  const openDates = new Set([...root.querySelectorAll('details[open]')].map(d => d.dataset.date));
+
   root.innerHTML = `
     <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
       ${tabBtn('dispatch', `🚚 Dispatch Weights (${_svDisp.length})`)}
@@ -511,6 +516,10 @@ function renderSupervisorLog(loading, error) {
     </div>
     ${monthNav}
     ${body}`;
+
+  if (openDates.size) {
+    root.querySelectorAll('details[data-date]').forEach(d => { if (openDates.has(d.dataset.date)) d.open = true; });
+  }
 }
 
 function _svDispatchRow(e) {
@@ -633,7 +642,7 @@ function _svDispatchHtml() {
   const totAmt = days.reduce((s, d) => s + d.amt, 0);
 
   const dayBlocks = days.map(d => `
-    <details style="margin-bottom:8px;border:1px solid var(--border,#e5e7eb);border-radius:10px;overflow:hidden">
+    <details data-date="${d.date}" style="margin-bottom:8px;border:1px solid var(--border,#e5e7eb);border-radius:10px;overflow:hidden">
       <summary style="cursor:pointer;padding:12px 14px;background:var(--bg,#f8fafc);display:flex;align-items:center;gap:14px;flex-wrap:wrap">
         <span style="font-weight:700;font-size:14px;min-width:80px">${_svFmtDate(d.date)}</span>
         <span style="font-size:11px;color:var(--muted,#888)">${d.entries.length} entr${d.entries.length === 1 ? 'y' : 'ies'}</span>
@@ -804,7 +813,7 @@ function _svDailySummaryHtml() {
     }).join('');
 
     return `
-    <details style="margin-bottom:8px;border:1px solid var(--border,#e5e7eb);border-radius:10px;overflow:hidden">
+    <details data-date="${date}" style="margin-bottom:8px;border:1px solid var(--border,#e5e7eb);border-radius:10px;overflow:hidden">
       <summary style="cursor:pointer;padding:12px 14px;background:var(--bg,#f8fafc);display:flex;align-items:center;gap:14px;flex-wrap:wrap">
         <span style="font-weight:700;font-size:14px;min-width:80px">${_svFmtDate(date)}</span>
         <span style="font-size:11px;color:var(--muted,#888)">${d.prodEntries.length} prod. entr${d.prodEntries.length === 1 ? 'y' : 'ies'}</span>
