@@ -503,7 +503,7 @@ function renderProductionPlan() {
     ? `<span style="font-size:11px;color:var(--warn);margin-left:8px">Floor full for ${nextSlot.pushedBy} day(s) — pushed forward</span>`
     : nextSlot ? `<span style="font-size:11px;color:var(--success);margin-left:8px">Floor available</span>` : '';
 
-  const banner = `<div style="background:var(--card-bg);border:1px solid var(--border);border-left:4px solid var(--blue);border-radius:10px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+  const banner = `<div style="background:var(--white);border:1px solid var(--border);border-left:4px solid var(--blue);border-radius:10px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
     <div>
       <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:4px">Next Available Dispatch Date</div>
       <div style="font-size:22px;font-weight:800;font-family:monospace;color:var(--blue)">${nextSlotLabel}</div>

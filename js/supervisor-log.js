@@ -454,6 +454,7 @@ function renderSvLinkResults(q) {
       onmouseover="this.style.background='var(--hover-bg,#f5f7fa)'" onmouseout="this.style.background=''">
       <div style="font-weight:700;font-size:13px">${o.id} — ${o.customer}</div>
       <div style="font-size:11px;color:var(--muted)">${o.product || '—'} · ${o.size || '—'} · ${o.status || '—'}</div>
+      <div style="font-size:11px;color:var(--muted)">${o.rate ? '₹' + o.rate + '/pc' : 'no rate on file'} · ${o.date ? formatDate(o.date) : 'no date'}</div>
     </div>`).join('');
 }
 

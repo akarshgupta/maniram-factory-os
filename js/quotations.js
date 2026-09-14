@@ -164,7 +164,7 @@ function runRateCalculator() {
     </div>`).join('');
 
   const rateHTML = paperRate ? `
-    <div style="margin-top:14px;padding:12px 14px;background:var(--card-bg);border-radius:10px;border:1px solid var(--border)">
+    <div style="margin-top:14px;padding:12px 14px;background:var(--white);border-radius:10px;border:1px solid var(--border)">
       <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">Rate @ ₹${paperRate}/kg</div>
       <div style="display:flex;gap:24px;flex-wrap:wrap">
         <div><div style="font-size:11px;color:var(--muted)">Per Box (ex-GST)</div><div style="font-size:20px;font-weight:800;color:var(--navy)">₹${amtPerBox.toFixed(2)}</div></div>
