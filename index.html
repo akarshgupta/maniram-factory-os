@@ -1053,7 +1053,13 @@
     <!-- Totals -->
     <div style="display:flex;justify-content:flex-end;margin-top:16px">
       <div style="min-width:260px;font-size:13px;border:1px solid var(--border);border-radius:8px;padding:12px 14px">
-        <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:16px;font-weight:800;color:var(--navy)">
+        <div style="display:flex;justify-content:space-between;padding:4px 0;color:var(--muted)">
+          <span>Subtotal</span><span id="ci-subtotal">₹0.00</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:4px 0;color:var(--muted)">
+          <span>Round Off</span><span id="ci-roundoff">₹0.00</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:16px;font-weight:800;color:var(--navy);border-top:1px solid var(--border);margin-top:4px">
           <span>Total</span><span id="ci-total">₹0.00</span>
         </div>
       </div>
@@ -1119,6 +1125,10 @@
           <div class="invoice-totals-row" id="inv-gst-row" style="display:none">
             <span style="color:#666" id="inv-gst-label">GST @ 5%</span>
             <span id="inv-gst" style="font-family:monospace"></span>
+          </div>
+          <div class="invoice-totals-row" id="inv-roundoff-row" style="display:none">
+            <span style="color:#666">Round Off</span>
+            <span id="inv-roundoff" style="font-family:monospace"></span>
           </div>
           <div class="invoice-total-final">
             <span>Total Amount</span>
