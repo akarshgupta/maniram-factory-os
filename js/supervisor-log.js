@@ -528,8 +528,15 @@ function _svDispatchRow(e) {
   // this before anything else: once invoiced, that's the end state
   // regardless of challan/order-match status, and must never offer to
   // invoice (or link) the same dispatch again.
+  // Fallback for invoices made before this stamping existed (no svTs on
+  // the item yet): match on party + item text + exact qty instead, same
+  // fuzzy comparison used for order matching — an unlinked item (no
+  // orderId, no challanDc) with the same party/product/qty as this
+  // dispatch is, in practice, this dispatch already billed by hand.
   const directInv = typeof invoiceList !== 'undefined'
-    ? invoiceList.find(iv => (iv.items || []).some(it => it.svTs === e.ts))
+    ? invoiceList.find(iv => (iv.items || []).some(it => it.svTs === e.ts)) ||
+      invoiceList.find(iv => _svFuzzyEq(iv.party, e.party) && (iv.items || []).some(it =>
+        !it.orderId && !it.challanDc && +it.qty === +e.pcs && _svFuzzyEq(it.desc, e.product || e.party)))
     : null;
   if (directInv) {
     dcHtml = `<span style="color:var(--success,#27AE60);font-weight:700">✓ invoiced</span> <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="editInvoice('${directInv.id}')" title="Open ${directInv.id}">📄 ${directInv.id}</button>`;
