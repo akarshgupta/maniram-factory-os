@@ -874,9 +874,9 @@ function renderGroupedOrders() {
         </div>
       </div>
       <div class="orders-table" style="border-radius:0 0 12px 12px;border-top:none;">
-        <div class="table-header">
+        <div class="table-header" style="grid-template-columns:90px 1fr 90px 90px 90px 100px 90px 90px 80px">
           <div>Order ID</div><div>Product</div><div>Size</div>
-          <div>Colour</div><div>Wt</div><div>Delivery</div><div>Status</div><div>Qty</div>
+          <div>Colour</div><div>Wt</div><div>Ordered</div><div>Delivery</div><div>Status</div><div>Qty</div>
         </div>
         <div class="grouped-rows-${safeKey}"></div>
       </div>`;
@@ -885,9 +885,15 @@ function renderGroupedOrders() {
     const rowsContainer = group.querySelector(`.grouped-rows-${safeKey}`);
     [...cOrders].sort((a, b) => (a.date || '').localeCompare(b.date || '')).forEach(o => {
       const dateDisp = o.date ? new Date(o.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—';
+      const age      = _orderAgeDays(o);
+      const ageColor = age === null ? 'var(--muted)' : age >= 14 ? 'var(--danger)' : age >= 7 ? '#B45309' : 'var(--success)';
+      const orderedCell = o.orderDate
+        ? `<div style="font-size:10px;color:var(--muted)">${_fmtOrderDate(o.orderDate)}</div>
+           <div style="font-size:18px;font-weight:800;color:${ageColor};line-height:1.1" title="Days since order was placed">${age}d</div>`
+        : `<div style="font-size:11px;color:var(--muted)">—</div>`;
       const row      = document.createElement('div');
       row.className  = 'table-row';
-      row.style.cssText = 'background:#FFFBF0;cursor:pointer';
+      row.style.cssText = 'background:#FFFBF0;cursor:pointer;grid-template-columns:90px 1fr 90px 90px 90px 100px 90px 90px 80px';
       row.title = 'Click to edit';
       row.onclick = () => openEditModal(o.id);
       row.innerHTML = `
@@ -899,6 +905,7 @@ function renderGroupedOrders() {
         <div style="font-size:11px;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${o.size || ''}">${o.size || '—'}</div>
         <div style="font-size:12px">${colourDot(o.colour)}${o.colour || '—'}</div>
         <div style="font-size:11px">${o.weight ? o.weight + 'gm' : '—'}</div>
+        <div>${orderedCell}</div>
         <div style="font-size:12px">${dateDisp}</div>
         <div><span class="status-badge ${STATUS_CLASS[o.status] || 'status-new'}">${o.status}</span></div>
         <div style="font-size:13px;font-weight:600">${o.qty ? o.qty.toLocaleString('en-IN') : '—'}</div>
