@@ -164,11 +164,13 @@ function openInvoice(orderId) {
 }
 
 // Open the invoice form pre-filled for one specific unrated challan (from the
-// dashboard banner or the Invoicing page's warning card) — same fully-editable
-// form as any other invoice, just tagged so this challan is recognised as
-// billed once saved, instead of still showing up as unrated afterwards.
+// dashboard banner, the Invoicing page's warning card, or a Supervisor Log
+// row) — same fully-editable form as any other invoice, just tagged so this
+// challan is recognised as billed once saved. The form is a fixed overlay
+// that renders on top of whatever page is open, so this deliberately does
+// NOT navigate — opening it from Supervisor Log (or the Dashboard) should
+// leave you right back where you were once it closes, not jump you away.
 function resolveChallanInvoice(dcNum, orderId) {
-  showPage('invoicing');
   openCreateInvoiceForm(orderId);
   if (_ciItems[0]) _ciItems[0].challanDc = dcNum;
 }
@@ -212,13 +214,17 @@ function openCreateInvoiceForm(orderId) {
 // never matched any order). Same fully-editable form as any other invoice;
 // the item's orderId simply stays null, which every other part of invoicing
 // already treats as a valid, unlinked line item.
-function openDirectInvoiceForm(party, desc, qty, date) {
+// svTs (optional): the originating Supervisor Log entry's own timestamp —
+// stamped onto the item so that entry can recognise it's already been
+// invoiced directly (no challan involved) and stop offering to invoice it
+// again, the same way a challan's svTs already prevents a double-challan.
+function openDirectInvoiceForm(party, desc, qty, date, svTs) {
   openCreateInvoiceForm(null);
   const partyEl = document.getElementById('ci-party');
   if (partyEl) partyEl.value = party || '';
   const dateEl = document.getElementById('ci-date');
   if (dateEl && date) dateEl.value = date;
-  _ciItems = [{ desc: desc || '', qty: qty || '', rate: '', orderId: null, challanDc: null }];
+  _ciItems = [{ desc: desc || '', qty: qty || '', rate: '', orderId: null, challanDc: null, svTs: svTs || null }];
   renderInvoiceItemRows();
   recalcInvoiceTotals();
 }
@@ -393,7 +399,7 @@ function _buildInvoiceRecord() {
     party,
     date:      dateVal,
     orderId:   firstLinked ? firstLinked.orderId : null,
-    items:     items.map(i => ({ desc: i.desc, qty: +i.qty, rate: +(i.rate || 0), amount: +i.qty * +(i.rate || 0), orderId: i.orderId || null, challanDc: i.challanDc || null })),
+    items:     items.map(i => ({ desc: i.desc, qty: +i.qty, rate: +(i.rate || 0), amount: +i.qty * +(i.rate || 0), orderId: i.orderId || null, challanDc: i.challanDc || null, svTs: i.svTs || null })),
     subtotal:  total,
     gstPct:    0,
     gstAmt:    0,
@@ -517,7 +523,7 @@ function editInvoice(invId) {
   if (!overlay) return;
 
   _ciEditingId = invId;
-  _ciItems = (inv.items || []).map(i => ({ desc: i.desc, qty: i.qty, rate: i.rate, orderId: i.orderId || null, challanDc: i.challanDc || null }));
+  _ciItems = (inv.items || []).map(i => ({ desc: i.desc, qty: i.qty, rate: i.rate, orderId: i.orderId || null, challanDc: i.challanDc || null, svTs: i.svTs || null }));
   if (!_ciItems.length) _ciItems = [{ desc: '', qty: '', rate: '', orderId: null, challanDc: null }];
 
   const titleEl = document.querySelector('#create-invoice-overlay .popup-title');

@@ -41,6 +41,11 @@ const pageTitles = {
 
 const LS_LAST_PAGE = 'mi_last_page_v1';
 
+// True only while replaying a browser back/forward navigation (popstate) —
+// showPage() skips pushing a new history entry in that case, since the
+// browser's own history pointer already moved.
+let _popstateReplay = false;
+
 function showPage(id) {
   const target = document.getElementById('page-' + id);
   if (!target) return; // unknown page id — leave whatever's currently showing alone
@@ -52,6 +57,13 @@ function showPage(id) {
   });
   document.getElementById('page-title').textContent = pageTitles[id] || id;
   localStorage.setItem(LS_LAST_PAGE, id);
+
+  // Give each page switch a real browser-history entry, so the back button
+  // steps back through in-app pages instead of leaving the app immediately
+  // (there was nothing in history to go back to otherwise).
+  if (!_popstateReplay && (!history.state || history.state.page !== id)) {
+    history.pushState({ page: id }, '', '#' + id);
+  }
 
   if (id === 'calendar')    renderCalendar();
   if (id === 'orders')      { fetchClients().then(() => {}); renderOrders(); refreshOrderId(); }
@@ -76,6 +88,18 @@ function showPage(id) {
   if (id === 'processcosting') initProcessCosting();
   if (id === 'deckle')      initDeckle();
 }
+
+// ── Back/forward button navigates between in-app pages ──
+// Whatever page is on screen when the app first loads (Dashboard, before
+// the last-page restore below runs) becomes the base history entry, so
+// there's always somewhere for "back" to land instead of exiting the app.
+history.replaceState({ page: 'dashboard' }, '', '#dashboard');
+window.addEventListener('popstate', e => {
+  const id = (e.state && e.state.page) || 'dashboard';
+  _popstateReplay = true;
+  showPage(id);
+  _popstateReplay = false;
+});
 
 // ── Topbar Date ──
 document.getElementById('topbar-date').textContent = today.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
