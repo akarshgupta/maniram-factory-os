@@ -110,7 +110,15 @@ function _svFuzzyEq(a, b) {
 // two candidate orders means "don't guess", not "pick one".
 function _svMatchOrderByProduct(e) {
   if (typeof orders === 'undefined' || typeof FINISHED_STATUSES === 'undefined') return { order: null, reason: 'none' };
-  const pending = orders.filter(o => !FINISHED_STATUSES.includes(o.status));
+  const eDate = _svNormDate(e.date); // YYYY-MM-DD
+  // A dispatch can't belong to an order that didn't exist yet — boxes sent
+  // out directly (no order on file at the time) must never get soaked up
+  // by a later order that happens to share a similar product/party name.
+  // Only applies to this automatic fuzzy match; an explicit Order ID or a
+  // manual 🔗 Link pick is a deliberate override and isn't date-restricted.
+  const pending = orders
+    .filter(o => !FINISHED_STATUSES.includes(o.status))
+    .filter(o => !o.orderDate || !eDate || eDate >= o.orderDate);
   if (!pending.length) return { order: null, reason: 'none' };
 
   if (e.product) {
