@@ -343,11 +343,13 @@ async function saveOrderToSheet() {
   const reelSize  = document.getElementById('f-reel-size').value.trim();
   const twoPart   = !!document.getElementById('f-two-part').checked;
 
-  if (!customer || !date) { alert('Customer and Delivery Date are required.'); return; }
+  if (!customer) { alert('Customer is required.'); return; }
 
   const reservedKg = calcOrderKg(weight, qty);
-  const d          = new Date(date);
-  const formatted  = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+  // Delivery date is optional — an order can be punched before it's known
+  // and filled in later from the edit form.
+  const d          = date ? new Date(date) : null;
+  const formatted  = d ? `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}` : '';
   const od         = new Date(orderDate);
   const fmtOd      = `${String(od.getDate()).padStart(2,'0')}/${String(od.getMonth()+1).padStart(2,'0')}/${od.getFullYear()}`;
   const payload    = { id, customer, product, size, ply, colour, weight, qty, rate, twoPart, date: formatted, orderDate: fmtOd, status, priority, reelSize, reservedKg, remarks: '' };
@@ -464,10 +466,10 @@ async function saveEditedOrder() {
   const status    = document.getElementById('ef-status').value;
   const priority  = document.getElementById('ef-priority').value;
 
-  if (!dateVal) { alert('Delivery Date is required.'); return; }
-
-  const d          = new Date(dateVal);
-  const formatted  = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+  // Delivery date is optional — matches saveOrderToSheet(), so editing an
+  // order that was punched without one doesn't get blocked here either.
+  const d          = dateVal ? new Date(dateVal) : null;
+  const formatted  = d ? `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}` : '';
   const od         = new Date(orderDateVal);
   const fmtOd      = `${String(od.getDate()).padStart(2,'0')}/${String(od.getMonth()+1).padStart(2,'0')}/${od.getFullYear()}`;
   const reservedKg = calcOrderKg(weight, qty);
