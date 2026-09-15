@@ -291,6 +291,20 @@ function reprintChallan(idx) {
 }
 
 // ── Render Challans Tab ──
+// Month filter — same pattern as Invoicing's: defaults to the current month
+// (or the most recent month with data, if this one has none) the first time
+// this tab renders, then stays wherever the user leaves it.
+let _chMonthFilter = null;
+function _chMonthKey(dateStr)  { return (dateStr || '').slice(0, 7); } // 'YYYY-MM'
+function _chMonthLabel(key) {
+  const [y, m] = key.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+}
+function setChallanMonthFilter(key) {
+  _chMonthFilter = key;
+  renderChallansTab();
+}
+
 function renderChallansTab() {
   const el = document.getElementById('challans-list');
   if (!el) return;
@@ -302,18 +316,33 @@ function renderChallansTab() {
 
   const fmt0 = n => Math.round(n).toLocaleString('en-IN');
 
-  const totalQty = challanList.reduce((s, c) => s + (c.qty || 0), 0);
-  const totalAmt = challanList.reduce((s, c) => s + (c.qty || 0) * (c.rate || 0), 0);
+  const allMonths = [...new Set(challanList.map(c => _chMonthKey(c.date)).filter(Boolean))].sort().reverse();
+  if (_chMonthFilter === null) {
+    const curMonth = todayStr.slice(0, 7);
+    _chMonthFilter = allMonths.includes(curMonth) ? curMonth : (allMonths[0] || 'all');
+  }
+  const filtered = _chMonthFilter === 'all' ? challanList : challanList.filter(c => _chMonthKey(c.date) === _chMonthFilter);
+
+  const totalQty = filtered.reduce((s, c) => s + (c.qty || 0), 0);
+  const totalAmt = filtered.reduce((s, c) => s + (c.qty || 0) * (c.rate || 0), 0);
+
+  const monthSelect = `
+    <select class="form-select" style="font-size:13px;width:auto;padding:8px 10px" onchange="setChallanMonthFilter(this.value)">
+      <option value="all" ${_chMonthFilter === 'all' ? 'selected' : ''}>All Months</option>
+      ${allMonths.map(m => `<option value="${m}" ${m === _chMonthFilter ? 'selected' : ''}>${_chMonthLabel(m)}</option>`).join('')}
+    </select>`;
 
   // Sort newest first
-  const sorted = challanList.map((c, i) => ({ ...c, _idx: i })).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const sorted = filtered.map(c => ({ ...c, _idx: challanList.indexOf(c) })).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   el.innerHTML = `
+    <div style="margin-bottom:12px">${monthSelect}</div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
-      <div class="stat-card"><div class="stat-value">${challanList.length}</div><div class="stat-label">Challans Issued</div></div>
+      <div class="stat-card"><div class="stat-value">${filtered.length}</div><div class="stat-label">Challans Issued${_chMonthFilter !== 'all' ? ' — ' + _chMonthLabel(_chMonthFilter) : ''}</div></div>
       <div class="stat-card"><div class="stat-value">${fmt0(totalQty)}</div><div class="stat-label">Total Boxes Dispatched</div></div>
       ${totalAmt > 0 ? `<div class="stat-card"><div class="stat-value">₹${fmt0(totalAmt)}</div><div class="stat-label">Total Value Dispatched</div></div>` : '<div class="stat-card"><div class="stat-value">—</div><div class="stat-label">No rates recorded</div></div>'}
     </div>
+    ${!filtered.length ? `<div class="empty-state">No challans in ${_chMonthFilter === 'all' ? 'range' : _chMonthLabel(_chMonthFilter)}.</div>` : `
     <div class="orders-table">
       <div class="table-header" style="grid-template-columns:110px 90px 1fr 1fr 90px 80px 100px">
         <div>DC No.</div><div>Date</div><div>Customer</div><div>Product</div><div>Order ID</div><div style="text-align:right">Qty</div><div>Actions</div>
@@ -331,5 +360,5 @@ function renderChallansTab() {
             <button class="btn-sm" style="font-size:11px;padding:3px 8px;background:#FEF2F2;color:var(--danger);border-color:var(--danger)" onclick="deleteChallan(${c._idx})" title="Delete">✕</button>
           </div>
         </div>`).join('')}
-    </div>`;
+    </div>`}`;
 }
