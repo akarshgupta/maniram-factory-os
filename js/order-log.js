@@ -37,10 +37,34 @@ function openOrderHistory(orderId) {
   const titleEl = document.getElementById('order-history-title');
   if (titleEl) titleEl.textContent = `🕐 ${orderId}${o ? ' — ' + o.customer : ''}`;
 
+  // Every Delivery Challan issued against this order, whichever of the
+  // three ways it got created (Supervisor Log auto-match, manual 🔗 Link,
+  // or the 🚚 button on the order itself) — so "N dispatched" on the
+  // order row can always be traced back to exactly which DC(s) make it up,
+  // and a wrong one removed right from here.
+  const challans = typeof getChallansByOrder === 'function' ? getChallansByOrder(orderId) : [];
+  const challanTotal = challans.reduce((s, c) => s + (c.qty || 0), 0);
+  const challansHtml = `
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:6px">
+        🚚 Delivery Challans${challans.length ? ` — ${challanTotal.toLocaleString('en-IN')} pcs across ${challans.length}` : ''}
+      </div>
+      ${!challans.length ? '<div class="empty-state" style="padding:10px">No challans issued against this order.</div>' : challans.map(c => {
+        const idx = challanList.indexOf(c);
+        return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+          <div><strong style="font-family:monospace;color:var(--navy)">${c.dcNum}</strong> · ${c.date ? new Date(c.date).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) : '—'}</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <strong>${(c.qty || 0).toLocaleString('en-IN')} pcs</strong>
+            <button class="btn-sm" style="color:var(--danger)" onclick="deleteChallan(${idx});openOrderHistory('${orderId}')" title="Delete this challan">✕</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+
   const entries = getOrderLog(orderId);
   const body = document.getElementById('order-history-body');
   if (body) {
-    body.innerHTML = !entries.length
+    body.innerHTML = challansHtml + (!entries.length
       ? '<div class="empty-state">No activity logged yet for this order.</div>'
       : entries.map(e => {
           const d = new Date(e.ts);
@@ -53,7 +77,7 @@ function openOrderHistory(orderId) {
               ${e.detail ? `<div style="font-size:12px;color:var(--muted);margin-top:1px">${e.detail}</div>` : ''}
             </div>
           </div>`;
-        }).join('');
+        }).join(''));
   }
   overlay.style.display = 'flex';
 }
