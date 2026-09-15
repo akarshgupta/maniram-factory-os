@@ -571,6 +571,59 @@ function _fmtOrderDate(d) {
   try { return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); } catch { return d; }
 }
 
+// Days past the promised delivery date, for an order that's still open —
+// distinct from _orderAgeDays (days since the order was placed at all).
+// null unless the delivery date has actually passed.
+function _dispatchDelayDays(o) {
+  if (!o.date) return null;
+  const due = new Date(o.date + 'T00:00:00');
+  if (isNaN(due)) return null;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const days = Math.round((now - due) / 86400000);
+  return days > 0 ? days : null;
+}
+
+function _delayBadgeHtml(o) {
+  const days = _dispatchDelayDays(o);
+  if (days === null) return '';
+  return `<span style="font-size:10px;font-weight:700;color:#991B1B;background:#FEE2E2;padding:3px 8px;border-radius:10px;white-space:nowrap" title="Past the promised delivery date (${_fmtOrderDate(o.date)}), not yet dispatched">⏰ ${days}d overdue</span>`;
+}
+
+// Totals across every active (not yet Delivered/Dispatched/Cancelled) order —
+// "pending" meaning not yet dispatched, so a partially-shipped order only
+// counts its remaining balance, not the full original quantity.
+function _renderOrdersPendingSummary(activeOrders) {
+  const el = document.getElementById('orders-pending-summary');
+  if (!el) return;
+
+  let boxes = 0, weightKg = 0, amount = 0;
+  activeOrders.forEach(o => {
+    const dispatched = typeof getDispatchedQty === 'function' ? getDispatchedQty(o.id) : 0;
+    const remaining  = Math.max(0, (o.qty || 0) - dispatched);
+    boxes    += remaining;
+    weightKg += remaining * (parseFloat(o.weight) || 0) / 1000;
+    amount   += remaining * (parseFloat(o.rate) || 0);
+  });
+
+  el.innerHTML = `
+    <div class="stat-card alert">
+      <div class="stat-label">Pending Boxes</div>
+      <div class="stat-value" style="color:var(--danger)">${boxes.toLocaleString('en-IN')}</div>
+      <div class="stat-sub">Across ${activeOrders.length} active order${activeOrders.length !== 1 ? 's' : ''}</div>
+    </div>
+    <div class="stat-card info">
+      <div class="stat-label">Pending Weight</div>
+      <div class="stat-value">${weightKg.toLocaleString('en-IN', { maximumFractionDigits: 1 })} kg</div>
+      <div class="stat-sub">Paper still to be dispatched</div>
+    </div>
+    <div class="stat-card good">
+      <div class="stat-label">Pending Amount</div>
+      <div class="stat-value" style="color:var(--success)">₹${Math.round(amount).toLocaleString('en-IN')}</div>
+      <div class="stat-sub">Value of undelivered boxes</div>
+    </div>`;
+}
+
 function renderOrders() {
   const list = document.getElementById('orders-list');
   // Consumed exactly once per render, whichever path runs below, so a flash
@@ -583,8 +636,10 @@ function renderOrders() {
   // so a brand new order is always on top immediately, before the next
   // fetch confirms its real row). Sorting by reel groups orders that can
   // physically run on the same reel together, newest first within a reel.
-  const activeOrders = [...orders]
-    .filter(o => !FINISHED_STATUSES.includes(o.status))
+  const allActive = [...orders].filter(o => !FINISHED_STATUSES.includes(o.status));
+  _renderOrdersPendingSummary(allActive);
+
+  const activeOrders = allActive
     .filter(o => matchesSearch(o, orderSearchQuery))
     .sort(orderSortMode === 'reel'
       ? (a, b) => (parseFloat(a.reelSize) || 999) - (parseFloat(b.reelSize) || 999) || (b.rowIndex || 0) - (a.rowIndex || 0)
@@ -672,7 +727,10 @@ function renderOrders() {
             ? `<div style="font-size:13px;font-weight:700;color:var(--blue);white-space:nowrap" title="Reel size">${o.reelSize}&quot; reel</div>`
             : (o.qty ? `<div style="font-size:13px;font-weight:700;color:var(--blue);white-space:nowrap" title="Quantity">${o.qty.toLocaleString('en-IN')} pcs</div>` : '')}
           ${o.size ? `<div style="font-family:monospace;font-size:15px;font-weight:700;color:var(--navy);white-space:nowrap" title="Box size">${o.size}</div>` : ''}
-          ${_ageBadgeHtml(o)}
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
+            ${_ageBadgeHtml(o)}
+            ${_delayBadgeHtml(o)}
+          </div>
         </div>
       </div>
       <div style="font-size:12px;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${o.size || ''}">${o.size || '—'}</div>
