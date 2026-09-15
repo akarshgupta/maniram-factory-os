@@ -458,6 +458,34 @@ function renderSvLinkResults(q) {
     </div>`).join('');
 }
 
+// Carries a challan re-link through to its invoice (if one already exists
+// for that DC) — updates the party and that one line item's desc/rate/
+// orderId to match the new order, then recomputes the invoice's totals.
+// Other items on a multi-item invoice are left untouched.
+function _relinkInvoiceForChallan(dcNum, o) {
+  if (typeof invoiceList === 'undefined') return null;
+  const inv = invoiceList.find(iv => (iv.items || []).some(it => it.challanDc === dcNum));
+  if (!inv) return null;
+  const item = inv.items.find(it => it.challanDc === dcNum);
+  if (!item) return null;
+
+  item.orderId = o.id;
+  item.desc    = [o.product || 'Corrugated Box', o.size, o.ply ? o.ply + ' Ply' : '', o.colour].filter(Boolean).join(' · ');
+  item.rate    = o.rate || item.rate;
+  item.amount  = (item.qty || 0) * (item.rate || 0);
+  inv.party    = o.customer;
+  inv.orderId  = [...new Set(inv.items.map(i => i.orderId).filter(Boolean))][0] || null;
+
+  const subtotal = inv.items.reduce((s, i) => s + (i.qty || 0) * (i.rate || 0), 0);
+  inv.subtotal   = subtotal;
+  inv.total      = Math.round(subtotal);
+  inv.roundOff   = inv.total - subtotal;
+
+  saveInvoiceList();
+  if (typeof _mirrorInvoice === 'function') _mirrorInvoice(inv);
+  return inv;
+}
+
 function linkDispatchToOrder(orderId) {
   const e = _svDisp.find(x => x.ts === _svLinkTs);
   const o = typeof orders !== 'undefined' ? orders.find(x => x.id === orderId) : null;
@@ -486,13 +514,14 @@ function linkDispatchToOrder(orderId) {
         qty: existing.qty, vehicle: '', notes: existing.note,
       });
     }
-    const linkedInv = typeof invoiceList !== 'undefined'
-      ? invoiceList.find(iv => (iv.items || []).some(it => it.challanDc === existing.dcNum))
-      : null;
-    if (linkedInv) {
-      alert(`${existing.dcNum} now points to ${o.id} (${o.customer}). Invoice ${linkedInv.id} was already billed against the previous order/party — open it from this row and update it by hand if it needs to match.`);
-    }
+    // If a challan-derived invoice already exists for this DC, carry the
+    // re-link through to it too — party, item description and rate — so
+    // the invoice never sits mismatched against a challan that's since
+    // been pointed at a different order.
+    const linkedInv = _relinkInvoiceForChallan(existing.dcNum, o);
+    if (linkedInv) alert(`${existing.dcNum} and invoice ${linkedInv.id} now both point to ${o.id} (${o.customer}).`);
     if (typeof renderOrders === 'function') renderOrders();
+    if (typeof renderInvoicingPage === 'function') renderInvoicingPage();
   } else {
     _svCreateChallanFor(e, o, 'manual link');
   }
