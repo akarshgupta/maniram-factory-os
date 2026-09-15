@@ -463,7 +463,39 @@ function linkDispatchToOrder(orderId) {
   const o = typeof orders !== 'undefined' ? orders.find(x => x.id === orderId) : null;
   closeSvLinkModal();
   if (!e || !o) return;
-  _svCreateChallanFor(e, o, 'manual link');
+
+  // Already challaned — re-linking edits that challan's order in place
+  // (same DC number, so the sheet row is updated rather than duplicated)
+  // instead of creating a second one for the same dispatch entry.
+  const existing = challanList.find(c => c.svTs === e.ts);
+  if (existing) {
+    existing.orderId  = o.id;
+    existing.customer = o.customer;
+    existing.product  = o.product || o.size || '';
+    existing.size     = o.size || '';
+    existing.ply      = o.ply || '';
+    existing.colour   = o.colour || '';
+    existing.weight   = o.weight || '';
+    existing.rate     = o.rate || 0;
+    existing.note     = `Re-linked to ${o.id} (${o.customer}) — was ${existing.note || 'a previous match'}`;
+    saveChallans();
+    if (typeof mirrorToSheet === 'function') {
+      mirrorToSheet('saveChallan', {
+        id: existing.dcNum, date: existing.date, orderId: existing.orderId,
+        customer: existing.customer, product: existing.product,
+        qty: existing.qty, vehicle: '', notes: existing.note,
+      });
+    }
+    const linkedInv = typeof invoiceList !== 'undefined'
+      ? invoiceList.find(iv => (iv.items || []).some(it => it.challanDc === existing.dcNum))
+      : null;
+    if (linkedInv) {
+      alert(`${existing.dcNum} now points to ${o.id} (${o.customer}). Invoice ${linkedInv.id} was already billed against the previous order/party — open it from this row and update it by hand if it needs to match.`);
+    }
+    if (typeof renderOrders === 'function') renderOrders();
+  } else {
+    _svCreateChallanFor(e, o, 'manual link');
+  }
   renderSupervisorLog(false);
 }
 
@@ -571,6 +603,10 @@ function _svDispatchRow(e) {
     dcHtml += inv
       ? ` <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="editInvoice('${inv.id}')" title="Open ${inv.id}">📄 ${inv.id}</button>`
       : ` <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="resolveChallanInvoice('${dc.dcNum.replace(/'/g, "\\'")}','${(dc.orderId||'').replace(/'/g, "\\'")}')" title="No invoice yet for this challan">🧾 Invoice</button>`;
+    // Wrong match, or party changed their mind — re-open the same order
+    // picker and re-point this challan at a different order, even after
+    // it's already been challaned (and possibly invoiced).
+    dcHtml += ` <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="openSvLinkModal('${e.ts.replace(/'/g, "\\'")}')" title="Link this dispatch to a different order">✏️ Edit Link</button>`;
   } else if (e.orderId) {
     const matchedOrder = typeof orders !== 'undefined' ? orders.find(x => (x.id || '').toLowerCase() === e.orderId.toLowerCase()) : null;
     dcHtml = matchedOrder
