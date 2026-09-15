@@ -445,25 +445,41 @@ function createOrderFromDispatch() {
   if (typeof renderOrders === 'function') renderOrders();
 }
 
-function renderSvLinkResults(q) {
-  const el = document.getElementById('sv-link-results');
-  if (!el) return;
-  const needle = q.trim().toLowerCase();
-  const list = (typeof orders !== 'undefined' ? orders : [])
-    .filter(o => !needle ||
-      (o.id || '').toLowerCase().includes(needle) ||
-      (o.customer || '').toLowerCase().includes(needle) ||
-      (o.product || '').toLowerCase().includes(needle))
-    .slice(0, 40);
-  if (!list.length) { el.innerHTML = '<div class="empty-state">No matching orders.</div>'; return; }
-  el.innerHTML = list.map(o => `
+function _svLinkRow(o) {
+  return `
     <div onclick="linkDispatchToOrder('${o.id}')"
       style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border)"
       onmouseover="this.style.background='var(--hover-bg,#f5f7fa)'" onmouseout="this.style.background=''">
-      <div style="font-weight:700;font-size:14px;font-family:monospace">${o.size || '—'} <span style="font-family:inherit;color:var(--muted);font-weight:600">· ${o.status || '—'}</span></div>
+      <div style="font-weight:700;font-size:14px;font-family:monospace">${o.size || '—'} <span style="font-family:inherit;color:var(--muted);font-weight:600">· ${o.status || '—'}</span> <span style="font-family:inherit;color:#16A34A;font-weight:700">· ${(o.qty || 0).toLocaleString('en-IN')} pcs</span></div>
       <div style="font-weight:700;font-size:13px;color:var(--navy)">${o.date ? formatDate(o.date) : 'no date'} · ${o.rate ? '₹' + o.rate + '/pc' : 'no rate on file'}</div>
       <div style="font-size:11px;color:var(--muted)">${o.customer} · ${o.id}${o.product ? ' · ' + o.product : ''}</div>
-    </div>`).join('');
+    </div>`;
+}
+
+// Open orders (still pending) are always shown first, then a divider, then
+// Completed orders (Delivered/Dispatched/Cancelled) below — so the common
+// case (linking a dispatch to a still-open order) never gets buried under
+// old finished ones, while finished orders stay reachable for backfilling.
+function renderSvLinkResults(q) {
+  const el = document.getElementById('sv-link-results');
+  if (!el) return;
+  // Reuse the main Orders page's fuzzy matcher (whitespace/punctuation-
+  // stripped fallback) instead of a plain substring check — otherwise a
+  // party stored as "N D S" (spaced) silently never matches a search for
+  // "NDS Paper", even though it's clearly the same customer.
+  const matched = (typeof orders !== 'undefined' ? orders : [])
+    .filter(o => typeof matchesSearch !== 'function' || matchesSearch(o, q));
+  const finished = typeof FINISHED_STATUSES !== 'undefined' ? FINISHED_STATUSES : ['Delivered', 'Dispatched', 'Cancelled'];
+  const openOrders      = matched.filter(o => !finished.includes(o.status)).slice(0, 40);
+  const completedOrders = matched.filter(o => finished.includes(o.status)).slice(0, 40);
+  if (!openOrders.length && !completedOrders.length) { el.innerHTML = '<div class="empty-state">No matching orders.</div>'; return; }
+
+  let html = openOrders.map(_svLinkRow).join('');
+  if (completedOrders.length) {
+    html += `<div style="padding:8px 12px;background:var(--hover-bg,#f5f7fa);border-top:2px solid var(--border);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px">Completed Orders</div>`;
+    html += completedOrders.map(_svLinkRow).join('');
+  }
+  el.innerHTML = html;
 }
 
 // Carries a challan re-link through to its invoice (if one already exists
