@@ -20,6 +20,19 @@ let _svDisp = [];
 let _svTab  = 'dispatch';
 let _svMonth = todayStr.slice(0, 7); // 'YYYY-MM' — both tabs share one month selector
 
+// The Dispatch form's weight/piece question is meant to be filled in grams
+// ("Box `weight` fields throughout the app are grams per box"), but the
+// supervisor sometimes types the kg figure out of habit instead — "1.6"
+// meaning 1.6 kg (1600 gm), not literally 1.6 gm. No real corrugated box
+// weighs under ~20 gm, so any value below that threshold is unambiguously
+// a kg entry and gets scaled up; anything at or above it is already gm.
+const SV_WEIGHT_KG_MISTAKE_THRESHOLD = 20;
+function _svNormWeightGm(raw) {
+  const v = parseFloat(raw) || 0;
+  if (v > 0 && v < SV_WEIGHT_KG_MISTAKE_THRESHOLD) return v * 1000;
+  return v;
+}
+
 async function fetchSupervisorLog() {
   const get = async (tab, range) => {
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SUPERVISOR_SHEET_ID}/values/${encodeURIComponent(tab + '!' + range)}?key=${API_KEY}&_=${Date.now()}`;
@@ -46,7 +59,7 @@ async function fetchSupervisorLog() {
     _svDisp = disp.map(r => ({
       ts: r[0] || '', date: r[1] || '', party: r[2] || '',
       pcs: parseInt(r[3]) || 0, size: r[4] || '',
-      wtPc: parseFloat(r[5]) || 0,
+      wtPc: _svNormWeightGm(r[5]),
       product: r[6] || '',  // "Product Name" question — appended column G, blank on older rows
       // "Order ID" question — appended column H, blank on older rows. The dropdown (Code.gs
       // refreshOrderIdDropdown) shows choices as "MIORD019 — Party — Product" so the supervisor
