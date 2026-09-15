@@ -668,7 +668,9 @@ function renderOrders() {
           ${invBar}
         </div>
         <div style="display:flex;align-items:center;gap:16px;flex:none">
-          ${o.reelSize ? `<div style="font-size:13px;font-weight:700;color:var(--blue);white-space:nowrap" title="Reel size">${o.reelSize}&quot; reel</div>` : ''}
+          ${o.reelSize
+            ? `<div style="font-size:13px;font-weight:700;color:var(--blue);white-space:nowrap" title="Reel size">${o.reelSize}&quot; reel</div>`
+            : (o.qty ? `<div style="font-size:13px;font-weight:700;color:var(--blue);white-space:nowrap" title="Quantity">${o.qty.toLocaleString('en-IN')} pcs</div>` : '')}
           ${o.size ? `<div style="font-family:monospace;font-size:15px;font-weight:700;color:var(--navy);white-space:nowrap" title="Box size">${o.size}</div>` : ''}
           ${_ageBadgeHtml(o)}
         </div>
