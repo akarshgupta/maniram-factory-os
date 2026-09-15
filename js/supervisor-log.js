@@ -452,9 +452,9 @@ function renderSvLinkResults(q) {
     <div onclick="linkDispatchToOrder('${o.id}')"
       style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border)"
       onmouseover="this.style.background='var(--hover-bg,#f5f7fa)'" onmouseout="this.style.background=''">
-      <div style="font-weight:700;font-size:13px">${o.id} — ${o.customer}</div>
-      <div style="font-size:11px;color:var(--muted)">${o.product || '—'} · ${o.size || '—'} · ${o.status || '—'}</div>
-      <div style="font-size:11px;color:var(--muted)">${o.rate ? '₹' + o.rate + '/pc' : 'no rate on file'} · ${o.date ? formatDate(o.date) : 'no date'}</div>
+      <div style="font-weight:700;font-size:14px;font-family:monospace">${o.size || '—'} <span style="font-family:inherit;color:var(--muted);font-weight:600">· ${o.status || '—'}</span></div>
+      <div style="font-weight:700;font-size:13px;color:var(--navy)">${o.date ? formatDate(o.date) : 'no date'} · ${o.rate ? '₹' + o.rate + '/pc' : 'no rate on file'}</div>
+      <div style="font-size:11px;color:var(--muted)">${o.customer} · ${o.id}${o.product ? ' · ' + o.product : ''}</div>
     </div>`).join('');
 }
 
