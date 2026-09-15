@@ -644,7 +644,7 @@ function _svDispatchHtml() {
   const dayBlocks = days.map(d => `
     <details data-date="${d.date}" style="margin-bottom:8px;border:1px solid var(--border,#e5e7eb);border-radius:10px;overflow:hidden">
       <summary style="cursor:pointer;padding:12px 14px;background:var(--bg,#f8fafc);display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-        <span style="font-weight:700;font-size:14px;min-width:80px">${_svFmtDate(d.date)}</span>
+        <span style="font-weight:700;font-size:14px;min-width:80px">${_svOrdinalDate(d.date)}</span>
         <span style="font-size:11px;color:var(--muted,#888)">${d.entries.length} entr${d.entries.length === 1 ? 'y' : 'ies'}</span>
         <span style="margin-left:auto;display:flex;gap:18px;flex-wrap:wrap;font-size:12px">
           <span title="Total pieces dispatched">Production: <strong>${d.pcs.toLocaleString('en-IN')} pcs</strong></span>
@@ -711,6 +711,20 @@ function _svFmtDate(s) {
   if (iso) return `${iso[3].padStart(2,'0')}/${iso[2].padStart(2,'0')}/${iso[1].slice(-2)}`;
   const mdy = String(s || '').match(/(\d+)\/(\d+)\/(\d+)/);
   return mdy ? `${mdy[2].padStart(2,'0')}/${mdy[1].padStart(2,'0')}/${mdy[3].slice(-2)}` : (s || '—');
+}
+
+const _SV_MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// Day-block headers read as "1st Sept", "2nd Sept" instead of a bare date —
+// takes a normalized YYYY-MM-DD key.
+function _svOrdinalDate(dateKey) {
+  const m = String(dateKey || '').match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (!m) return dateKey || '—';
+  const day   = parseInt(m[3], 10);
+  const month = _SV_MONTH_NAMES[parseInt(m[2], 10) - 1] || '';
+  const suffix = (day >= 11 && day <= 13) ? 'th'
+    : day % 10 === 1 ? 'st' : day % 10 === 2 ? 'nd' : day % 10 === 3 ? 'rd' : 'th';
+  return `${day}${suffix} ${month}`;
 }
 
 // ── Month selector — shared by both tabs ──
@@ -815,7 +829,7 @@ function _svDailySummaryHtml() {
     return `
     <details data-date="${date}" style="margin-bottom:8px;border:1px solid var(--border,#e5e7eb);border-radius:10px;overflow:hidden">
       <summary style="cursor:pointer;padding:12px 14px;background:var(--bg,#f8fafc);display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-        <span style="font-weight:700;font-size:14px;min-width:80px">${_svFmtDate(date)}</span>
+        <span style="font-weight:700;font-size:14px;min-width:80px">${_svOrdinalDate(date)}</span>
         <span style="font-size:11px;color:var(--muted,#888)">${d.prodEntries.length} prod. entr${d.prodEntries.length === 1 ? 'y' : 'ies'}</span>
         <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-size:12px">
           <span>Ply cut: <strong>${d.plyPcs ? d.plyPcs.toLocaleString('en-IN') : '—'}</strong></span>
