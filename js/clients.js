@@ -125,10 +125,14 @@ function suggestWeightAndReel() {
     return;
   }
 
-  // Lanes boxes come off one full-width sheet, so each box's true paper
-  // share is the sheet's area divided by the lane count — not the whole
-  // reel width, which would overstate every box's weight by lanes×.
-  const area = (sheetLen * reelSize) / 1550 / lanes; // sqm, per box
+  // Weight is the paper the box's own sheet needs (sheetLen × reqWidth) —
+  // never the actual reel width divided by lane count. findLaneReel
+  // deliberately accepts a reel up to 1.5" wider than the exact lanes×
+  // reqWidth multiple (stocked widths rarely land on it precisely), and
+  // that trim margin is real for procurement but has nothing to do with
+  // how much paper is actually in one box, so it must never leak into
+  // the weight estimate.
+  const area = (sheetLen * reqWidth) / 1550; // sqm, per box
   let weight = 0;
   const gsmUsed = layers.map((layer, i) => {
     const gsm = parseInt(gsmInputs[i].value);
@@ -159,7 +163,9 @@ function recalcWeightFromReelSize() {
   const sheetLen = calcSheetLen(dims.l, dims.w, twoPart);
   const reqWidth = dims.w + dims.h + 0.5;
   const lanes    = inferLaneCount(reelSize, reqWidth);
-  const area     = (sheetLen * reelSize) / 1550 / lanes; // sqm, per box
+  // Weight is the box's own sheet needs (sheetLen × reqWidth), not the
+  // actual reel width divided by lanes — see suggestWeightAndReel above.
+  const area     = (sheetLen * reqWidth) / 1550; // sqm, per box
 
   let weight = 0, anyGsm = false;
   layers.forEach((layer, i) => {
