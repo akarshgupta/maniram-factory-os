@@ -745,15 +745,13 @@ function _svDispatchHtml() {
 
   const dayBlocks = days.map(d => `
     <details data-date="${d.date}" style="margin-bottom:8px;border:1px solid var(--border,#e5e7eb);border-radius:10px;overflow:hidden">
-      <summary style="cursor:pointer;padding:12px 14px;background:var(--bg,#f8fafc);display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-        <span style="font-weight:700;font-size:14px;min-width:80px">${_svOrdinalDate(d.date)}</span>
+      <summary style="cursor:pointer;padding:12px 14px;background:var(--bg,#f8fafc);display:grid;grid-template-columns:90px 80px 1fr 120px 130px 110px;align-items:center;gap:10px;font-size:12px">
+        <span style="font-weight:700;font-size:14px">${_svOrdinalDate(d.date)}</span>
         <span style="font-size:11px;color:var(--muted,#888)">${d.entries.length} entr${d.entries.length === 1 ? 'y' : 'ies'}</span>
-        <span style="margin-left:auto;display:flex;gap:18px;flex-wrap:wrap;font-size:12px">
-          <span title="Total pieces dispatched">Production: <strong>${d.pcs.toLocaleString('en-IN')} pcs</strong></span>
-          <span title="Total material weight dispatched">Weight: <strong>${d.kg.toLocaleString('en-IN', {maximumFractionDigits:1})} kg</strong></span>
-          <span title="Sum of qty × order rate, for entries matched to an order">Amount: <strong>${d.amt ? '₹' + Math.round(d.amt).toLocaleString('en-IN') : '—'}</strong></span>
-          <span title="Amount ÷ Weight">Rate: <strong>${d.rate ? '₹' + d.rate.toFixed(2) + '/kg' : '—'}</strong></span>
-        </span>
+        <span></span>
+        <span style="text-align:right" title="Total material weight dispatched">Weight: <strong>${d.kg.toLocaleString('en-IN', {maximumFractionDigits:1})} kg</strong></span>
+        <span style="text-align:right" title="Sum of qty × order rate, for entries matched to an order">Amount: <strong>${d.amt ? '₹' + Math.round(d.amt).toLocaleString('en-IN') : '—'}</strong></span>
+        <span style="text-align:right" title="Amount ÷ Weight">Rate: <strong>${d.rate ? '₹' + d.rate.toFixed(2) + '/kg' : '—'}</strong></span>
       </summary>
       <div style="overflow-x:auto">
       <table class="data-table" style="width:100%;border-collapse:collapse;font-size:13px">
