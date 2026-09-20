@@ -76,6 +76,8 @@ function doPost(e) {
     else if (action === 'deleteInvoice')     deleteFinanceRow(INVOICES_SHEET_ID, 'Invoices', data.id);
     else if (action === 'saveExpense')       saveExpense(data);
     else if (action === 'deleteExpense')     deleteFinanceRow(EXPENSES_SHEET_ID, 'Expenses', data.id);
+    else if (action === 'saveVehicleOwnerRate')   saveVehicleOwnerRate(data);
+    else if (action === 'deleteVehicleOwnerRate') deleteVehicleOwnerRate(data);
     else if (action === 'savePayment')       savePayment(data);
     else if (action === 'deletePayment')     deleteFinanceRow(RECEIVABLES_SHEET_ID, 'Receivables', data.id);
     else if (action === 'saveChallan')       saveChallan(data);
@@ -883,6 +885,45 @@ function prodlogAppend(d) {
     sh.getRange(1,1,1,6).setFontWeight('bold').setBackground('#E8F0FE');
   }
   sh.appendRow([d.date||'', d.machine||'', d.orderId||'', d.qty||0, d.remarks||'', d.ts||new Date().toISOString()]);
+}
+
+// ══════════════════════════════════════════════════════════════
+// VEHICLE OWNER LOADING RATES  →  ORDERS_SHEET_ID / "VehicleOwners" tab
+// Fixed loading-charge rate per vehicle owner (js/expenses.js). Upsert by
+// name, same pattern as gsmSet — most owners charge the same rate every
+// trip, so this is set once and auto-fills on every future entry.
+// ══════════════════════════════════════════════════════════════
+function saveVehicleOwnerRate(d) {
+  var name = (d.name || '').trim();
+  if (!name) return;
+  var ss = SpreadsheetApp.openById(ORDERS_SHEET_ID);
+  var sh = ss.getSheetByName('VehicleOwners');
+  if (!sh) {
+    sh = ss.insertSheet('VehicleOwners');
+    sh.appendRow(['Name', 'Rate']);
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, 1, 2).setFontWeight('bold').setBackground('#E8F0FE');
+  }
+  var rows = sh.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if ((rows[i][0] || '').toString().trim().toLowerCase() === name.toLowerCase()) {
+      sh.getRange(i + 1, 1, 1, 2).setValues([[name, d.rate || 0]]);
+      return;
+    }
+  }
+  sh.appendRow([name, d.rate || 0]);
+}
+
+function deleteVehicleOwnerRate(d) {
+  var name = (d.name || '').trim();
+  if (!name) return;
+  var ss = SpreadsheetApp.openById(ORDERS_SHEET_ID);
+  var sh = ss.getSheetByName('VehicleOwners');
+  if (!sh) return;
+  var rows = sh.getDataRange().getValues();
+  for (var i = rows.length - 1; i >= 1; i--) {
+    if ((rows[i][0] || '').toString().trim().toLowerCase() === name.toLowerCase()) { sh.deleteRow(i + 1); return; }
+  }
 }
 
 function gsmSet(d) {

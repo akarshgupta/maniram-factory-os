@@ -127,6 +127,7 @@ async function init() {
   // Initialise localStorage-backed modules
   initInvoices();
   initExpenses();
+  initVehicleOwners();
   initPayments();
   initQuotations();
   initChallans();
