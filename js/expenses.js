@@ -14,6 +14,7 @@ const EXPENSE_CATEGORIES = [
   { key: 'Electricity',      icon: '⚡' },
   { key: 'Rent',             icon: '🏠' },
   { key: 'Transport / Freight', icon: '🚚' },
+  { key: 'Loading Charges',  icon: '🏗️' },
   { key: 'Fuel / Diesel',    icon: '⛽' },
   { key: 'Maintenance / Repair', icon: '🔧' },
   { key: 'Raw Material (non-reel)', icon: '📦' },
@@ -34,6 +35,183 @@ function _catIcon(cat) {
 function loadExpenses() { try { return JSON.parse(localStorage.getItem(LS_EXPENSES) || '[]'); } catch { return []; } }
 function saveExpenseList() { localStorage.setItem(LS_EXPENSES, JSON.stringify(expenseList)); }
 function initExpenses() { expenseList = loadExpenses(); }
+
+// ── Vehicle Owner loading-charge rates ──
+// Most vehicle owners charge the same fixed loading rate on every trip, so
+// this is a small name→rate master (localStorage-backed, mirrored to its
+// own auto-created sheet tab like gsmSet/processLogAppend). Picking a
+// Category of "Loading Charges" turns the Paid To field into an
+// autocomplete against this list and auto-fills Amount from the match —
+// still a plain editable number afterward, for the "in some case it must
+// be editable" trips that differ from the usual rate.
+const LS_VEHICLE_OWNERS = 'mi_vehicle_owners_v1';
+let vehicleOwners = [];
+let _voFiltered    = [];
+let _voSelectedIdx = -1;
+
+function loadVehicleOwners()    { try { return JSON.parse(localStorage.getItem(LS_VEHICLE_OWNERS) || '[]'); } catch { return []; } }
+function saveVehicleOwnersList(){ localStorage.setItem(LS_VEHICLE_OWNERS, JSON.stringify(vehicleOwners)); }
+function initVehicleOwners()    { vehicleOwners = loadVehicleOwners().sort((a, b) => a.name.localeCompare(b.name)); }
+
+// Exact match first; falls back to substring-either-way like matchesSearch
+// elsewhere, so "Ramesh" finds "Ramesh Transport Co." and vice versa.
+function findVehicleOwnerRate(typed) {
+  const n = (typed || '').trim().toLowerCase();
+  if (!n) return null;
+  const exact = vehicleOwners.find(v => v.name.toLowerCase() === n);
+  if (exact) return exact;
+  return vehicleOwners.find(v => {
+    const vl = v.name.toLowerCase();
+    return vl.includes(n) || n.includes(vl);
+  }) || null;
+}
+
+let _voEditingIdx  = -1;    // -1 = adding new
+let _voSectionOpen = false; // <details> resets closed on every re-render by default — track it so
+                             // clicking Edit doesn't immediately hide the form it just populated
+
+function saveVehicleOwnerRateForm() {
+  const name = (document.getElementById('vo-name')?.value || '').trim();
+  const rate = parseFloat(document.getElementById('vo-rate')?.value) || 0;
+  if (!name) { alert("Enter the vehicle owner's name."); return; }
+  if (rate <= 0) { alert('Enter a rate greater than 0.'); return; }
+
+  const idx = vehicleOwners.findIndex((v, i) => i !== _voEditingIdx && v.name.toLowerCase() === name.toLowerCase());
+  if (idx >= 0) { alert(`${vehicleOwners[idx].name} already has a rate on file — edit that entry instead.`); return; }
+
+  if (_voEditingIdx >= 0) vehicleOwners[_voEditingIdx] = { name, rate };
+  else vehicleOwners.push({ name, rate });
+  vehicleOwners.sort((a, b) => a.name.localeCompare(b.name));
+  saveVehicleOwnersList();
+  if (typeof mirrorToSheet === 'function') mirrorToSheet('saveVehicleOwnerRate', { name, rate });
+  _voEditingIdx = -1;
+  _voSectionOpen = true;
+  renderExpensesPage();
+}
+
+function editVehicleOwnerRate(idx) {
+  const v = vehicleOwners[idx];
+  if (!v) return;
+  _voEditingIdx = idx;
+  _voSectionOpen = true;
+  renderExpensesPage();
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+  set('vo-name', v.name);
+  set('vo-rate', v.rate);
+}
+
+function cancelEditVehicleOwnerRate() {
+  _voEditingIdx = -1;
+  renderExpensesPage();
+}
+
+function deleteVehicleOwnerRate(idx) {
+  const v = vehicleOwners[idx];
+  if (!v) return;
+  if (!confirm(`Delete the fixed loading rate for "${v.name}"?`)) return;
+  vehicleOwners.splice(idx, 1);
+  saveVehicleOwnersList();
+  if (typeof mirrorToSheet === 'function') mirrorToSheet('deleteVehicleOwnerRate', { name: v.name });
+  if (_voEditingIdx === idx) _voEditingIdx = -1;
+  _voSectionOpen = true;
+  renderExpensesPage();
+}
+
+function toggleVehicleOwnersSection(detailsEl) {
+  _voSectionOpen = !!detailsEl?.open;
+}
+
+// ── Paid To autocomplete + auto-fill, active only for Loading Charges ──
+function onExpCatChange() {
+  const hint = document.getElementById('exp-payee-hint');
+  if (!hint) return;
+  const cat = document.getElementById('exp-cat')?.value;
+  hint.textContent = cat === 'Loading Charges'
+    ? "Type the vehicle owner's name — their fixed rate auto-fills below."
+    : '';
+  const dd = document.getElementById('exp-payee-dropdown');
+  if (dd && cat !== 'Loading Charges') dd.style.display = 'none';
+}
+
+function onExpPayeeInput() {
+  const cat = document.getElementById('exp-cat')?.value;
+  const val = document.getElementById('exp-payee')?.value.trim() || '';
+  const dd  = document.getElementById('exp-payee-dropdown');
+
+  if (cat === 'Loading Charges' && dd) {
+    _voFiltered    = val ? vehicleOwners.filter(v => v.name.toLowerCase().includes(val.toLowerCase())) : vehicleOwners;
+    _voSelectedIdx = -1;
+    if (!_voFiltered.length) {
+      dd.style.display = 'none';
+    } else {
+      dd.innerHTML = '';
+      _voFiltered.forEach(v => {
+        const item = document.createElement('div');
+        item.className = 'autocomplete-item';
+        item.innerHTML = `${v.name} <span style="float:right;color:var(--muted)">₹${v.rate}</span>`;
+        item.onmousedown = () => selectVehicleOwner(v.name);
+        dd.appendChild(item);
+      });
+      dd.style.display = 'block';
+    }
+  } else if (dd) {
+    dd.style.display = 'none';
+  }
+  _applyVehicleOwnerRate(val);
+}
+
+function onExpPayeeKey(e) {
+  const cat = document.getElementById('exp-cat')?.value;
+  if (cat !== 'Loading Charges') return;
+  const dd    = document.getElementById('exp-payee-dropdown');
+  const items = dd ? dd.querySelectorAll('.autocomplete-item') : [];
+  if (e.key === 'ArrowDown') {
+    _voSelectedIdx = Math.min(_voSelectedIdx + 1, _voFiltered.length - 1);
+    items.forEach((el, i) => el.classList.toggle('selected', i === _voSelectedIdx));
+    e.preventDefault();
+  } else if (e.key === 'ArrowUp') {
+    _voSelectedIdx = Math.max(_voSelectedIdx - 1, 0);
+    items.forEach((el, i) => el.classList.toggle('selected', i === _voSelectedIdx));
+    e.preventDefault();
+  } else if (e.key === 'Enter') {
+    if (_voSelectedIdx >= 0 && _voFiltered[_voSelectedIdx]) selectVehicleOwner(_voFiltered[_voSelectedIdx].name);
+    e.preventDefault();
+  } else if (e.key === 'Escape') {
+    if (dd) dd.style.display = 'none';
+  }
+}
+
+function selectVehicleOwner(name) {
+  const payeeEl = document.getElementById('exp-payee');
+  if (payeeEl) payeeEl.value = name;
+  const dd = document.getElementById('exp-payee-dropdown');
+  if (dd) dd.style.display = 'none';
+  _applyVehicleOwnerRate(name);
+}
+
+function _applyVehicleOwnerRate(typed) {
+  const cat  = document.getElementById('exp-cat')?.value;
+  const hint = document.getElementById('exp-payee-hint');
+  if (cat !== 'Loading Charges') return;
+  const match  = findVehicleOwnerRate(typed);
+  const amtEl  = document.getElementById('exp-amount');
+  if (match) {
+    if (amtEl) amtEl.value = match.rate;
+    if (hint) hint.innerHTML = `Auto-filled from <b>${match.name}</b>'s fixed rate — edit Amount above if this trip differs.`;
+  } else if (hint) {
+    hint.textContent = typed
+      ? "No fixed rate on file for this name yet — add one below and it'll auto-fill next time."
+      : "Type the vehicle owner's name — their fixed rate auto-fills below.";
+  }
+}
+
+document.addEventListener('click', e => {
+  const grp = document.getElementById('exp-payee')?.closest('.form-group');
+  if (grp && !grp.contains(e.target)) {
+    const dd = document.getElementById('exp-payee-dropdown');
+    if (dd) dd.style.display = 'none';
+  }
+});
 
 function generateExpenseId() {
   let max = 0;
@@ -104,6 +282,7 @@ function editExpense(id) {
   set('exp-amount', e.amount);
   set('exp-mode', e.mode || 'Cash');
   set('exp-notes', e.notes || '');
+  onExpCatChange();
   const form = document.getElementById('exp-form-card');
   if (form) form.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
@@ -184,13 +363,15 @@ function renderExpensesPage() {
         </div>
         <div class="form-group">
           <label class="form-label">Category</label>
-          <select class="form-select" id="exp-cat">
+          <select class="form-select" id="exp-cat" onchange="onExpCatChange()">
             ${EXPENSE_CATEGORIES.map(c => `<option value="${c.key}">${c.icon} ${c.key}</option>`).join('')}
           </select>
         </div>
         <div class="form-group">
           <label class="form-label">Paid To / Description</label>
-          <input class="form-input" type="text" id="exp-payee" placeholder="e.g. Ramesh (labour), UPPCL…">
+          <input class="form-input" type="text" id="exp-payee" placeholder="e.g. Ramesh (labour), UPPCL…" autocomplete="off" oninput="onExpPayeeInput()" onkeydown="onExpPayeeKey(event)" onfocus="onExpPayeeInput()">
+          <div class="autocomplete-list" id="exp-payee-dropdown" style="display:none"></div>
+          <div class="field-hint" id="exp-payee-hint"></div>
         </div>
         <div class="form-group">
           <label class="form-label">Amount (₹)</label>
@@ -212,6 +393,41 @@ function renderExpensesPage() {
         ${editing ? `<button class="btn-secondary" onclick="cancelEditExpense()">✖ Cancel</button>` : ''}
       </div>
     </div>
+
+    <!-- Vehicle Owner loading-charge rates -->
+    <details${_voSectionOpen ? ' open' : ''} ontoggle="toggleVehicleOwnersSection(this)" style="margin-top:16px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <summary style="cursor:pointer;padding:12px 14px;background:var(--bg,#f8fafc);font-size:13px;font-weight:700;color:var(--navy)">
+        🏗️ Vehicle Owner Loading Rates${vehicleOwners.length ? ` (${vehicleOwners.length})` : ''}
+      </summary>
+      <div style="padding:14px">
+        <div class="add-order-form" style="margin-bottom:${vehicleOwners.length ? '14px' : '0'};${_voEditingIdx >= 0 ? 'border:1.5px solid var(--blue)' : ''}">
+          <div class="form-title">${_voEditingIdx >= 0 ? '✏️ Edit Rate' : '➕ Add Vehicle Owner Rate'}</div>
+          <div class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+            <div class="form-group">
+              <label class="form-label">Vehicle Owner Name</label>
+              <input class="form-input" type="text" id="vo-name" placeholder="e.g. Ramesh Transport">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Fixed Rate (₹)</label>
+              <input class="form-input" type="number" id="vo-rate" placeholder="0" step="1">
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:12px">
+            <button class="btn-primary" onclick="saveVehicleOwnerRateForm()">${_voEditingIdx >= 0 ? '💾 Update Rate' : '💾 Save Rate'}</button>
+            ${_voEditingIdx >= 0 ? `<button class="btn-secondary" onclick="cancelEditVehicleOwnerRate()">✖ Cancel</button>` : ''}
+          </div>
+        </div>
+        ${vehicleOwners.length ? vehicleOwners.map((v, i) => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--border);font-size:13px">
+            <span style="font-weight:600">${v.name}</span>
+            <div style="display:flex;align-items:center;gap:12px">
+              <strong>₹${v.rate.toLocaleString('en-IN')}</strong>
+              <button class="btn-secondary" style="font-size:10px;padding:3px 6px" onclick="editVehicleOwnerRate(${i})" title="Edit">✏️</button>
+              <button style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--danger)" onclick="deleteVehicleOwnerRate(${i})" title="Delete">🗑</button>
+            </div>
+          </div>`).join('') : '<div class="empty-state" style="padding:10px 0">No vehicle owners on file yet. Add one above.</div>'}
+      </div>
+    </details>
 
     <!-- Category breakdown -->
     ${catEntries.length ? `
