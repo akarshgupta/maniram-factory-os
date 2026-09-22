@@ -90,6 +90,8 @@
     <!-- ── TABS ── -->
     <div class="staff-tabs">
       <button class="staff-tab active" onclick="showStaffTab('orders',this)">📦 Orders</button>
+      <button class="staff-tab" onclick="showStaffTab('dispatchentry',this)">🚚 Dispatch Entry</button>
+      <button class="staff-tab" onclick="showStaffTab('productionentry',this)">🏭 Production Entry</button>
       <button class="staff-tab" onclick="showStaffTab('stock',this)">🧻 Reel Stock</button>
       <button class="staff-tab" onclick="showStaffTab('delivery',this)">📅 Delivery Date</button>
       <button class="staff-tab" onclick="showStaffTab('weight',this)">⚖️ Box Weight</button>
@@ -114,19 +116,124 @@
         </div>
       </div>
 
+      <!-- View toggle: Pending vs Dispatched (month-scoped) -->
+      <div style="display:flex;gap:0;margin-bottom:12px;border:1px solid var(--border);border-radius:8px;overflow:hidden;width:fit-content">
+        <button class="staff-tab active" id="staff-view-pending" style="border:none;border-radius:0" onclick="setStaffOrdersView('pending')">📋 Pending</button>
+        <button class="staff-tab" id="staff-view-dispatched" style="border:none;border-radius:0" onclick="setStaffOrdersView('dispatched')">✅ Dispatched</button>
+      </div>
+
       <!-- Filter -->
-      <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+      <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
         <select id="staff-status-filter" class="form-select" style="width:auto" onchange="renderStaffOrders()">
-          <option value="">All Active Orders</option>
+          <option value="">All Pending</option>
           <option value="New">New</option>
           <option value="In Production">In Production</option>
           <option value="Ready">Ready</option>
-          <option value="Dispatched">Dispatched</option>
         </select>
-        <input id="staff-search" class="form-input" type="search" placeholder="Search customer / product..." style="flex:1;min-width:180px" oninput="renderStaffOrders()">
+        <input id="staff-month-filter" type="month" class="form-input" style="width:150px;display:none" onchange="renderStaffOrders()">
+        <input id="staff-search" class="form-input" type="search" placeholder="Search product / size / order ID..." style="flex:1;min-width:180px" oninput="renderStaffOrders()">
       </div>
 
       <div id="staff-orders-list"></div>
+    </div>
+
+    <!-- ══ DISPATCH ENTRY TAB ══ -->
+    <div id="staff-tab-dispatchentry" style="display:none">
+      <div class="card" style="max-width:560px">
+        <div class="card-header"><div class="card-title">🚚 Log a Dispatch</div></div>
+        <div class="card-body">
+          <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Pick the order this trip is for, then enter how many pieces and the weight per piece. This goes straight into the same register the office sees.</p>
+
+          <div class="form-group" style="margin-bottom:12px">
+            <label class="form-label">Order</label>
+            <input class="form-input" type="text" id="de-order-search" placeholder="Search by product, size, or Order ID..." autocomplete="off" oninput="onDeOrderInput()" onfocus="onDeOrderInput()">
+            <div class="autocomplete-list" id="de-order-dropdown" style="display:none"></div>
+          </div>
+          <div id="de-order-selected" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13px">
+            <span style="font-weight:700;font-family:monospace" id="de-selected-id"></span>
+            <span style="color:var(--muted)" id="de-selected-desc"></span>
+          </div>
+
+          <div class="calc-grid">
+            <div class="form-group">
+              <label class="form-label">Date</label>
+              <input class="form-input" type="date" id="de-date">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Pieces dispatched</label>
+              <input class="form-input" type="number" id="de-pcs" placeholder="e.g. 1000" min="1">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Weight per piece (gm)</label>
+              <input class="form-input" type="number" id="de-wtpc" placeholder="e.g. 650" step="0.1" min="0">
+            </div>
+          </div>
+          <button class="btn-primary" style="width:100%;padding:12px;font-size:15px;margin-top:6px" onclick="saveDispatchEntry()">💾 Save Dispatch</button>
+          <div id="de-msg" style="margin-top:8px;font-size:13px"></div>
+        </div>
+      </div>
+
+      <div style="max-width:560px;margin-top:16px">
+        <div class="sync-bar" id="de-sync" style="margin-bottom:10px"><div class="sync-dot loading"></div><span>Loading recent entries...</span></div>
+        <div id="de-list"></div>
+      </div>
+    </div>
+
+    <!-- ══ PRODUCTION ENTRY TAB ══ -->
+    <div id="staff-tab-productionentry" style="display:none">
+      <div class="card" style="max-width:560px">
+        <div class="card-header"><div class="card-title">🏭 Log Production</div></div>
+        <div class="card-body">
+          <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Reel widths/GSM used, the cut size, and how many sheets/rolls came out — same register the office sees.</p>
+          <div class="form-group">
+            <label class="form-label">Date</label>
+            <input class="form-input" type="date" id="pe-date">
+          </div>
+          <div class="calc-grid">
+            <div class="form-group">
+              <label class="form-label">Reel 1 — Width (in)</label>
+              <input class="form-input" type="number" id="pe-r1w" placeholder="e.g. 35.5" step="0.5">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Reel 1 — GSM</label>
+              <input class="form-input" type="number" id="pe-r1g" placeholder="e.g. 120">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Reel 2 — Width (in) <span style="font-weight:400;text-transform:none;color:var(--muted)">(optional)</span></label>
+              <input class="form-input" type="number" id="pe-r2w" placeholder="if 2-ply pasting" step="0.5">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Reel 2 — GSM <span style="font-weight:400;text-transform:none;color:var(--muted)">(optional)</span></label>
+              <input class="form-input" type="number" id="pe-r2g" placeholder="if 2-ply pasting">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Cut Size</label>
+            <input class="form-input" type="text" id="pe-cutsize" placeholder="e.g. 20x14x28">
+          </div>
+          <div class="calc-grid">
+            <div class="form-group">
+              <label class="form-label">Ply / Pieces</label>
+              <input class="form-input" type="text" id="pe-plypcs" placeholder="e.g. 3 ply, 1000 pcs">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Sheets</label>
+              <input class="form-input" type="number" id="pe-sheets" placeholder="e.g. 1050" min="0">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Rolls used</label>
+            <input class="form-input" type="number" id="pe-rolls" placeholder="e.g. 2" min="0">
+          </div>
+          <button class="btn-primary" style="width:100%;padding:12px;font-size:15px;margin-top:6px" onclick="saveProductionEntry()">💾 Save Production</button>
+          <div id="pe-msg" style="margin-top:8px;font-size:13px"></div>
+        </div>
+      </div>
+
+      <div style="max-width:560px;margin-top:16px">
+        <div class="sync-bar" id="pe-sync" style="margin-bottom:10px"><div class="sync-dot loading"></div><span>Loading recent entries...</span></div>
+        <div id="pe-list"></div>
+      </div>
     </div>
 
     <!-- ══ STOCK TAB ══ -->

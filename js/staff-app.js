@@ -105,6 +105,10 @@ async function staffFetchOrders() {
     if (json.error) throw new Error(json.error.message);
 
     const rows = (json.values || []).slice(1);
+    // `customer` is kept in memory only to fill in the Dispatch/Production
+    // Entry payloads (the sheet row format requires it, same as a Google
+    // Form submission would) — it is never rendered anywhere in this portal.
+    // `rate` is dropped entirely; nothing here ever needs it.
     staffOrders = rows.filter(r => r[0]).map(r => ({
       id:       r[0]  || '',
       date:     r[1]  || '',
@@ -114,7 +118,6 @@ async function staffFetchOrders() {
       ply:      r[5]  || '',
       colour:   r[6]  || '',
       qty:      parseFloat(r[7])  || 0,
-      rate:     parseFloat(r[8])  || 0,
       delivery: r[9]  || '',
       status:   r[10] || 'New',
       priority: r[11] || 'Normal',
@@ -155,19 +158,27 @@ async function staffFetchStock() {
 // TABS
 // ══════════════════════════════════════════════════════════════
 
-const STAFF_TABS = ['orders','stock','delivery','weight','process'];
-const STAFF_TAB_TITLES = { orders: '📦 Orders', stock: '🧻 Reel Stock', delivery: '📅 Delivery Date', weight: '⚖️ Box Weight', process: '⚗️ Process Log' };
+const STAFF_TABS = ['orders','dispatchentry','productionentry','stock','delivery','weight','process'];
+const STAFF_TAB_TITLES = {
+  orders: '📦 Orders', dispatchentry: '🚚 Dispatch Entry', productionentry: '🏭 Production Entry',
+  stock: '🧻 Reel Stock', delivery: '📅 Delivery Date', weight: '⚖️ Box Weight', process: '⚗️ Process Log',
+};
 
 function showStaffTab(id, btn) {
   STAFF_TABS.forEach(t => {
     document.getElementById('staff-tab-' + t).style.display = t === id ? 'block' : 'none';
   });
-  document.querySelectorAll('.staff-tab').forEach(b => b.classList.remove('active'));
+  // The Pending/Dispatched toggle buttons are also .staff-tab elements
+  // (same look, different row) — only clear/set active state among the
+  // main nav buttons, which are the direct children of .staff-tabs.
+  document.querySelectorAll('.staff-tabs > .staff-tab').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
   document.getElementById('staff-page-title').textContent = STAFF_TAB_TITLES[id] || id;
 
-  if (id === 'stock'   && !staffStock.length)      staffFetchStock();
-  if (id === 'process' && !staffProcessLog.length) staffFetchProcessLog();
+  if (id === 'stock'           && !staffStock.length)       staffFetchStock();
+  if (id === 'process'         && !staffProcessLog.length)  staffFetchProcessLog();
+  if (id === 'dispatchentry'   && !staffDispatchLog.length)  staffFetchDispatchLog();
+  if (id === 'productionentry' && !staffProductionLog.length) staffFetchProductionLog();
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -190,17 +201,42 @@ function updateTodayBanner() {
   document.getElementById('staff-due-tomorrow').textContent = active.filter(o => o.delivery === tmrwStr).length;
 }
 
+// Pending = still active (New/In Production/Ready), always shown in full —
+// current backlog shouldn't be month-scoped. Dispatched = Dispatched or
+// Delivered, restricted to one month at a time (defaults to the current
+// month) so this portal never becomes a browsable archive of the whole
+// dispatch history.
+let staffOrdersView = 'pending';
+
+function setStaffOrdersView(view) {
+  staffOrdersView = view;
+  document.getElementById('staff-view-pending').classList.toggle('active', view === 'pending');
+  document.getElementById('staff-view-dispatched').classList.toggle('active', view === 'dispatched');
+  document.getElementById('staff-status-filter').style.display = view === 'pending'    ? '' : 'none';
+  document.getElementById('staff-month-filter').style.display  = view === 'dispatched' ? '' : 'none';
+  if (view === 'dispatched' && !document.getElementById('staff-month-filter').value) {
+    document.getElementById('staff-month-filter').value = todayStr.slice(0, 7);
+  }
+  renderStaffOrders();
+}
+
 function renderStaffOrders() {
   const list    = document.getElementById('staff-orders-list');
   const filter  = document.getElementById('staff-status-filter')?.value || '';
+  const month   = document.getElementById('staff-month-filter')?.value  || '';
   const query   = (document.getElementById('staff-search')?.value || '').toLowerCase().trim();
 
-  let orders = staffOrders.filter(o => !['Delivered','Dispatched','Cancelled'].includes(o.status));
-  if (filter) orders = orders.filter(o => o.status === filter);
-  if (query)  orders = orders.filter(o =>
-    o.customer.toLowerCase().includes(query) ||
-    o.product.toLowerCase().includes(query)  ||
-    o.id.toLowerCase().includes(query)       ||
+  let orders;
+  if (staffOrdersView === 'dispatched') {
+    orders = staffOrders.filter(o => ['Dispatched','Delivered'].includes(o.status));
+    if (month) orders = orders.filter(o => (o.delivery || '').slice(0, 7) === month);
+  } else {
+    orders = staffOrders.filter(o => !['Delivered','Dispatched','Cancelled'].includes(o.status));
+    if (filter) orders = orders.filter(o => o.status === filter);
+  }
+  if (query) orders = orders.filter(o =>
+    o.product.toLowerCase().includes(query) ||
+    o.id.toLowerCase().includes(query)      ||
     o.size.toLowerCase().includes(query)
   );
 
@@ -212,7 +248,7 @@ function renderStaffOrders() {
   });
 
   if (!orders.length) {
-    list.innerHTML = `<div class="empty-state">No active orders.</div>`;
+    list.innerHTML = `<div class="empty-state">${staffOrdersView === 'dispatched' ? 'No dispatched orders in this month.' : 'No pending orders.'}</div>`;
     return;
   }
 
@@ -220,7 +256,7 @@ function renderStaffOrders() {
   orders.forEach(o => {
     const isToday   = o.delivery === todayStr;
     const isTmrw    = o.delivery === tmrwStr;
-    const isOverdue = o.delivery && o.delivery < todayStr;
+    const isOverdue = o.delivery && o.delivery < todayStr && staffOrdersView === 'pending';
     const urgency   = isOverdue ? '#FEE2E2' : isToday ? '#FEF3C7' : 'transparent';
 
     const row = document.createElement('div');
@@ -229,9 +265,8 @@ function renderStaffOrders() {
     row.innerHTML = `
       <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:14px 16px;background:${urgency}">
         <div style="flex:1;min-width:160px">
-          <div style="font-size:13px;font-weight:700;color:var(--navy)">${o.customer}</div>
+          <div style="font-size:13px;font-weight:700;color:var(--navy);font-family:monospace">${o.id}</div>
           <div style="font-size:12px;color:var(--muted)">${o.product} · ${o.size} · ${o.ply}ply</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px;font-family:monospace">${o.id}</div>
         </div>
         <div style="text-align:center;min-width:70px">
           <div style="font-size:16px;font-weight:800;color:var(--navy)">${o.qty.toLocaleString('en-IN')}</div>
@@ -245,7 +280,7 @@ function renderStaffOrders() {
         </div>
         <div style="display:flex;align-items:center;gap:8px">
           <span class="status-badge ${STATUS_CLASS_MAP[o.status] || ''}">${o.status}</span>
-          <button class="status-btn" style="background:var(--primary);color:#fff" onclick="openStaffStatus('${o.id.replace(/'/g,"\\'")}')">✏️ Update</button>
+          ${staffOrdersView === 'pending' ? `<button class="status-btn" style="background:var(--primary);color:#fff" onclick="openStaffStatus('${o.id.replace(/'/g,"\\'")}')">✏️ Update</button>` : ''}
         </div>
       </div>
     `;
@@ -261,7 +296,7 @@ function openStaffStatus(orderId) {
   if (!o) return;
   _staffStatusOrderId = orderId;
   document.getElementById('ss-order-id').textContent   = orderId;
-  document.getElementById('ss-order-desc').textContent = `${o.customer} · ${o.product} · ${o.qty.toLocaleString('en-IN')} pcs`;
+  document.getElementById('ss-order-desc').textContent = `${o.product} · ${o.size} · ${o.qty.toLocaleString('en-IN')} pcs`;
   document.getElementById('ss-status').value = o.status;
   document.getElementById('staff-status-overlay').style.display = 'flex';
 }
@@ -288,6 +323,209 @@ function saveStaffStatus() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'updateOrderStatus', id: o.id, status: newStatus }),
   }).catch(() => {});
+}
+
+// ══════════════════════════════════════════════════════════════
+// DISPATCH ENTRY / PRODUCTION ENTRY — direct entry into the same
+// register the supervisor's Google Form writes into (SUPERVISOR_SHEET_ID,
+// Production/Dispatch tabs), via the supervisorDispatchAppend /
+// supervisorProductionAppend Apps Script actions. Once saved, these
+// entries are indistinguishable from Form submissions on the office
+// side — js/supervisor-log.js needs no changes to pick them up.
+//
+// The order picker only ever shows Order ID + Product + Size — never
+// the customer name, phone, or rate. The selected order's customer
+// name is still sent in the save payload (the sheet's Party column,
+// same as a Form entry would carry), just never rendered here.
+// ══════════════════════════════════════════════════════════════
+
+// Google Sheets' Date-typed form answers serialize as M/D/YYYY (no
+// leading zeros) — matches what js/supervisor-log.js's _svNormDate
+// already expects, so a portal entry reads identically to a Form one.
+function _toMDY(iso) {
+  const m = String(iso || '').match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  return m ? `${parseInt(m[2])}/${parseInt(m[3])}/${m[1]}` : '';
+}
+
+// ── Dispatch Entry ──
+let _deFiltered      = [];
+let _deSelectedOrder = null;
+
+function onDeOrderInput() {
+  const val = (document.getElementById('de-order-search')?.value || '').trim().toLowerCase();
+  const dd  = document.getElementById('de-order-dropdown');
+  const open = staffOrders.filter(o => !['Delivered','Dispatched','Cancelled'].includes(o.status));
+  _deFiltered = !val ? open : open.filter(o =>
+    o.id.toLowerCase().includes(val) || o.product.toLowerCase().includes(val) || o.size.toLowerCase().includes(val)
+  );
+  if (!_deFiltered.length) { dd.style.display = 'none'; return; }
+  dd.innerHTML = '';
+  _deFiltered.slice(0, 30).forEach(o => {
+    const item = document.createElement('div');
+    item.className = 'autocomplete-item';
+    item.innerHTML = `<strong style="font-family:monospace">${o.id}</strong> — ${o.product} · ${o.size}`;
+    item.onmousedown = () => selectDeOrder(o.id);
+    dd.appendChild(item);
+  });
+  dd.style.display = 'block';
+}
+
+function selectDeOrder(orderId) {
+  const o = staffOrders.find(x => x.id === orderId);
+  document.getElementById('de-order-dropdown').style.display = 'none';
+  if (!o) return;
+  _deSelectedOrder = o;
+  document.getElementById('de-order-search').value = '';
+  document.getElementById('de-selected-id').textContent   = o.id;
+  document.getElementById('de-selected-desc').textContent = ` — ${o.product} · ${o.size} · ${o.ply}ply`;
+  document.getElementById('de-order-selected').style.display = 'block';
+}
+
+document.addEventListener('click', e => {
+  const grp = document.getElementById('de-order-search')?.closest('.form-group');
+  if (grp && !grp.contains(e.target)) {
+    const dd = document.getElementById('de-order-dropdown');
+    if (dd) dd.style.display = 'none';
+  }
+});
+
+function saveDispatchEntry() {
+  const msg = document.getElementById('de-msg');
+  msg.innerHTML = '';
+
+  if (!_deSelectedOrder) { msg.innerHTML = '⚠️ Pick an order above first.'; return; }
+  const dateVal = document.getElementById('de-date').value;
+  const pcs     = parseInt(document.getElementById('de-pcs').value)  || 0;
+  const wtPc    = parseFloat(document.getElementById('de-wtpc').value) || 0;
+  if (!dateVal)  { msg.innerHTML = '⚠️ Pick a date.'; return; }
+  if (pcs <= 0)  { msg.innerHTML = '⚠️ Enter pieces dispatched.'; return; }
+  if (wtPc <= 0) { msg.innerHTML = '⚠️ Enter the weight per piece.'; return; }
+
+  const o = _deSelectedOrder;
+  const payload = {
+    date: _toMDY(dateVal), party: o.customer, pcs, size: o.size, wtPc,
+    product: o.product, orderId: o.id,
+  };
+
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST', mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(Object.assign({ action: 'supervisorDispatchAppend' }, payload)),
+  }).catch(() => {});
+
+  msg.innerHTML = `✅ Saved — ${pcs.toLocaleString('en-IN')} pcs of ${o.id} dispatched`;
+  document.getElementById('de-pcs').value  = '';
+  document.getElementById('de-wtpc').value = '';
+  document.getElementById('de-order-selected').style.display = 'none';
+  _deSelectedOrder = null;
+  setTimeout(staffFetchDispatchLog, 3000);
+}
+
+let staffDispatchLog = [];
+
+async function staffFetchDispatchLog() {
+  const syncEl = document.getElementById('de-sync');
+  try {
+    const url  = `https://sheets.googleapis.com/v4/spreadsheets/${SUPERVISOR_SHEET_ID}/values/${encodeURIComponent(SUPERVISOR_DISP_TAB + '!A2:H500')}?key=${API_KEY}`;
+    const res  = await fetch(url);
+    const json = await res.json();
+    // A json.error here almost always just means no entry has ever been saved yet.
+    staffDispatchLog = json.error ? [] : (json.values || []).filter(r => r[0]).map(r => ({
+      ts: r[0] || '', date: r[1] || '', pcs: parseInt(r[3]) || 0, size: r[4] || '',
+      wtPc: parseFloat(r[5]) || 0, product: r[6] || '',
+      orderId: (r[7] || '').toString().split('—')[0].trim(),
+    })).sort((a, b) => (b.ts || '').localeCompare(a.ts || ''));
+    if (syncEl) syncEl.innerHTML = '<div class="sync-dot ok"></div><span>Updated just now</span>';
+  } catch (e) {
+    if (syncEl) syncEl.innerHTML = `<div class="sync-dot error"></div><span>Fetch failed: ${e.message}</span>`;
+  }
+  renderDispatchLog();
+}
+
+function renderDispatchLog() {
+  const list = document.getElementById('de-list');
+  if (!list) return;
+  if (!staffDispatchLog.length) { list.innerHTML = '<div class="empty-state">No dispatch entries logged yet.</div>'; return; }
+  list.innerHTML = staffDispatchLog.slice(0, 20).map(e => `
+    <div class="card" style="margin-bottom:8px;padding:12px 16px">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--navy);font-family:monospace">${e.orderId || '—'}</div>
+          <div style="font-size:11px;color:var(--muted)">${formatDate(e.date)}${e.product ? ' · ' + e.product : ''}${e.size ? ' · ' + e.size : ''}</div>
+        </div>
+        <div style="font-size:12px;font-weight:600">${e.pcs.toLocaleString('en-IN')} pcs${e.wtPc ? ` · ${e.wtPc} gm/pc` : ''}</div>
+      </div>
+    </div>`).join('');
+}
+
+// ── Production Entry ──
+function saveProductionEntry() {
+  const msg = document.getElementById('pe-msg');
+  msg.innerHTML = '';
+
+  const dateVal = document.getElementById('pe-date').value;
+  if (!dateVal) { msg.innerHTML = '⚠️ Pick a date.'; return; }
+
+  const payload = {
+    date: _toMDY(dateVal),
+    r1w: document.getElementById('pe-r1w').value.trim(),
+    r1g: document.getElementById('pe-r1g').value.trim(),
+    r2w: document.getElementById('pe-r2w').value.trim(),
+    r2g: document.getElementById('pe-r2g').value.trim(),
+    cutSize: document.getElementById('pe-cutsize').value.trim(),
+    plyPcs:  document.getElementById('pe-plypcs').value.trim(),
+    sheets:  document.getElementById('pe-sheets').value.trim(),
+    rolls:   document.getElementById('pe-rolls').value.trim(),
+  };
+  if (!payload.r1w && !payload.cutSize) { msg.innerHTML = '⚠️ Enter at least a reel width or cut size.'; return; }
+
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST', mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(Object.assign({ action: 'supervisorProductionAppend' }, payload)),
+  }).catch(() => {});
+
+  msg.innerHTML = '✅ Saved';
+  ['pe-r1w','pe-r1g','pe-r2w','pe-r2g','pe-cutsize','pe-plypcs','pe-sheets','pe-rolls'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  setTimeout(staffFetchProductionLog, 3000);
+}
+
+let staffProductionLog = [];
+
+async function staffFetchProductionLog() {
+  const syncEl = document.getElementById('pe-sync');
+  try {
+    const url  = `https://sheets.googleapis.com/v4/spreadsheets/${SUPERVISOR_SHEET_ID}/values/${encodeURIComponent(SUPERVISOR_PROD_TAB + '!A2:J500')}?key=${API_KEY}`;
+    const res  = await fetch(url);
+    const json = await res.json();
+    staffProductionLog = json.error ? [] : (json.values || []).filter(r => r[0]).map(r => ({
+      ts: r[0] || '', date: r[1] || '',
+      r1w: r[2] || '', r1g: r[3] || '', r2w: r[4] || '', r2g: r[5] || '',
+      cutSize: r[6] || '', plyPcs: r[7] || '', sheets: r[8] || '', rolls: r[9] || '',
+    })).sort((a, b) => (b.ts || '').localeCompare(a.ts || ''));
+    if (syncEl) syncEl.innerHTML = '<div class="sync-dot ok"></div><span>Updated just now</span>';
+  } catch (e) {
+    if (syncEl) syncEl.innerHTML = `<div class="sync-dot error"></div><span>Fetch failed: ${e.message}</span>`;
+  }
+  renderProductionLog();
+}
+
+function renderProductionLog() {
+  const list = document.getElementById('pe-list');
+  if (!list) return;
+  if (!staffProductionLog.length) { list.innerHTML = '<div class="empty-state">No production entries logged yet.</div>'; return; }
+  list.innerHTML = staffProductionLog.slice(0, 20).map(e => `
+    <div class="card" style="margin-bottom:8px;padding:12px 16px">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--navy)">${e.cutSize || e.plyPcs || '—'}</div>
+          <div style="font-size:11px;color:var(--muted)">${formatDate(e.date)}${e.r1w ? ` · Reel ${e.r1w}"${e.r1g ? '/' + e.r1g + 'gsm' : ''}` : ''}</div>
+        </div>
+        <div style="font-size:12px;font-weight:600">${e.sheets ? e.sheets + ' sheets' : ''}${e.sheets && e.rolls ? ' · ' : ''}${e.rolls ? e.rolls + ' rolls' : ''}</div>
+      </div>
+    </div>`).join('');
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -506,6 +744,8 @@ function staffInit() {
 
   document.getElementById('dd-start').value = todayStr;
   document.getElementById('pl-date').value  = todayStr;
+  document.getElementById('de-date').value  = todayStr;
+  document.getElementById('pe-date').value  = todayStr;
 
   checkStaffAuth();
   if (staffIsLoggedIn()) {
