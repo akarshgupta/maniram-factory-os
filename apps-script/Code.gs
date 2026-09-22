@@ -11,6 +11,13 @@ var DISPATCH_SHEET_ID  = '15BIRmrIyu4m76c_-9xau_SYC_BxsvR-kM6WadQKDV60';
 var STAFF_LOG_SHEET_ID = '14AYCaA4uQ7rSnfuOfG0Joff-LmWVCYVb9Wc_95Zr60k';
 var PROD_PERF_SHEET_ID = '1cK7sbz1pwsSJOD6ZBgdj12CN3Gznw9Y37KN-U3_hTwQ';
 
+// Supervisor register — the Google Form's own response sheet (also
+// SUPERVISOR_SHEET_ID in js/config.js — keep in sync). Historically
+// read-only from the app; supervisorProductionAppend/supervisorDispatchAppend
+// below are the first writers, used by the Supervisor Portal (staff.html) —
+// see the big comment above those functions for why appending here is safe.
+var SUPERVISOR_SHEET_ID = '1ArpIy-BTUzHAKmVlcX8_7LChLM8MRiWtO7lmRW2V3sk';
+
 // ── Separate spreadsheet per finance operation ──
 // Run setupSheets() ONCE (from the editor) to create these and print their IDs,
 // then paste each ID below AND into js/config.js. Nothing is merged together.
@@ -89,10 +96,13 @@ function doPost(e) {
     else if (action === 'deleteLead')        deleteFinanceRow(LEADS_SHEET_ID, 'Leads', data.id);
     else if (action === 'logOrderEvent')     logOrderEvent(data);
     else if (action === 'createNotionPage')  { /* handled separately if needed */ }
-    // ── Supervisor data collection ──
+    // ── Supervisor data collection (legacy — supervisor.html) ──
     else if (action === 'saveDispatchWeight') saveDispatchWeight(data);
     else if (action === 'saveProductionLog')  saveProductionLog(data);
     else if (action === 'saveReadyStock')     saveReadyStock(data);
+    // ── Supervisor Portal (staff.html) — writes into the Form's own sheet ──
+    else if (action === 'supervisorProductionAppend') supervisorProductionAppend(data);
+    else if (action === 'supervisorDispatchAppend')   supervisorDispatchAppend(data);
     // ── Production Register (in-app machine-stage entries) ──
     else if (action === 'prodlogAppend')      prodlogAppend(data);
     else if (action === 'gsmSet')             gsmSet(data);
@@ -803,7 +813,50 @@ function logOrderEvent(data) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// SUPERVISOR DATA COLLECTION
+// SUPERVISOR PORTAL (staff.html)  →  SUPERVISOR_SHEET_ID / "Production" +
+// "Dispatch" tabs — the SAME sheet the supervisor's Google Form writes
+// into. Appends a row in the exact column order the Form produces, so
+// js/supervisor-log.js's read side (parsing, weight-unit correction,
+// order auto-matching, auto-challan creation) needs zero changes — a
+// portal-submitted entry is indistinguishable from a Form one once it
+// lands in the sheet.
+//
+// The Portal never shows the supervisor a customer name, phone number,
+// or rate anywhere in its UI — he only ever sees Order ID + Product +
+// Size to pick from. But the Dispatch row format itself has always
+// carried the party name (column C) for office-side matching, exactly
+// like a Form submission does, so d.party here is filled in by
+// staff-app.js from data it already has in memory, never something
+// the supervisor typed or was shown on screen.
+// ══════════════════════════════════════════════════════════════
+function supervisorProductionAppend(d) {
+  if (!SUPERVISOR_SHEET_ID) return;
+  var ss = SpreadsheetApp.openById(SUPERVISOR_SHEET_ID);
+  var sh = ss.getSheetByName('Production');
+  if (!sh) return; // Form/sheet not set up yet — nothing to append to
+  var ts = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'M/d/yyyy H:mm:ss');
+  sh.appendRow([
+    ts, d.date || '',
+    d.r1w || '', d.r1g || '', d.r2w || '', d.r2g || '',
+    d.cutSize || '', d.plyPcs || '', d.sheets || '', d.rolls || ''
+  ]);
+}
+
+function supervisorDispatchAppend(d) {
+  if (!SUPERVISOR_SHEET_ID) return;
+  var ss = SpreadsheetApp.openById(SUPERVISOR_SHEET_ID);
+  var sh = ss.getSheetByName('Dispatch');
+  if (!sh) return;
+  var ts = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'M/d/yyyy H:mm:ss');
+  sh.appendRow([
+    ts, d.date || '', d.party || '',
+    d.pcs || '', d.size || '', d.wtPc || '',
+    d.product || '', d.orderId || ''
+  ]);
+}
+
+// ══════════════════════════════════════════════════════════════
+// SUPERVISOR DATA COLLECTION (legacy — supervisor.html, superseded)
 // All three write to ORDERS_SHEET_ID for easy access.
 // ══════════════════════════════════════════════════════════════
 
@@ -1038,8 +1091,6 @@ function setupSheets() {
 // just append a new row regardless of styling.
 // ══════════════════════════════════════════════════════════════
 function formatAllSheets() {
-  var SUPERVISOR_SHEET_ID = '1ArpIy-BTUzHAKmVlcX8_7LChLM8MRiWtO7lmRW2V3sk'; // Maniram — Register Responses
-
   var jobs = [
     { id: ORDERS_SHEET_ID, tabs: ['Orders', 'Purchases', 'Overheads', 'TallySync', 'ProdLog', 'GSMeta', 'SupvProdLog', 'WeightLog', 'ReadyStock', 'ProcessLog', 'ProcessPurchases'] },
     { id: CUSTOMERS_SHEET_ID, tabs: ['Sheet1'] },
