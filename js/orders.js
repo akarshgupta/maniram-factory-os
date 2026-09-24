@@ -728,7 +728,6 @@ function renderOrders() {
           ${o.reelSize
             ? `<div style="font-size:13px;font-weight:700;color:var(--blue);white-space:nowrap" title="Reel size">${o.reelSize}&quot; reel</div>`
             : (o.qty ? `<div style="font-size:13px;font-weight:700;color:var(--blue);white-space:nowrap" title="Quantity">${o.qty.toLocaleString('en-IN')} pcs</div>` : '')}
-          ${o.size ? `<div style="font-family:monospace;font-size:15px;font-weight:700;color:var(--navy);white-space:nowrap" title="Box size">${o.size}</div>` : ''}
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
             ${_ageBadgeHtml(o)}
             ${_delayBadgeHtml(o)}
@@ -740,7 +739,7 @@ function renderOrders() {
       <div style="font-size:12px">${o.weight ? o.weight + 'gm' : '—'}</div>
       <div style="font-size:12px;font-weight:500">${dateDisp}</div>
       <div><span class="status-badge ${STATUS_CLASS[o.status] || 'status-new'}">${o.status}</span></div>
-      <div style="display:flex;align-items:center;gap:5px;flex-wrap:nowrap">
+      <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:flex-end">
         <span style="font-size:13px;font-weight:600">${o.qty ? o.qty.toLocaleString('en-IN') : '—'}</span>
         ${['New', 'In Production'].includes(o.status) ? `<button class="btn-sm" style="font-size:10px;padding:2px 6px;color:#0D9488" onclick="event.stopPropagation();quickUpdateStatus('${o.id}','Ready')" title="Mark Ready to Dispatch (boxes made, not yet shipped)">📦</button>` : ''}
         <button class="btn-sm" style="font-size:10px;padding:2px 6px" onclick="event.stopPropagation();openChallanModal('${o.id}')" title="Issue Delivery Challan">🚚</button>
