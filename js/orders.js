@@ -964,6 +964,19 @@ function renderGroupedOrders() {
         ? `<div style="font-size:10px;color:var(--muted)">${_fmtOrderDate(o.orderDate)}</div>
            <div style="font-size:18px;font-weight:800;color:${ageColor};line-height:1.1" title="Days since order was placed">${age}d</div>`
         : `<div style="font-size:11px;color:var(--muted)">—</div>`;
+      // Same dispatched-vs-pending progress bar as the main Orders list —
+      // this grouped-by-client view was missing it entirely.
+      const dispatched   = typeof getDispatchedQty === 'function' ? getDispatchedQty(o.id) : 0;
+      const remaining    = Math.max(0, (o.qty || 0) - dispatched);
+      const dispPct      = o.qty > 0 ? Math.min(100, Math.round((dispatched / o.qty) * 100)) : 0;
+      const dispBarColor = remaining === 0 ? 'var(--success)' : 'var(--blue)';
+      const dispBar      = o.qty > 0 && dispatched > 0 ? `
+        <div style="margin-top:4px;max-width:220px">
+          <div style="background:#EEF1F5;border-radius:2px;height:3px;width:100%">
+            <div style="background:${dispBarColor};height:3px;border-radius:2px;width:${dispPct}%"></div>
+          </div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">🚚 ${dispatched.toLocaleString('en-IN')} dispatched${remaining > 0 ? ` · ${remaining.toLocaleString('en-IN')} pending` : ' · <span style="color:var(--success)">done</span>'}</div>
+        </div>` : '';
       const row      = document.createElement('div');
       row.className  = 'table-row';
       row.style.cssText = 'background:#FFFBF0;cursor:pointer;grid-template-columns:90px 1fr 90px 90px 90px 100px 90px 90px 80px';
@@ -974,6 +987,7 @@ function renderGroupedOrders() {
         <div>
           <div style="font-weight:600;font-size:12px">${o.product || '—'}</div>
           ${stockBadgeHtml(o)}
+          ${dispBar}
         </div>
         <div style="font-size:11px;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${o.size || ''}">${o.size || '—'}</div>
         <div style="font-size:12px">${colourDot(o.colour)}${o.colour || '—'}</div>
