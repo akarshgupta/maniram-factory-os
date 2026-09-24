@@ -673,9 +673,17 @@ function _svDispatchRow(e) {
   // fuzzy comparison used for order matching — an unlinked item (no
   // orderId, no challanDc) with the same party/product/qty as this
   // dispatch is, in practice, this dispatch already billed by hand.
+  // These two fallback tiers only key on product text + exact qty (party
+  // is fuzzy or dropped entirely in the last tier) — a round, common
+  // quantity like 500 or 1000 of the same product is a real coincidence
+  // risk, so an invoice can only match here if it was actually issued on
+  // or after this dispatch's own date (an invoice can't bill a dispatch
+  // that hadn't happened yet, same principle as the order-matching guard).
+  const eDateForInv = _svNormDate(e.date);
   const directInv = typeof invoiceList !== 'undefined'
     ? invoiceList.find(iv => (iv.items || []).some(it => it.svTs === e.ts)) ||
-      invoiceList.find(iv => _svFuzzyEq(iv.party, e.party) && (iv.items || []).some(it =>
+      invoiceList.find(iv => (!eDateForInv || !iv.date || iv.date >= eDateForInv) &&
+        _svFuzzyEq(iv.party, e.party) && (iv.items || []).some(it =>
         !it.orderId && !it.challanDc && +it.qty === +e.pcs && _svFuzzyEq(it.desc, e.product || e.party))) ||
       // Some supervisor entries have the product name typed into the party
       // field (e.g. "Jalpari" as both party and product), while the real
@@ -683,7 +691,8 @@ function _svDispatchRow(e) {
       // lines up there. Fall back to matching on product text + exact qty
       // alone, still restricted to an unlinked item, when there's a real
       // product to match on.
-      (e.product ? invoiceList.find(iv => (iv.items || []).some(it =>
+      (e.product ? invoiceList.find(iv => (!eDateForInv || !iv.date || iv.date >= eDateForInv) &&
+        (iv.items || []).some(it =>
         !it.orderId && !it.challanDc && +it.qty === +e.pcs && _svFuzzyEq(it.desc, e.product))) : null)
     : null;
   if (directInv) {
