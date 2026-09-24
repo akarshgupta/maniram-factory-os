@@ -685,12 +685,16 @@ function renderOrders() {
     // auto-completing behind the office's back.
     const nearlyDone  = o.qty > 0 && remaining > 0 && dispPct >= 90;
     const dispBarColor = nearlyDone ? '#F59E0B' : (remaining === 0 ? 'var(--success)' : 'var(--blue)');
+    // Clickable through to Order History — that's where the actual
+    // dispatch-by-dispatch breakdown (date + qty per challan) lives, so
+    // tapping straight on "N dispatched" is the obvious way in instead of
+    // hunting for the small 🕐 icon among the row's other action buttons.
     const dispBar     = o.qty > 0 && dispatched > 0 ? `
-      <div style="margin-top:5px">
+      <div style="margin-top:5px;cursor:pointer" onclick="event.stopPropagation();openOrderHistory('${o.id}')" title="See dispatch history">
         <div style="background:#EEF1F5;border-radius:2px;height:3px;width:100%">
           <div style="background:${dispBarColor};height:3px;border-radius:2px;width:${dispPct}%;transition:width 0.3s"></div>
         </div>
-        <div style="font-size:10px;color:var(--muted);margin-top:2px">🚚 ${dispatched.toLocaleString('en-IN')} dispatched${remaining > 0 ? ` · ${remaining.toLocaleString('en-IN')} pending` : ' · <span style="color:var(--success)">done</span>'}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">🚚 ${dispatched.toLocaleString('en-IN')} dispatched${remaining > 0 ? ` · ${remaining.toLocaleString('en-IN')} pending` : ' · <span style="color:var(--success)">done</span>'} <span style="text-decoration:underline">· history</span></div>
       </div>` : '';
     const nearlyDoneBanner = nearlyDone ? `
       <div style="margin-top:4px;background:#FEF3C7;border:1px solid #FBBF24;border-radius:6px;padding:4px 8px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
@@ -971,11 +975,11 @@ function renderGroupedOrders() {
       const dispPct      = o.qty > 0 ? Math.min(100, Math.round((dispatched / o.qty) * 100)) : 0;
       const dispBarColor = remaining === 0 ? 'var(--success)' : 'var(--blue)';
       const dispBar      = o.qty > 0 && dispatched > 0 ? `
-        <div style="margin-top:4px;max-width:220px">
+        <div style="margin-top:4px;max-width:220px;cursor:pointer" onclick="event.stopPropagation();openOrderHistory('${o.id}')" title="See dispatch history">
           <div style="background:#EEF1F5;border-radius:2px;height:3px;width:100%">
             <div style="background:${dispBarColor};height:3px;border-radius:2px;width:${dispPct}%"></div>
           </div>
-          <div style="font-size:10px;color:var(--muted);margin-top:2px">🚚 ${dispatched.toLocaleString('en-IN')} dispatched${remaining > 0 ? ` · ${remaining.toLocaleString('en-IN')} pending` : ' · <span style="color:var(--success)">done</span>'}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">🚚 ${dispatched.toLocaleString('en-IN')} dispatched${remaining > 0 ? ` · ${remaining.toLocaleString('en-IN')} pending` : ' · <span style="color:var(--success)">done</span>'} <span style="text-decoration:underline">· history</span></div>
         </div>` : '';
       const row      = document.createElement('div');
       row.className  = 'table-row';
