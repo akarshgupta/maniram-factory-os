@@ -96,6 +96,20 @@ function formatDate(d) {
   return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+// Delivery Date in the sheet comes as DD/MM/YYYY (or already ISO from a
+// couple of manual edits) — same normalizer as parseSheetDate() in
+// js/orders.js, duplicated here since staff.html doesn't load orders.js.
+function _staffParseSheetDate(raw) {
+  if (!raw) return '';
+  const dmy = String(raw).match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (dmy) {
+    const y = dmy[3].length === 2 ? '20' + dmy[3] : dmy[3];
+    return `${y}-${dmy[2].padStart(2,'0')}-${dmy[1].padStart(2,'0')}`;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  return '';
+}
+
 async function staffFetchOrders() {
   const syncEl = document.getElementById('staff-orders-sync');
   try {
@@ -103,24 +117,46 @@ async function staffFetchOrders() {
     const res  = await fetch(url);
     const json = await res.json();
     if (json.error) throw new Error(json.error.message);
+    const rows = json.values || [];
+    if (!rows.length) { staffOrders = []; renderStaffOrders(); updateTodayBanner(); if (syncEl) syncEl.innerHTML = '<div class="sync-dot ok"></div><span>No orders yet</span>'; return; }
 
-    const rows = (json.values || []).slice(1);
+    // Header-detected column mapping, same approach as fetchOrders() in
+    // js/orders.js — the sheet's actual column order ("Order ID, Customer,
+    // Product, Box Specs, Ply, Colour, Weight, Quantity, Rate, Delivery
+    // Date, Status, Priority, ...") doesn't match a fixed position list
+    // reliably, and has drifted before.
+    const header = rows[0].map(h => h.toString().trim().toLowerCase());
+    const col = {
+      id:       header.findIndex(h => h.includes('order id') || h === 'id'),
+      customer: header.findIndex(h => h.includes('customer')),
+      product:  header.findIndex(h => h.includes('product')),
+      spec:     header.findIndex(h => h.includes('box spec') || h.includes('specs') || h.includes('size')),
+      ply:      header.findIndex(h => h === 'ply' || h.includes('ply')),
+      colour:   header.findIndex(h => h.includes('colour') || h.includes('color')),
+      qty:      header.findIndex(h => h.includes('quantity') || h === 'qty'),
+      date:     header.findIndex(h => h.includes('delivery')),
+      status:   header.findIndex(h => h === 'status'),
+      priority: header.findIndex(h => h.includes('priority')),
+    };
+
     // `customer` is kept in memory only to fill in the Dispatch/Production
     // Entry payloads (the sheet row format requires it, same as a Google
     // Form submission would) — it is never rendered anywhere in this portal.
-    // `rate` is dropped entirely; nothing here ever needs it.
-    staffOrders = rows.filter(r => r[0]).map(r => ({
-      id:       r[0]  || '',
-      date:     r[1]  || '',
-      customer: r[2]  || '',
-      product:  r[3]  || '',
-      size:     r[4]  || '',
-      ply:      r[5]  || '',
-      colour:   r[6]  || '',
-      qty:      parseFloat(r[7])  || 0,
-      delivery: r[9]  || '',
-      status:   r[10] || 'New',
-      priority: r[11] || 'Normal',
+    // `rate` is intentionally never parsed; nothing here needs it.
+    // Filter on Customer, not Order ID, matching fetchOrders() in js/orders.js
+    // — guards against stray non-order rows (e.g. a misfiled purchase row)
+    // and split continuation rows that carry specs but no ID/customer.
+    staffOrders = rows.slice(1).filter(r => r[col.customer]).map(r => ({
+      id:       r[col.id]       || '',
+      customer: col.customer >= 0 ? (r[col.customer] || '') : '',
+      product:  col.product  >= 0 ? (r[col.product]  || '') : '',
+      size:     col.spec     >= 0 ? (r[col.spec]     || '') : '',
+      ply:      col.ply      >= 0 ? (r[col.ply]      || '') : '',
+      colour:   col.colour   >= 0 ? (r[col.colour]   || '') : '',
+      qty:      col.qty      >= 0 ? (parseFloat(r[col.qty]) || 0) : 0,
+      delivery: col.date     >= 0 ? _staffParseSheetDate(r[col.date] || '') : '',
+      status:   col.status   >= 0 ? (r[col.status]   || 'New') : 'New',
+      priority: col.priority >= 0 ? (r[col.priority] || 'Normal') : 'Normal',
     }));
 
     if (syncEl) syncEl.innerHTML = '<div class="sync-dot ok"></div><span>Updated just now</span>';
@@ -131,21 +167,69 @@ async function staffFetchOrders() {
   }
 }
 
+// The Stock sheet is a ledger — one row per reel lot (purchase or manual
+// adjustment), not one row per size. Same flexible SIZE/GSM/BF/WEIGHT/QTY
+// header detection as js/reels.js's fetchReelStock, kept as its own copy
+// here since staff.html doesn't load reels.js (it depends on order/client
+// data this portal never fetches). Rows are grouped by size+GSM, matching
+// the office Reels page, so a width stocking two GSMs shows as two rows.
 async function staffFetchStock() {
   const syncEl = document.getElementById('staff-stock-sync');
   try {
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${REEL_SHEET_ID}/values/${encodeURIComponent(REEL_TAB + '!A1:D200')}?key=${API_KEY}`;
+    const url  = `https://sheets.googleapis.com/v4/spreadsheets/${REEL_SHEET_ID}/values/${encodeURIComponent(REEL_TAB + '!A1:Z500')}?key=${API_KEY}&_=${Date.now()}`;
     const res  = await fetch(url);
     const json = await res.json();
     if (json.error) throw new Error(json.error.message);
+    const rows = json.values || [];
 
-    const rows  = (json.values || []).slice(1);
-    staffStock  = rows.filter(r => r[0]).map(r => ({
-      size:  r[0] || '',
-      qty:   parseFloat(r[1]) || 0,
-      unit:  r[2] || 'reels',
-      notes: r[3] || '',
-    }));
+    let headerRow = -1, colSize = -1, colGSM = -1, colBF = -1, colWeight = -1, colQty = -1;
+    for (let i = 0; i < rows.length; i++) {
+      const r  = rows[i].map(c => c.toString().trim().toUpperCase());
+      const si = r.findIndex(c => c === 'SIZE' || c === 'REEL SIZE' || c === 'REEL_SIZE');
+      if (si >= 0) {
+        headerRow = i;
+        colSize   = si;
+        colGSM    = r.findIndex(c => c === 'GSM');
+        colBF     = r.findIndex(c => c === 'BF');
+        colWeight = r.findIndex(c => c.includes('WEIGHT') || c === 'WT' || c === 'NET WT' || c === 'GROSS WT' || c === 'KG');
+        colQty    = r.findIndex(c => c === 'QTY' || c === 'QUANTITY' || c === 'REELS' || c === 'COUNT' || c === 'NOS' || c === 'NO.');
+        break;
+      }
+    }
+    if (headerRow < 0) throw new Error('Header not found in reel sheet — expected a SIZE column');
+
+    const parsed = [];
+    for (let i = headerRow + 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r || !r[colSize]) continue;
+      const size   = parseFloat(r[colSize]);
+      const weight = parseFloat(colWeight >= 0 ? r[colWeight] : 0);
+      if (!size || isNaN(size)) continue;
+      const qty    = colQty >= 0 ? (parseInt(r[colQty]) || 1) : 1;
+      const gsmRaw = colGSM >= 0 ? (r[colGSM] || '').toString().trim() : '';
+      const isColoured = r.some((cell, ci) =>
+        ci !== colSize && ci !== colGSM && ci !== colBF && ci !== colWeight && ci !== colQty &&
+        (cell || '').toString().trim().toUpperCase() === 'GY'
+      );
+      const is100Plain = (parseInt(gsmRaw) === 100 || gsmRaw === '100') && !isColoured;
+      parsed.push({ size, gsm: gsmRaw || '—', bf: colBF >= 0 ? r[colBF] : '—', weight: isNaN(weight) ? 0 : weight, qty, is100Plain, isColoured });
+    }
+
+    const grouped = {};
+    parsed.forEach(r => {
+      const k = r.size.toString() + '|' + r.gsm;
+      if (!grouped[k]) grouped[k] = { size: r.size, count: 0, plain100Count: 0, totalWeight: 0, gsm: r.gsm, bf: r.bf, hasColoured: false };
+      grouped[k].count       += r.qty;
+      grouped[k].totalWeight += r.weight * r.qty;
+      if (r.is100Plain)  grouped[k].plain100Count += r.qty;
+      if (r.isColoured)  grouped[k].hasColoured = true;
+    });
+
+    staffStock = Object.values(grouped).sort((a, b) => {
+      if (b.size !== a.size) return b.size - a.size;
+      const aG = parseFloat(a.gsm) || 0, bG = parseFloat(b.gsm) || 0;
+      return aG - bG;
+    });
 
     if (syncEl) syncEl.innerHTML = '<div class="sync-dot ok"></div><span>Updated just now</span>';
     renderStaffStock();
@@ -532,30 +616,82 @@ function renderProductionLog() {
 // REEL STOCK
 // ══════════════════════════════════════════════════════════════
 
+// Same criticality rule as the office Reels page: 35"+35.5" pooled, 42"
+// and 44" on their own, all by plain-100-GSM count only; every other
+// size/GSM always reads OK (no threshold defined for it).
+function _staffReelStatus(r) {
+  const s = r.size.toString();
+  if (s === '35' || s === '35.5') {
+    const pool = staffStock.filter(x => x.size.toString() === '35' || x.size.toString() === '35.5')
+      .reduce((sum, x) => sum + (x.plain100Count || 0), 0);
+    return pool < MIN_REELS ? 'critical' : pool === MIN_REELS ? 'low' : 'ok';
+  }
+  if (s === '42' || s === '44') {
+    const cnt = staffStock.filter(x => x.size.toString() === s).reduce((sum, x) => sum + (x.plain100Count || 0), 0);
+    return cnt < MIN_REELS ? 'critical' : cnt === MIN_REELS ? 'low' : 'ok';
+  }
+  return 'ok';
+}
+
 function renderStaffStock() {
   const list = document.getElementById('staff-stock-list');
   if (!staffStock.length) {
     list.innerHTML = `<div class="empty-state">No stock data found.</div>`;
     return;
   }
-  list.innerHTML = '';
-  const grid = document.createElement('div');
-  grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px';
+  const max = Math.max(...staffStock.map(r => r.count), 1);
+  list.innerHTML = `<div class="card" style="padding:0">` + staffStock.map(r => {
+    const status = _staffReelStatus(r);
+    const pct    = Math.round((r.count / max) * 100);
+    const gy     = r.hasColoured ? ' <span style="color:#B45309;font-weight:600">· GY</span>' : '';
+    const gsmKey = (r.gsm || '—').toString();
+    return `
+      <div class="reel-item">
+        <div class="reel-size" style="font-size:24px;width:76px">${r.size}"</div>
+        <div class="reel-bar-wrap"><div class="reel-bar ${status}" style="width:${pct}%"></div></div>
+        <div style="flex:1;padding:0 12px">
+          <div style="font-size:14px;font-weight:700">${r.count} reels · ${Math.round(r.totalWeight).toLocaleString('en-IN')} kg</div>
+          <div style="font-size:11px;color:var(--muted)">GSM ${r.gsm} · BF ${r.bf}${gy}</div>
+        </div>
+        <div class="reel-badge ${status}">${status === 'ok' ? 'OK' : status === 'low' ? 'LOW' : '⚠ CRIT'}</div>
+        <button class="status-btn" style="background:var(--primary);color:#fff;margin-left:8px" onclick="adjustReelStock('${r.size}','${gsmKey.replace(/'/g,"\\'")}')">✏️ Adjust</button>
+      </div>`;
+  }).join('') + `</div>`;
+}
 
-  staffStock.forEach(s => {
-    const low  = s.qty <= 2;
-    const ok   = s.qty >= 4;
-    const card = document.createElement('div');
-    card.className = 'stat-card ' + (low ? 'alert' : ok ? 'good' : 'warn');
-    card.innerHTML = `
-      <div class="stat-label">${s.size}"</div>
-      <div class="stat-value" style="color:${low ? 'var(--danger)' : ok ? 'var(--success)' : '#B45309'};font-size:28px">${s.qty}</div>
-      <div class="stat-sub">${s.unit} · ${low ? '⚠️ Low' : ok ? '✅ OK' : '⚠️ Watch'}</div>
-      ${s.notes ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">${s.notes}</div>` : ''}
-    `;
-    grid.appendChild(card);
-  });
-  list.appendChild(grid);
+// Appends a correction lot for the delta between the entered count and the
+// current aggregated total — the Stock sheet is an append-only ledger of
+// lots (same as a purchase), so an edit here is a new row, never a
+// mutation of past ones, exactly like addReelStock already does for
+// purchases. weightPerReel carries over the group's own average so the
+// total tonnage moves proportionally with the count.
+function adjustReelStock(sizeKey, gsmKey) {
+  const r = staffStock.find(x => x.size.toString() === sizeKey && (x.gsm || '—').toString() === gsmKey);
+  if (!r) return;
+  const input = prompt(`Current count for ${r.size}" (GSM ${r.gsm}): ${r.count} reels.\n\nEnter the correct count:`, r.count);
+  if (input === null) return;
+  const newCount = parseInt(input);
+  if (isNaN(newCount) || newCount < 0) { alert('Enter a valid number of reels.'); return; }
+  const delta = newCount - r.count;
+  if (delta === 0) return;
+
+  const avgWeight = r.count > 0 ? (r.totalWeight / r.count) : 0;
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST', mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'addReelStock', reelSize: r.size, gsm: r.gsm === '—' ? '' : r.gsm, bf: r.bf === '—' ? '' : r.bf,
+      numReels: delta, weightPerReel: avgWeight,
+    }),
+  }).catch(() => {});
+
+  // Optimistic local update so the list reflects the change immediately;
+  // a real fetch a few seconds later reconciles it against the sheet.
+  r.count       += delta;
+  r.totalWeight += avgWeight * delta;
+  if ((parseInt(r.gsm) === 100 || r.gsm === '100') && !r.hasColoured) r.plain100Count = (r.plain100Count || 0) + delta;
+  renderStaffStock();
+  setTimeout(staffFetchStock, 3000);
 }
 
 // ══════════════════════════════════════════════════════════════
