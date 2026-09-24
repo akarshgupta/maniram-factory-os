@@ -186,16 +186,22 @@ function _orderRowVals(d) {
     d.id, d.customer, d.product || '', d.size || '', d.ply || '', d.colour || '',
     d.weight || '', d.qty || '', d.rate || '', d.date || '', d.status || 'New',
     d.priority || 'Normal', d.reelSize || '', d.reservedKg || 0, d.remarks || '',
-    d.twoPart ? 'TRUE' : 'FALSE'
+    d.twoPart ? 'TRUE' : 'FALSE', d.orderDate || ''
   ];
 }
 
 // Orders sheet header is otherwise hand-managed, not auto-created — self-heal
-// just the one new column so existing sheets pick it up without a manual edit.
+// new columns so existing sheets pick them up without a manual edit. OrderDate
+// (when the order was punched in, as opposed to Date = delivery date) has
+// been sent by js/orders.js's save/edit forms all along, but silently
+// dropped on the floor here since this never had a column to put it in.
 function _ensureOrderTwoPartHeader(sheet) {
   var header = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
   if (header.indexOf('TwoPart') < 0) {
     sheet.getRange(1, 16, 1, 1).setValues([['TwoPart']]);
+  }
+  if (header.indexOf('OrderDate') < 0) {
+    sheet.getRange(1, 17, 1, 1).setValues([['OrderDate']]);
   }
 }
 
