@@ -121,37 +121,58 @@ function _svFuzzyEq(a, b) {
 // of an actual customer name (e.g. "Madhubala", "Tower", "Jio" are product
 // names, not parties). Only ever returns a match when it's unambiguous —
 // two candidate orders means "don't guess", not "pick one".
+// A dispatch can never be linked to an order that didn't exist yet —
+// boxes sent out directly (no order on file at the time) must never get
+// soaked up by a later order that happens to share a similar product/
+// party name. This is a hard rule with no override: it applies to this
+// automatic fuzzy match, the Order ID field, and a manual 🔗 Link pick
+// alike (see renderSvLinkResults and _svAutoCreateChallans).
+function _svOrderExistedBy(o, eDate) {
+  return !o.orderDate || !eDate || eDate >= o.orderDate;
+}
+
 function _svMatchOrderByProduct(e) {
   if (typeof orders === 'undefined' || typeof FINISHED_STATUSES === 'undefined') return { order: null, reason: 'none' };
   const eDate = _svNormDate(e.date); // YYYY-MM-DD
-  // A dispatch can't belong to an order that didn't exist yet — boxes sent
-  // out directly (no order on file at the time) must never get soaked up
-  // by a later order that happens to share a similar product/party name.
-  // Only applies to this automatic fuzzy match; an explicit Order ID or a
-  // manual 🔗 Link pick is a deliberate override and isn't date-restricted.
   const pending = orders
     .filter(o => !FINISHED_STATUSES.includes(o.status))
-    .filter(o => !o.orderDate || !eDate || eDate >= o.orderDate);
+    .filter(o => _svOrderExistedBy(o, eDate));
   if (!pending.length) return { order: null, reason: 'none' };
 
+  // Party first — it's the strongest identifying signal — narrowed to
+  // product (then size) only to disambiguate several open orders for the
+  // same party.
+  if (e.party) {
+    const byCustomer = pending.filter(o => _svFuzzyEq(o.customer, e.party));
+    if (byCustomer.length === 1) return { order: byCustomer[0], reason: 'party' };
+    if (byCustomer.length > 1) {
+      let narrowed = e.product ? byCustomer.filter(o => _svFuzzyEq(o.product, e.product)) : [];
+      if (narrowed.length === 1) return { order: narrowed[0], reason: 'party+product' };
+      narrowed = e.size ? byCustomer.filter(o => _svFuzzyEq(o.size, e.size)) : [];
+      if (narrowed.length === 1) return { order: narrowed[0], reason: 'party+size' };
+      return { order: null, reason: 'ambiguous' };
+    }
+  }
+
+  // No party match — fall back to product alone.
   if (e.product) {
     const byProduct = pending.filter(o => _svFuzzyEq(o.product, e.product));
     if (byProduct.length === 1) return { order: byProduct[0], reason: 'product' };
     if (byProduct.length > 1) {
-      let narrowed = e.party ? byProduct.filter(o => _svFuzzyEq(o.customer, e.party)) : [];
-      if (narrowed.length === 1) return { order: narrowed[0], reason: 'product+party' };
-      narrowed = e.size ? byProduct.filter(o => _svFuzzyEq(o.size, e.size)) : [];
+      const narrowed = e.size ? byProduct.filter(o => _svFuzzyEq(o.size, e.size)) : [];
       if (narrowed.length === 1) return { order: narrowed[0], reason: 'product+size' };
       return { order: null, reason: 'ambiguous' };
     }
   }
+
+  // Last resort: the product name was typed into the party field — a real
+  // data-quality case seen in this register.
   if (e.party) {
-    const byCustomer = pending.filter(o => _svFuzzyEq(o.customer, e.party));
     const byProdText = pending.filter(o => _svFuzzyEq(o.product, e.party));
-    const combined   = [...new Set([...byCustomer, ...byProdText])];
-    if (combined.length === 1) return { order: combined[0], reason: byCustomer.length ? 'party' : 'party-as-product' };
-    if (combined.length > 1) return { order: null, reason: 'ambiguous' };
+    if (byProdText.length === 1) return { order: byProdText[0], reason: 'party-as-product' };
+    if (byProdText.length > 1) return { order: null, reason: 'ambiguous' };
   }
+
   return { order: null, reason: 'none' };
 }
 
@@ -214,8 +235,12 @@ function _svAutoCreateChallans() {
 
     let o = null, matchedBy = '';
     if (e.orderId) {
-      o = orders.find(x => (x.id || '').toLowerCase() === e.orderId.toLowerCase());
-      if (o) matchedBy = 'Order ID';
+      const byId = orders.find(x => (x.id || '').toLowerCase() === e.orderId.toLowerCase());
+      // Even an explicit Order ID pick can't win against an order that
+      // didn't exist yet — e.g. a late-logged historical dispatch where
+      // the dropdown only offered orders created since. Falls through to
+      // product/party matching below instead of forcing a bad link.
+      if (byId && _svOrderExistedBy(byId, _svNormDate(e.date))) { o = byId; matchedBy = 'Order ID'; }
     }
     if (!o) {
       const m = _svMatchOrderByProduct(e);
@@ -480,12 +505,19 @@ function renderSvLinkResults(q) {
   // stripped fallback) instead of a plain substring check — otherwise a
   // party stored as "N D S" (spaced) silently never matches a search for
   // "NDS Paper", even though it's clearly the same customer.
+  const entry = _svDisp.find(x => x.ts === _svLinkTs);
+  const eDate = entry ? _svNormDate(entry.date) : '';
+  // A dispatch can never be linked to an order that didn't exist yet —
+  // same hard rule as the automatic match, enforced here too so a manual
+  // pick can't be used to override it. An order too new for this
+  // dispatch's date simply never appears in the list.
   const matched = (typeof orders !== 'undefined' ? orders : [])
-    .filter(o => typeof matchesSearch !== 'function' || matchesSearch(o, q));
+    .filter(o => typeof matchesSearch !== 'function' || matchesSearch(o, q))
+    .filter(o => _svOrderExistedBy(o, eDate));
   const finished = typeof FINISHED_STATUSES !== 'undefined' ? FINISHED_STATUSES : ['Delivered', 'Dispatched', 'Cancelled'];
   const openOrders      = matched.filter(o => !finished.includes(o.status)).slice(0, 40);
   const completedOrders = matched.filter(o => finished.includes(o.status)).slice(0, 40);
-  if (!openOrders.length && !completedOrders.length) { el.innerHTML = '<div class="empty-state">No matching orders.</div>'; return; }
+  if (!openOrders.length && !completedOrders.length) { el.innerHTML = '<div class="empty-state">No matching orders (or every match postdates this dispatch — it may need a new order instead).</div>'; return; }
 
   let html = openOrders.map(_svLinkRow).join('');
   if (completedOrders.length) {
