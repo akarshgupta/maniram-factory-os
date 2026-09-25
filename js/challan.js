@@ -332,8 +332,45 @@ function renderChallansTab() {
       ${allMonths.map(m => `<option value="${m}" ${m === _chMonthFilter ? 'selected' : ''}>${_chMonthLabel(m)}</option>`).join('')}
     </select>`;
 
-  // Sort newest first
-  const sorted = filtered.map(c => ({ ...c, _idx: challanList.indexOf(c) })).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  // Sort by the challan's own date (not createdAt, which is when the
+  // record was entered/matched — often days after a backfilled or
+  // late-logged dispatch) — newest date first, createdAt as tiebreaker
+  // within the same day.
+  const sorted = filtered.map(c => ({ ...c, _idx: challanList.indexOf(c) }))
+    .sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
+
+  // Grouped into day blocks (within the selected month) so the date is
+  // impossible to misread as jumbled — each day gets its own header with
+  // a running total.
+  const byDate = {};
+  sorted.forEach(c => { const k = c.date || '—'; (byDate[k] || (byDate[k] = [])).push(c); });
+  const dateKeys = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
+
+  const rowHtml = c => `
+        <div class="table-row" style="grid-template-columns:110px 90px 1fr 1fr 90px 80px 100px;align-items:center">
+          <div style="font-family:monospace;font-size:11px;font-weight:700;color:var(--navy)">${c.dcNum}</div>
+          <div style="font-size:12px;color:var(--muted)">${c.date ? new Date(c.date).toLocaleDateString('en-IN',{day:'numeric',month:'short'}) : '—'}</div>
+          <div style="font-size:12px;font-weight:600">${c.customer}</div>
+          <div style="font-size:11px;color:var(--muted)">${c.product || c.size || '—'}</div>
+          <div style="font-family:monospace;font-size:11px;color:var(--blue)">${c.orderId}</div>
+          <div style="text-align:right;font-size:13px;font-weight:700">${(c.qty || 0).toLocaleString('en-IN')}</div>
+          <div style="display:flex;gap:6px">
+            <button class="btn-sm" style="font-size:11px;padding:3px 8px" onclick="reprintChallan(${c._idx})" title="Re-print">🖨️</button>
+            <button class="btn-sm" style="font-size:11px;padding:3px 8px;background:#FEF2F2;color:var(--danger);border-color:var(--danger)" onclick="deleteChallan(${c._idx})" title="Delete">✕</button>
+          </div>
+        </div>`;
+
+  const dayBlocksHtml = dateKeys.map(dateKey => {
+    const dayItems = byDate[dateKey];
+    const dayQty   = dayItems.reduce((s, c) => s + (c.qty || 0), 0);
+    const dateLabel = dateKey === '—' ? 'No date on file' : new Date(dateKey).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+    return `
+      <div style="padding:8px 14px;background:var(--hover-bg,#f5f7fa);border-top:1px solid var(--border);font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;display:flex;justify-content:space-between">
+        <span>${dateLabel} — ${dayItems.length} DC${dayItems.length === 1 ? '' : 's'}</span>
+        <span>${dayQty.toLocaleString('en-IN')} pcs</span>
+      </div>
+      ${dayItems.map(rowHtml).join('')}`;
+  }).join('');
 
   el.innerHTML = `
     <div style="margin-bottom:12px">${monthSelect}</div>
@@ -347,18 +384,6 @@ function renderChallansTab() {
       <div class="table-header" style="grid-template-columns:110px 90px 1fr 1fr 90px 80px 100px">
         <div>DC No.</div><div>Date</div><div>Customer</div><div>Product</div><div>Order ID</div><div style="text-align:right">Qty</div><div>Actions</div>
       </div>
-      ${sorted.map(c => `
-        <div class="table-row" style="grid-template-columns:110px 90px 1fr 1fr 90px 80px 100px;align-items:center">
-          <div style="font-family:monospace;font-size:11px;font-weight:700;color:var(--navy)">${c.dcNum}</div>
-          <div style="font-size:12px;color:var(--muted)">${c.date ? new Date(c.date).toLocaleDateString('en-IN',{day:'numeric',month:'short'}) : '—'}</div>
-          <div style="font-size:12px;font-weight:600">${c.customer}</div>
-          <div style="font-size:11px;color:var(--muted)">${c.product || c.size || '—'}</div>
-          <div style="font-family:monospace;font-size:11px;color:var(--blue)">${c.orderId}</div>
-          <div style="text-align:right;font-size:13px;font-weight:700">${(c.qty || 0).toLocaleString('en-IN')}</div>
-          <div style="display:flex;gap:6px">
-            <button class="btn-sm" style="font-size:11px;padding:3px 8px" onclick="reprintChallan(${c._idx})" title="Re-print">🖨️</button>
-            <button class="btn-sm" style="font-size:11px;padding:3px 8px;background:#FEF2F2;color:var(--danger);border-color:var(--danger)" onclick="deleteChallan(${c._idx})" title="Delete">✕</button>
-          </div>
-        </div>`).join('')}
+      ${dayBlocksHtml}
     </div>`}`;
 }
