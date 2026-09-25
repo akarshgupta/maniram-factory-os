@@ -7,6 +7,7 @@ let activeOrderTab  = 'all';
 let editingOrderId  = null;
 let orderSearchQuery = '';
 let orderSortMode    = 'newest'; // 'newest' | 'reel'
+let _histMonth        = null; // 'YYYY-MM' — lazily set to the current month on first render
 
 function setOrderSortMode(mode) {
   orderSortMode = mode;
@@ -875,31 +876,35 @@ function removeOrder(orderId) {
   if (typeof renderProductionPlan === 'function') renderProductionPlan();
 }
 
-// ── Render Order History (completed orders) ──
-function renderOrderHistory() {
-  const el = document.getElementById('history-orders-list');
-  if (!el) return;
+// ── Order History: month selector + per-day grouping ──
+// A search query bypasses month scoping (flat, cross-month results) since
+// someone searching for a specific order/customer wants it found regardless
+// of which month it fell in — grouping only applies when just browsing.
+function _histInMonth(dateStr) {
+  return (dateStr || '').slice(0, 7) === _histMonth;
+}
+function _histMonthLabel(m) {
+  const [y, mo] = m.split('-').map(Number);
+  return new Date(y, mo - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+}
+function shiftHistoryMonth(delta) {
+  const [y, mo] = _histMonth.split('-').map(Number);
+  const d = new Date(y, mo - 1 + delta, 1);
+  _histMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  renderOrderHistory();
+}
+function _histOrdinalDate(dateKey) {
+  const d = new Date(dateKey + 'T00:00:00');
+  if (isNaN(d)) return dateKey || '—';
+  const day    = d.getDate();
+  const suffix = (day >= 11 && day <= 13) ? 'th' : day % 10 === 1 ? 'st' : day % 10 === 2 ? 'nd' : day % 10 === 3 ? 'rd' : 'th';
+  return `${day}${suffix} ${d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}`;
+}
 
-  const histOrders = [...orders]
-    .filter(o => FINISHED_STATUSES.includes(o.status))
-    .filter(o => matchesSearch(o, orderSearchQuery))
-    .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-
-  if (!histOrders.length) {
-    const msg = orderSearchQuery ? `No orders found matching "${orderSearchQuery}".` : 'No completed orders yet.';
-    el.innerHTML = `<div class="empty-state">${msg}</div>`;
-    return;
-  }
-
-  el.innerHTML = '';
-  histOrders.forEach(o => {
-    const dateDisp = o.date ? new Date(o.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
-    const row      = document.createElement('div');
-    row.className  = 'table-row';
-    row.style.cssText = 'background:#FAFAFA;cursor:pointer';
-    row.title = 'Click for invoice';
-    row.onclick = () => openInvoice(o.id);
-    row.innerHTML = `
+function _histOrderRowHtml(o) {
+  const dateDisp = o.date ? new Date(o.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+  return `
+    <div class="table-row" style="background:#FAFAFA;cursor:pointer" title="Click for invoice" onclick="openInvoice('${o.id.replace(/'/g,"\\'")}')">
       <div style="font-family:monospace;font-size:11px;color:var(--muted)">${o.id}</div>
       <div>
         <div style="font-weight:600;font-size:13px">${o.customer}</div>
@@ -915,9 +920,60 @@ function renderOrderHistory() {
         ${o.rate ? `<span style="font-size:11px;color:var(--muted)">₹${(o.qty*o.rate).toLocaleString('en-IN',{maximumFractionDigits:0})}</span>` : ''}
         ${o.remarks && o.remarks.includes('short') ? `<span style="font-size:10px;color:#E67E22;font-weight:600" title="${o.remarks}">⚠️ short</span>` : ''}
       </div>
+    </div>`;
+}
+
+// ── Render Order History (completed orders) ──
+function renderOrderHistory() {
+  const el      = document.getElementById('history-orders-list');
+  const navEl   = document.getElementById('history-month-nav');
+  if (!el) return;
+  if (!_histMonth) _histMonth = todayStr.slice(0, 7);
+
+  const histOrders = [...orders]
+    .filter(o => FINISHED_STATUSES.includes(o.status))
+    .filter(o => matchesSearch(o, orderSearchQuery))
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  if (orderSearchQuery) {
+    if (navEl) navEl.style.display = 'none';
+    if (!histOrders.length) { el.innerHTML = `<div class="empty-state">No orders found matching "${orderSearchQuery}".</div>`; return; }
+    el.innerHTML = histOrders.map(_histOrderRowHtml).join('');
+    return;
+  }
+
+  if (navEl) {
+    navEl.style.display = 'flex';
+    navEl.innerHTML = `
+      <button class="btn-secondary" style="padding:6px 12px" onclick="shiftHistoryMonth(-1)">◀</button>
+      <div style="font-weight:700;font-size:15px;min-width:160px;text-align:center">${_histMonthLabel(_histMonth)}</div>
+      <button class="btn-secondary" style="padding:6px 12px" onclick="shiftHistoryMonth(1)" ${_histMonth >= todayStr.slice(0, 7) ? 'disabled title="Already at the current month"' : ''}>▶</button>
     `;
-    el.appendChild(row);
+  }
+
+  const monthOrders = histOrders.filter(o => _histInMonth(o.date));
+  if (!monthOrders.length) {
+    el.innerHTML = `<div class="empty-state">No completed orders in ${_histMonthLabel(_histMonth)}.</div>`;
+    return;
+  }
+
+  const byDate = {};
+  monthOrders.forEach(o => {
+    const d = o.date || '?';
+    (byDate[d] || (byDate[d] = [])).push(o);
   });
+
+  el.innerHTML = Object.keys(byDate).sort((a, b) => b.localeCompare(a)).map(d => {
+    const dOrders = byDate[d];
+    return `
+      <details style="margin-bottom:8px;border:1px solid var(--border,#e5e7eb);border-radius:10px;overflow:hidden">
+        <summary style="cursor:pointer;padding:10px 14px;background:var(--bg,#f8fafc);display:flex;align-items:center;gap:10px;font-size:12px">
+          <span style="font-weight:700;font-size:14px">${_histOrdinalDate(d)}</span>
+          <span style="font-size:11px;color:var(--muted,#888)">${dOrders.length} order${dOrders.length === 1 ? '' : 's'}</span>
+        </summary>
+        <div>${dOrders.map(_histOrderRowHtml).join('')}</div>
+      </details>`;
+  }).join('');
 }
 
 // ── Render Grouped (active only) ──
