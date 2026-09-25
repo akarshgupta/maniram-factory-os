@@ -85,29 +85,32 @@ async function fetchReelStock() {
       });
     }
 
-    // Grouped by size AND GSM — a width that stocks both 100 GSM and some
-    // other GSM shows as two separate rows instead of one blended total,
-    // so each GSM's stock stays visible on its own.
+    // Grouped by size AND GSM AND coloured(GY) status — reels that share all
+    // three merge into one row; a different GSM or GY status at the same
+    // size gets its own row (e.g. 4 reels of 35" 100gsm, 1 of 35" 140gsm,
+    // 1 of 35" 140gsm GY stay as three separate rows, not six or one).
     const grouped = {};
     parsed.forEach(r => {
       const gsmKey = (r.gsm || '—').toString();
-      const k = r.size.toString() + '|' + gsmKey;
+      const k = r.size.toString() + '|' + gsmKey + '|' + (r.isColoured ? 'gy' : 'plain');
       if (!grouped[k]) grouped[k] = {
         size: r.size, count: 0, plain100Count: 0, colouredCount: 0,
-        totalWeight: 0, gsm: r.gsm, bf: r.bf, hasColoured: false,
+        totalWeight: 0, gsm: r.gsm, bf: r.bf, hasColoured: r.isColoured,
       };
       grouped[k].count         += r.qty;
       grouped[k].totalWeight   += r.weight * r.qty;
       if (r.is100Plain) grouped[k].plain100Count += r.qty;
-      if (r.isColoured) { grouped[k].colouredCount += r.qty; grouped[k].hasColoured = true; }
+      if (r.isColoured) grouped[k].colouredCount += r.qty;
     });
 
-    // Same width: 100 GSM row first, then other GSMs ascending.
+    // Same width: 100 GSM row first, then other GSMs ascending, plain before GY.
     reelData = Object.values(grouped).sort((a, b) => {
       if (b.size !== a.size) return b.size - a.size;
       const aG = parseFloat(a.gsm) || 0, bG = parseFloat(b.gsm) || 0;
       const a100 = aG === 100 ? 0 : 1, b100 = bG === 100 ? 0 : 1;
-      return a100 !== b100 ? a100 - b100 : aG - bG;
+      if (a100 !== b100) return a100 - b100;
+      if (aG !== bG) return aG - bG;
+      return (a.hasColoured ? 1 : 0) - (b.hasColoured ? 1 : 0);
     });
     const totalKg = reelData.reduce((s, r) => s + r.totalWeight, 0) + KATRA_BUFFER_KG;
     const now     = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
@@ -275,18 +278,27 @@ function showReelHistoryView(dateKey, snap) {
   });
 }
 
+// Sum the plain-100-GSM (not GY) count across every group matching these sizes
+function _plain100Sum(data, sizes) {
+  return data
+    .filter(r => sizes.includes(r.size.toString()) && String(r.gsm).trim() === '100' && !r.hasColoured)
+    .reduce((s, r) => s + r.count, 0);
+}
+
 // Same criticality logic as getReelStatus but works on any snapshot array
 function getReelStatusFromData(r, data) {
   const s = r.size.toString();
+  const isPlain100 = String(r.gsm).trim() === '100' && !r.hasColoured;
   if (s === '35' || s === '35.5') {
-    const pool = data.filter(x => x.size.toString() === '35' || x.size.toString() === '35.5')
-      .reduce((sum, x) => sum + (x.plain100Count || 0), 0);
+    if (!isPlain100) return 'ok'; // criticality is only tracked for the plain-100 group at this size
+    const pool = _plain100Sum(data, ['35', '35.5']);
     if (pool < MIN_REELS)  return 'critical';
     if (pool === MIN_REELS) return 'low';
     return 'ok';
   }
   if (s === '42' || s === '44') {
-    const cnt = data.filter(x => x.size.toString() === s).reduce((sum, x) => sum + (x.plain100Count || 0), 0);
+    if (!isPlain100) return 'ok';
+    const cnt = _plain100Sum(data, [s]);
     if (cnt < MIN_REELS)  return 'critical';
     if (cnt === MIN_REELS) return 'low';
     return 'ok';
@@ -307,28 +319,12 @@ function setReelSyncStatus(type, msg) {
 }
 
 // ── Criticality: new rules ──
-// r = one entry from reelData (has .plain100Count)
+// r = one entry from reelData (has .plain100Count); several rows can now
+// share a size (split by GSM/GY), so criticality only applies to the
+// plain-100 group at that size — other GSM/GY rows at the same size are
+// simply not tracked (return 'ok'), same as any untracked size.
 function getReelStatus(r) {
-  const s = r.size.toString();
-
-  // 35 and 35.5 are a single pool — same machine, interchangeable
-  if (s === '35' || s === '35.5') {
-    const pool = reelData.filter(x => x.size.toString() === '35' || x.size.toString() === '35.5')
-      .reduce((sum, x) => sum + (x.plain100Count || 0), 0);
-    if (pool < MIN_REELS)  return 'critical';
-    if (pool === MIN_REELS) return 'low';
-    return 'ok';
-  }
-
-  // 42 and 44: only 100 GSM plain count matters, summed across any other-GSM rows at that width
-  if (s === '42' || s === '44') {
-    const cnt = reelData.filter(x => x.size.toString() === s).reduce((sum, x) => sum + (x.plain100Count || 0), 0);
-    if (cnt < MIN_REELS)  return 'critical';
-    if (cnt === MIN_REELS) return 'low';
-    return 'ok';
-  }
-
-  return 'ok'; // all other sizes not tracked for criticality
+  return getReelStatusFromData(r, reelData);
 }
 
 // ── Render Critical (Dashboard card) ──
@@ -336,13 +332,10 @@ function renderCriticalReels() {
   const list = document.getElementById('critical-reel-list');
   if (!list) return;
 
-  const sumPlain100 = sizes => reelData.filter(r => sizes.includes(r.size.toString()))
-    .reduce((sum, r) => sum + (r.plain100Count || 0), 0);
-
   const entries = [
-    { label: '35 + 35.5"', count: sumPlain100(['35', '35.5']), note: '100 GSM pooled' },
-    { label: '42"',        count: sumPlain100(['42']), note: '100 GSM' },
-    { label: '44"',        count: sumPlain100(['44']), note: '100 GSM' },
+    { label: '35 + 35.5"', count: _plain100Sum(reelData, ['35', '35.5']), note: '100 GSM pooled' },
+    { label: '42"',        count: _plain100Sum(reelData, ['42']),         note: '100 GSM' },
+    { label: '44"',        count: _plain100Sum(reelData, ['44']),         note: '100 GSM' },
   ];
 
   const max = Math.max(...entries.map(e => e.count), 1);
@@ -400,13 +393,10 @@ function renderFullReels() {
 
 // ── Dashboard Stock Summary ──
 function updateDashboardStock() {
-  const sumPlain100 = sizes => reelData.filter(r => sizes.includes(r.size.toString()))
-    .reduce((sum, r) => sum + (r.plain100Count || 0), 0);
-
   const critCount = [
-    sumPlain100(['35', '35.5']) < MIN_REELS,
-    sumPlain100(['42']) < MIN_REELS,
-    sumPlain100(['44']) < MIN_REELS,
+    _plain100Sum(reelData, ['35', '35.5']) < MIN_REELS,
+    _plain100Sum(reelData, ['42'])         < MIN_REELS,
+    _plain100Sum(reelData, ['44'])         < MIN_REELS,
   ].filter(Boolean).length;
 
   const card = document.getElementById('stock-status-card');
@@ -425,9 +415,9 @@ function updateDashboardStock() {
   }
 }
 
-// ── Aggregated by width only (ignores GSM) — for stock-availability and
+// ── Aggregated by width only (ignores GSM/GY) — for stock-availability and
 // substitute math, where any GSM's paper counts toward filling a
-// reel-width need. reelData itself stays split by size+GSM for display. ──
+// reel-width need. reelData itself stays split by size+GSM+GY for display. ──
 function reelSizesAggregated() {
   const byWidth = {};
   reelData.forEach(r => {

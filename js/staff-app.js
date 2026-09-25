@@ -171,8 +171,9 @@ async function staffFetchOrders() {
 // adjustment), not one row per size. Same flexible SIZE/GSM/BF/WEIGHT/QTY
 // header detection as js/reels.js's fetchReelStock, kept as its own copy
 // here since staff.html doesn't load reels.js (it depends on order/client
-// data this portal never fetches). Rows are grouped by size+GSM, matching
-// the office Reels page, so a width stocking two GSMs shows as two rows.
+// data this portal never fetches). Rows are grouped by size+GSM+GY status,
+// matching the office Reels page, so a width stocking two GSMs — or the
+// same GSM in both plain and coloured (GY) — shows as separate rows.
 async function staffFetchStock() {
   const syncEl = document.getElementById('staff-stock-sync');
   try {
@@ -217,18 +218,18 @@ async function staffFetchStock() {
 
     const grouped = {};
     parsed.forEach(r => {
-      const k = r.size.toString() + '|' + r.gsm;
-      if (!grouped[k]) grouped[k] = { size: r.size, count: 0, plain100Count: 0, totalWeight: 0, gsm: r.gsm, bf: r.bf, hasColoured: false };
+      const k = r.size.toString() + '|' + r.gsm + '|' + (r.isColoured ? 'gy' : 'plain');
+      if (!grouped[k]) grouped[k] = { size: r.size, count: 0, plain100Count: 0, totalWeight: 0, gsm: r.gsm, bf: r.bf, hasColoured: r.isColoured };
       grouped[k].count       += r.qty;
       grouped[k].totalWeight += r.weight * r.qty;
-      if (r.is100Plain)  grouped[k].plain100Count += r.qty;
-      if (r.isColoured)  grouped[k].hasColoured = true;
+      if (r.is100Plain) grouped[k].plain100Count += r.qty;
     });
 
     staffStock = Object.values(grouped).sort((a, b) => {
       if (b.size !== a.size) return b.size - a.size;
       const aG = parseFloat(a.gsm) || 0, bG = parseFloat(b.gsm) || 0;
-      return aG - bG;
+      if (aG !== bG) return aG - bG;
+      return (a.hasColoured ? 1 : 0) - (b.hasColoured ? 1 : 0); // plain before GY
     });
 
     if (syncEl) syncEl.innerHTML = '<div class="sync-dot ok"></div><span>Updated just now</span>';
@@ -621,12 +622,18 @@ function renderProductionLog() {
 // size/GSM always reads OK (no threshold defined for it).
 function _staffReelStatus(r) {
   const s = r.size.toString();
+  // Criticality is only tracked for the plain-100 group at a size — a
+  // different GSM or a GY row at the same size just reads OK, same as any
+  // untracked size (matches getReelStatus in js/reels.js).
+  const isPlain100 = (parseInt(r.gsm) === 100 || r.gsm === '100') && !r.hasColoured;
   if (s === '35' || s === '35.5') {
+    if (!isPlain100) return 'ok';
     const pool = staffStock.filter(x => x.size.toString() === '35' || x.size.toString() === '35.5')
       .reduce((sum, x) => sum + (x.plain100Count || 0), 0);
     return pool < MIN_REELS ? 'critical' : pool === MIN_REELS ? 'low' : 'ok';
   }
   if (s === '42' || s === '44') {
+    if (!isPlain100) return 'ok';
     const cnt = staffStock.filter(x => x.size.toString() === s).reduce((sum, x) => sum + (x.plain100Count || 0), 0);
     return cnt < MIN_REELS ? 'critical' : cnt === MIN_REELS ? 'low' : 'ok';
   }
@@ -654,7 +661,7 @@ function renderStaffStock() {
           <div style="font-size:11px;color:var(--muted)">GSM ${r.gsm} · BF ${r.bf}${gy}</div>
         </div>
         <div class="reel-badge ${status}">${status === 'ok' ? 'OK' : status === 'low' ? 'LOW' : '⚠ CRIT'}</div>
-        <button class="status-btn" style="background:var(--primary);color:#fff;margin-left:8px" onclick="adjustReelStock('${r.size}','${gsmKey.replace(/'/g,"\\'")}')">✏️ Adjust</button>
+        <button class="status-btn" style="background:var(--primary);color:#fff;margin-left:8px" onclick="adjustReelStock('${r.size}','${gsmKey.replace(/'/g,"\\'")}',${r.hasColoured ? 'true' : 'false'})">✏️ Adjust</button>
       </div>`;
   }).join('') + `</div>`;
 }
@@ -665,10 +672,10 @@ function renderStaffStock() {
 // mutation of past ones, exactly like addReelStock already does for
 // purchases. weightPerReel carries over the group's own average so the
 // total tonnage moves proportionally with the count.
-function adjustReelStock(sizeKey, gsmKey) {
-  const r = staffStock.find(x => x.size.toString() === sizeKey && (x.gsm || '—').toString() === gsmKey);
+function adjustReelStock(sizeKey, gsmKey, isColoured) {
+  const r = staffStock.find(x => x.size.toString() === sizeKey && (x.gsm || '—').toString() === gsmKey && !!x.hasColoured === !!isColoured);
   if (!r) return;
-  const input = prompt(`Current count for ${r.size}" (GSM ${r.gsm}): ${r.count} reels.\n\nEnter the correct count:`, r.count);
+  const input = prompt(`Current count for ${r.size}" (GSM ${r.gsm}${r.hasColoured ? ' · GY' : ''}): ${r.count} reels.\n\nEnter the correct count:`, r.count);
   if (input === null) return;
   const newCount = parseInt(input);
   if (isNaN(newCount) || newCount < 0) { alert('Enter a valid number of reels.'); return; }
