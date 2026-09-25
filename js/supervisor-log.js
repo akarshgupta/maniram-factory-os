@@ -139,13 +139,21 @@ function _svMatchOrderByProduct(e) {
     .filter(o => _svOrderExistedBy(o, eDate));
   if (!pending.length) return { order: null, reason: 'none' };
 
-  // Party first — it's the strongest identifying signal — narrowed to
-  // product (then size) only to disambiguate several open orders for the
-  // same party.
+  // Party first — it's the strongest identifying signal — but even when
+  // it uniquely picks one order, a product given on the dispatch must
+  // still actually match that order's product. A party can have several
+  // different products on file; if this dispatch is for a different one
+  // than their sole pending order, that's not this order and must never
+  // be forced through on party alone (real case: it silently auto-
+  // completed the wrong order this way).
   if (e.party) {
     const byCustomer = pending.filter(o => _svFuzzyEq(o.customer, e.party));
-    if (byCustomer.length === 1) return { order: byCustomer[0], reason: 'party' };
-    if (byCustomer.length > 1) {
+    if (byCustomer.length === 1) {
+      const o = byCustomer[0];
+      if (!e.product || _svFuzzyEq(o.product, e.product)) return { order: o, reason: 'party' };
+      // Product given but doesn't match this party's one order — fall
+      // through to product-only matching below instead of forcing it.
+    } else if (byCustomer.length > 1) {
       let narrowed = e.product ? byCustomer.filter(o => _svFuzzyEq(o.product, e.product)) : [];
       if (narrowed.length === 1) return { order: narrowed[0], reason: 'party+product' };
       narrowed = e.size ? byCustomer.filter(o => _svFuzzyEq(o.size, e.size)) : [];
