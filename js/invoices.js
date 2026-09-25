@@ -604,6 +604,7 @@ function markOrderDelivered(o) {
         product: o.product, size: o.size, ply: o.ply, colour: o.colour, weight: o.weight,
         qty: o.qty, rate: o.rate, date: fmt, orderDate: fod, status: 'Delivered',
         priority: o.priority, reelSize: o.reelSize, reservedKg: o.reservedKg || 0, remarks: '',
+        twoPart: !!o.twoPart,
       }),
     }).catch(() => {});
   } catch (e) { /* non-fatal */ }

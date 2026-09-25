@@ -33,23 +33,9 @@ function calToggleDelivered(orderId) {
   // clear dispatch log when manually reverting to un-delivered
   if (!nowDelivered && typeof clearDispatch === 'function') clearDispatch(orderId);
 
-  // Push status update to sheet
-  if (o.rowIndex && o.rowIndex !== 9999) {
-    const d   = new Date(o.date);
-    const fmt = isNaN(d) ? o.date : `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
-    fetch(APPS_SCRIPT_URL, {
-      method: 'POST', mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'update', rowIndex: o.rowIndex,
-        id: o.id, customer: o.customer, product: o.product || '', size: o.size || '',
-        ply: o.ply || '', colour: o.colour || '', weight: o.weight || '',
-        qty: o.qty, rate: o.rate, date: fmt, status: newStatus,
-        priority: o.priority || 'Normal', reelSize: o.reelSize || '',
-        reservedKg: o.reservedKg || 0, remarks: o.remarks || ''
-      })
-    });
-  }
+  // Push status update to sheet — shared full-row push (js/orders.js)
+  // keeps orderDate/twoPart intact instead of blanking them.
+  if (typeof _pushOrderUpdate === 'function') _pushOrderUpdate(o);
 
   renderCalendar();
   updateDashboardOrders();
