@@ -563,10 +563,14 @@ function _orderAgeDays(o) {
 function _ageBadgeHtml(o) {
   const days = _orderAgeDays(o);
   if (days === null || days < 0) return '';
-  let bg = '#F1F5F9', fg = '#64748B', label = `${days}d`;
-  if (days >= 14)      { bg = '#FEE2E2'; fg = '#991B1B'; label = `⚠ ${days}d old`; }
-  else if (days >= 7)  { bg = '#FEF3C7'; fg = '#92400E'; label = `${days}d old`; }
-  return `<span style="font-size:10px;font-weight:700;color:${fg};background:${bg};padding:3px 8px;border-radius:10px;white-space:nowrap" title="Days since order date (${_fmtOrderDate(o.orderDate)})">${label}</span>`;
+  // Show the order-placed date itself right in the badge, not just the day
+  // count — glancing at the row should be enough to know when it was
+  // placed, without hovering for the tooltip.
+  const dateLabel = _fmtOrderDate(o.orderDate);
+  let bg = '#F1F5F9', fg = '#64748B', label = `${dateLabel} · ${days}d`;
+  if (days >= 14)      { bg = '#FEE2E2'; fg = '#991B1B'; label = `⚠ ${dateLabel} · ${days}d old`; }
+  else if (days >= 7)  { bg = '#FEF3C7'; fg = '#92400E'; label = `${dateLabel} · ${days}d old`; }
+  return `<span style="font-size:10px;font-weight:700;color:${fg};background:${bg};padding:3px 8px;border-radius:10px;white-space:nowrap" title="Order placed ${dateLabel} — ${days} day${days === 1 ? '' : 's'} ago">${label}</span>`;
 }
 
 function _fmtOrderDate(d) {
