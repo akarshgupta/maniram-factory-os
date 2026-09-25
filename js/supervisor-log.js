@@ -563,6 +563,27 @@ function _relinkInvoiceForChallan(dcNum, o) {
   return inv;
 }
 
+// A challan re-linked away from an order can leave that order stuck
+// Delivered/Dispatched on a total that's no longer actually reached —
+// checkOrderFullyDispatched never records what the status was before it
+// auto-completed, so there's nothing to precisely restore. Reopening to
+// 'New' is the safe generic fallback; the office can set it to whatever
+// stage it's really at from there. Only touches it if it's genuinely no
+// longer fully dispatched — an order that still reaches its total via
+// other challans is left alone.
+function _svRevertStaleDeliveredOrder(oldOrderId) {
+  if (!oldOrderId || typeof orders === 'undefined' || typeof FINISHED_STATUSES === 'undefined') return;
+  const o = orders.find(x => x.id === oldOrderId);
+  if (!o || !FINISHED_STATUSES.includes(o.status)) return;
+  const dispatched = typeof getDispatchedQty === 'function' ? getDispatchedQty(oldOrderId) : 0;
+  if (dispatched >= (parseInt(o.qty) || 0)) return; // still genuinely fully dispatched — leave it
+
+  const prevStatus = o.status;
+  o.status = 'New';
+  if (typeof logOrderEvent === 'function') logOrderEvent(oldOrderId, 'Rolled Back', `Reopened from ${prevStatus} — a dispatch previously counted toward it was re-linked to a different order`);
+  if (typeof _pushOrderUpdate === 'function') _pushOrderUpdate(o);
+}
+
 function linkDispatchToOrder(orderId) {
   const e = _svDisp.find(x => x.ts === _svLinkTs);
   const o = typeof orders !== 'undefined' ? orders.find(x => x.id === orderId) : null;
@@ -574,6 +595,7 @@ function linkDispatchToOrder(orderId) {
   // instead of creating a second one for the same dispatch entry.
   const existing = challanList.find(c => c.svTs === e.ts);
   if (existing) {
+    const oldOrderId = existing.orderId;
     existing.orderId  = o.id;
     existing.customer = o.customer;
     existing.product  = o.product || o.size || '';
@@ -596,6 +618,7 @@ function linkDispatchToOrder(orderId) {
     // the invoice never sits mismatched against a challan that's since
     // been pointed at a different order.
     const linkedInv = _relinkInvoiceForChallan(existing.dcNum, o);
+    if (oldOrderId && oldOrderId !== o.id) _svRevertStaleDeliveredOrder(oldOrderId);
     if (linkedInv) alert(`${existing.dcNum} and invoice ${linkedInv.id} now both point to ${o.id} (${o.customer}).`);
     if (typeof renderOrders === 'function') renderOrders();
     if (typeof renderInvoicingPage === 'function') renderInvoicingPage();
