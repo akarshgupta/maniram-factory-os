@@ -3,7 +3,7 @@
 // Static shell: cache-first with background refresh.
 // Google APIs / Apps Script: network-only (live data must be live).
 // ══════════════════════════════════════════════════════════════
-const CACHE = 'mi-factory-os-v102';
+const CACHE = 'mi-factory-os-v103';
 const SHELL = [
   './', './index.html', './staff.html', './supervisor.html', './css/style.css', './manifest.json',
   './js/config.js', './js/auth.js', './js/app.js',
@@ -12,7 +12,7 @@ const SHELL = [
   './js/purchase.js', './js/receivables.js', './js/invoices.js', './js/expenses.js',
   './js/production-plan.js', './js/analytics.js', './js/dispatch.js',
   './js/dispatch-pdf.js', './js/challan.js', './js/job-card.js',
-  './js/whatsapp-import.js', './js/tally-sync.js', './js/prod-learning.js',
+  './js/tally-sync.js', './js/prod-learning.js',
   './js/delivery-learning.js', './js/date-picker.js', './js/staff-app.js',
   './js/deckle.js', './js/job-costing.js', './js/process-costing.js', './js/pipeline-board.js', './js/supervisor-log.js',
   './js/registers.js', './js/ledger.js', './js/daily-report.js',

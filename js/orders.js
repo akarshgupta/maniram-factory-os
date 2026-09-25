@@ -780,6 +780,11 @@ function _pushOrderUpdate(o) {
   if (!o.rowIndex || o.rowIndex === 9999) return;
   const d   = new Date(o.date + 'T00:00:00');
   const fmt = isNaN(d) ? o.date : `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+  // orderDate formats the same way saveEditedOrder() does (DD/MM/YYYY) —
+  // this writes the FULL row (updateOrderRow), so any field left out here
+  // gets silently blanked on the sheet, not just skipped.
+  const od    = o.orderDate ? new Date(o.orderDate + 'T00:00:00') : null;
+  const fmtOd = od && !isNaN(od) ? `${String(od.getDate()).padStart(2,'0')}/${String(od.getMonth()+1).padStart(2,'0')}/${od.getFullYear()}` : '';
   fetch(APPS_SCRIPT_URL, {
     method: 'POST', mode: 'no-cors',
     headers: { 'Content-Type': 'application/json' },
@@ -787,9 +792,9 @@ function _pushOrderUpdate(o) {
       action: 'update', rowIndex: o.rowIndex,
       id: o.id, customer: o.customer, product: o.product || '', size: o.size || '',
       ply: o.ply || '', colour: o.colour || '', weight: o.weight || '',
-      qty: o.qty, rate: o.rate, date: fmt, status: o.status,
+      qty: o.qty, rate: o.rate, date: fmt, orderDate: fmtOd, status: o.status,
       priority: o.priority || 'Normal', reelSize: o.reelSize || '',
-      reservedKg: o.reservedKg || 0, remarks: o.remarks || ''
+      reservedKg: o.reservedKg || 0, remarks: o.remarks || '', twoPart: !!o.twoPart
     })
   }).catch(() => {});
 }

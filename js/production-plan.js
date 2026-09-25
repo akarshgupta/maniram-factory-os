@@ -273,24 +273,11 @@ function applyAutoSchedule() {
   if (!toChange.length) return;
 
   toChange.forEach(r => {
-    const o   = r.order;
-    o.date    = r.newDate;
-    const d   = new Date(r.newDate + 'T00:00:00');
-    const fmt = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
-    if (o.rowIndex && o.rowIndex !== 9999) {
-      fetch(APPS_SCRIPT_URL, {
-        method: 'POST', mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'update', rowIndex: o.rowIndex,
-          id: o.id, customer: o.customer, product: o.product || '', size: o.size || '',
-          ply: o.ply || '', colour: o.colour || '', weight: o.weight || '',
-          qty: o.qty, rate: o.rate, date: fmt, status: o.status,
-          priority: o.priority || 'Normal', reelSize: o.reelSize || '',
-          reservedKg: o.reservedKg || 0, remarks: o.remarks || ''
-        })
-      }).catch(() => {});
-    }
+    const o = r.order;
+    o.date  = r.newDate;
+    // Shared full-row push (js/orders.js) — keeps orderDate/twoPart intact
+    // instead of duplicating the payload here and silently blanking them.
+    if (typeof _pushOrderUpdate === 'function') _pushOrderUpdate(o);
   });
 
   el.innerHTML = `<div style="font-size:12px;color:var(--success);font-weight:600">✅ ${toChange.length} orders rescheduled and saved to Sheets.</div>`;
@@ -460,22 +447,7 @@ function applyMergeDate(orderId, newDate) {
   if (!confirm(`Move ${orderId} delivery to ${label}? This will update the sheet.`)) return;
 
   o.date = newDate;
-  if (o.rowIndex && o.rowIndex !== 9999) {
-    const d   = new Date(newDate + 'T00:00:00');
-    const fmt = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
-    fetch(APPS_SCRIPT_URL, {
-      method: 'POST', mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'update', rowIndex: o.rowIndex,
-        id: o.id, customer: o.customer, product: o.product || '', size: o.size || '',
-        ply: o.ply || '', colour: o.colour || '', weight: o.weight || '',
-        qty: o.qty, rate: o.rate, date: fmt, status: o.status,
-        priority: o.priority || 'Normal', reelSize: o.reelSize || '',
-        reservedKg: o.reservedKg || 0, remarks: o.remarks || ''
-      })
-    });
-  }
+  if (typeof _pushOrderUpdate === 'function') _pushOrderUpdate(o);
   renderProductionPlan();
   renderCalendar();
   updateDashboardOrders();
@@ -646,23 +618,7 @@ function quickUpdateStatus(orderId, newStatus) {
   }
   o.status = newStatus;
   if (typeof logOrderEvent === 'function') logOrderEvent(orderId, 'Status Changed', `${prevStatus} → ${newStatus}`);
-
-  if (o.rowIndex && o.rowIndex !== 9999) {
-    const d   = new Date(o.date + 'T00:00:00');
-    const fmt = isNaN(d) ? o.date : `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
-    fetch(APPS_SCRIPT_URL, {
-      method: 'POST', mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'update', rowIndex: o.rowIndex,
-        id: o.id, customer: o.customer, product: o.product || '', size: o.size || '',
-        ply: o.ply || '', colour: o.colour || '', weight: o.weight || '',
-        qty: o.qty, rate: o.rate, date: fmt, status: newStatus,
-        priority: o.priority || 'Normal', reelSize: o.reelSize || '',
-        reservedKg: o.reservedKg || 0, remarks: o.remarks || ''
-      })
-    }).catch(() => {});
-  }
+  if (typeof _pushOrderUpdate === 'function') _pushOrderUpdate(o);
 
   renderProductionPlan();
   updateDashboardOrders();
