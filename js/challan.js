@@ -273,12 +273,41 @@ function printDeliveryChallan(record) {
 }
 
 // ── Delete challan ──
+// An invoice built from this specific challan (item.challanDc === dcNum)
+// must never be left behind, still showing an amount for a dispatch
+// record that no longer exists — deleted right along with it (or, on a
+// multi-item invoice, just that one line removed and totals recomputed).
 function deleteChallan(idx) {
-  const dcNum = challanList[idx]?.dcNum;
-  if (!confirm(`Delete challan ${dcNum}? This cannot be undone.`)) return;
+  const dc = challanList[idx];
+  const dcNum = dc?.dcNum;
+  const linkedInv = typeof invoiceList !== 'undefined'
+    ? invoiceList.find(iv => (iv.items || []).some(it => it.challanDc === dcNum))
+    : null;
+
+  const msg = linkedInv
+    ? `Delete challan ${dcNum}? Invoice ${linkedInv.id} was built from it${linkedInv.items.length > 1 ? " — that one line item will be removed and the invoice's total recalculated" : ' and will be deleted too'}. This cannot be undone.`
+    : `Delete challan ${dcNum}? This cannot be undone.`;
+  if (!confirm(msg)) return;
+
   challanList.splice(idx, 1);
   saveChallans();
   if (dcNum && typeof mirrorToSheet === 'function') mirrorToSheet('deleteChallan', { id: dcNum });
+
+  if (linkedInv) {
+    if (linkedInv.items.length <= 1 && typeof _deleteInvoiceCore === 'function') {
+      _deleteInvoiceCore(linkedInv.id);
+    } else {
+      linkedInv.items = linkedInv.items.filter(it => it.challanDc !== dcNum);
+      const subtotal  = linkedInv.items.reduce((s, i) => s + (i.qty || 0) * (i.rate || 0), 0);
+      linkedInv.subtotal = subtotal;
+      linkedInv.total    = Math.round(subtotal);
+      linkedInv.roundOff = linkedInv.total - subtotal;
+      if (typeof saveInvoiceList === 'function') saveInvoiceList();
+      if (typeof _mirrorInvoice === 'function') _mirrorInvoice(linkedInv);
+      if (typeof renderInvoicingPage === 'function') renderInvoicingPage();
+    }
+  }
+
   renderChallansTab();
   renderOrders();
 }

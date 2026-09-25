@@ -748,6 +748,19 @@ function deleteInvoice(invId) {
     ? `Roll back invoice ${invId}? This deletes it and reverts ${revertList.length} order(s) it marked Delivered back to their previous status.`
     : `Delete invoice ${invId}? This cannot be undone.`;
   if (!confirm(confirmMsg)) return;
+  _deleteInvoiceCore(invId);
+}
+
+// The actual deletion + order-status rollback, with no confirm() of its
+// own — deleteInvoice() above wraps this for the normal UI action;
+// deleteChallan() (js/challan.js) also calls it directly, after its own
+// single merged confirm, when deleting a challan that an invoice was
+// built from (never leaves that invoice orphaned, still showing an
+// amount for a dispatch record that no longer exists).
+function _deleteInvoiceCore(invId) {
+  const inv = invoiceList.find(i => i.id === invId);
+  if (!inv) return;
+  const revertList = inv.autoDeliveredOrders || [];
 
   revertList.forEach(({ orderId, prevStatus }) => {
     const o = typeof orders !== 'undefined' ? orders.find(x => x.id === orderId) : null;
@@ -758,7 +771,7 @@ function deleteInvoice(invId) {
     }
   });
 
-  invoiceList = invoiceList.filter(inv => inv.id !== invId);
+  invoiceList = invoiceList.filter(iv => iv.id !== invId);
   saveInvoiceList();
   if (typeof mirrorToSheet === 'function') mirrorToSheet('deleteInvoice', { id: invId });
   renderInvoicingPage();
