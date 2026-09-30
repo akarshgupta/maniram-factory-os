@@ -425,7 +425,12 @@ function openEditModal(orderId) {
   document.getElementById('ef-two-part').checked = !!o.twoPart;
   document.getElementById('ef-qty').value       = o.qty;
   document.getElementById('ef-rate').value       = o.rate;
-  document.getElementById('ef-order-date').value = o.orderDate || new Date().toISOString().split('T')[0];
+  // Left blank (not defaulted to today) when there's no real order date on
+  // file — most existing orders predate order-date tracking, and silently
+  // showing today's date here made it look like real, deliberate data;
+  // saving without noticing would permanently stamp today as if that's
+  // when the order was actually placed.
+  document.getElementById('ef-order-date').value = o.orderDate || '';
   document.getElementById('ef-date').value       = o.date;
   document.getElementById('ef-status').value    = o.status;
   document.getElementById('ef-priority').value  = o.priority;
@@ -462,7 +467,7 @@ async function saveEditedOrder() {
   const qty      = document.getElementById('ef-qty').value;
   const rate      = document.getElementById('ef-rate').value;
   const dateVal   = document.getElementById('ef-date').value;
-  const orderDateVal = document.getElementById('ef-order-date').value || new Date().toISOString().split('T')[0];
+  const orderDateVal = document.getElementById('ef-order-date').value;
   const status    = document.getElementById('ef-status').value;
   const priority  = document.getElementById('ef-priority').value;
 
@@ -470,8 +475,11 @@ async function saveEditedOrder() {
   // order that was punched without one doesn't get blocked here either.
   const d          = dateVal ? new Date(dateVal) : null;
   const formatted  = d ? `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}` : '';
-  const od         = new Date(orderDateVal);
-  const fmtOd      = `${String(od.getDate()).padStart(2,'0')}/${String(od.getMonth()+1).padStart(2,'0')}/${od.getFullYear()}`;
+  // Order date stays genuinely blank rather than silently defaulting to
+  // today — most existing orders predate order-date tracking, and today
+  // is not when they were actually placed.
+  const od         = orderDateVal ? new Date(orderDateVal) : null;
+  const fmtOd      = od ? `${String(od.getDate()).padStart(2,'0')}/${String(od.getMonth()+1).padStart(2,'0')}/${od.getFullYear()}` : '';
   const reservedKg = calcOrderKg(weight, qty);
 
   const payload = {
