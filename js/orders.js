@@ -510,7 +510,14 @@ async function saveEditedOrder() {
     renderCalendar();
     if (typeof renderProductionPlan === 'function') renderProductionPlan();
     btn.textContent = '💾 Save Changes'; btn.disabled = false;
-    setTimeout(() => fetchOrders(), 2000);
+    // No re-fetch here (unlike a brand new order, which needs one to swap
+    // its sentinel rowIndex for a real one) — an edited order already has
+    // a valid rowIndex, and re-fetching shortly after was actively
+    // harmful: the write is fire-and-forget and Apps Script can easily
+    // take longer than a couple of seconds to actually land it, so the
+    // re-fetch would read the sheet before the save finished and silently
+    // revert the optimistic update — this is exactly why a saved order
+    // date would flash in, then vanish a moment later.
   } catch(err) {
     alert('Save failed: ' + err.message);
     btn.textContent = '💾 Save Changes'; btn.disabled = false;
