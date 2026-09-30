@@ -20,6 +20,26 @@ let _svDisp = [];
 let _svTab  = 'dispatch';
 let _svMonth = todayStr.slice(0, 7); // 'YYYY-MM' — both tabs share one month selector
 
+// Dispatch entries whose auto-generated challan the office explicitly
+// deleted — _svAutoCreateChallans()'s only existing guard against
+// double-creating a challan is "does one already exist for this ts", so
+// deleting one just re-opened the door for the very next refresh to
+// auto-match the same entry right back. Once rejected, it's never
+// auto-matched again (still shows unmatched in the Dispatch table for
+// manual resolution — this only stops the automatic re-creation).
+const LS_SV_REJECTED_TS = 'mi_sv_rejected_dispatch_ts_v1';
+let _svRejectedTs = new Set();
+function _loadSvRejectedTs() {
+  try { return new Set(JSON.parse(localStorage.getItem(LS_SV_REJECTED_TS) || '[]')); } catch { return new Set(); }
+}
+function _saveSvRejectedTs() { localStorage.setItem(LS_SV_REJECTED_TS, JSON.stringify([..._svRejectedTs])); }
+function _svRejectDispatchMatch(ts) {
+  if (!ts) return;
+  _svRejectedTs.add(ts);
+  _saveSvRejectedTs();
+}
+_svRejectedTs = _loadSvRejectedTs();
+
 // The Dispatch form's weight/piece question is meant to be filled in grams
 // ("Box `weight` fields throughout the app are grams per box"), but the
 // supervisor sometimes types the kg figure out of habit instead — "1.6"
@@ -240,6 +260,7 @@ function _svAutoCreateChallans() {
   _svDisp.forEach(e => {
     if (!e.ts || !e.pcs) return;
     if (challanList.some(c => c.svTs === e.ts)) return;
+    if (_svRejectedTs.has(e.ts)) return;
 
     let o = null, matchedBy = '';
     if (e.orderId) {

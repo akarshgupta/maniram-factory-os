@@ -289,6 +289,13 @@ function deleteChallan(idx) {
     : `Delete challan ${dcNum}? This cannot be undone.`;
   if (!confirm(msg)) return;
 
+  // If this challan came from the Supervisor Log's auto-match (or a
+  // manual Link pick), it carries the dispatch entry's own svTs — the
+  // auto-match sweep's only guard against re-creating a challan is
+  // "does one already exist for this ts", so without this the very next
+  // refresh would silently recreate the exact challan just deleted.
+  if (dc?.svTs && typeof _svRejectDispatchMatch === 'function') _svRejectDispatchMatch(dc.svTs);
+
   challanList.splice(idx, 1);
   saveChallans();
   if (dcNum && typeof mirrorToSheet === 'function') mirrorToSheet('deleteChallan', { id: dcNum });
