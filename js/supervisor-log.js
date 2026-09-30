@@ -280,6 +280,17 @@ function _svAutoCreateChallans() {
     _svCreateChallanFor(e, o, matchedBy);
     created++;
   });
+
+  // Self-healing sweep: an order can end up fully dispatched without ever
+  // triggering checkOrderFullyDispatched at the exact moment (a re-link
+  // that used to skip this check before it was added here, an order's qty
+  // edited downward after it was already covered by existing challans,
+  // etc.) — catch anything sitting fully dispatched but not yet marked on
+  // every refresh, instead of only at challan-creation time.
+  if (typeof orders !== 'undefined' && typeof checkOrderFullyDispatched === 'function' && typeof FINISHED_STATUSES !== 'undefined') {
+    orders.filter(o => !FINISHED_STATUSES.includes(o.status)).forEach(o => checkOrderFullyDispatched(o.id));
+  }
+
   if (created > 0 && document.getElementById('svlog-root')) renderSupervisorLog(false);
 }
 
@@ -640,6 +651,10 @@ function linkDispatchToOrder(orderId) {
     // been pointed at a different order.
     const linkedInv = _relinkInvoiceForChallan(existing.dcNum, o);
     if (oldOrderId && oldOrderId !== o.id) _svRevertStaleDeliveredOrder(oldOrderId);
+    // _svCreateChallanFor always checks this for a newly created challan —
+    // a re-link needs the same check on the order it now points to, since
+    // this re-link may be exactly what pushes it to fully dispatched.
+    if (typeof checkOrderFullyDispatched === 'function') checkOrderFullyDispatched(o.id);
     if (linkedInv) alert(`${existing.dcNum} and invoice ${linkedInv.id} now both point to ${o.id} (${o.customer}).`);
     if (typeof renderOrders === 'function') renderOrders();
     if (typeof renderInvoicingPage === 'function') renderInvoicingPage();
