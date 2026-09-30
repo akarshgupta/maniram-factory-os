@@ -569,6 +569,13 @@ function _orderAgeDays(o) {
 }
 
 function _ageBadgeHtml(o) {
+  // Always render something here, even with no order date on file — a
+  // badge that silently disappears for most rows (per the live data,
+  // still the majority) reads as "this feature isn't there" rather than
+  // "this one order is missing data". Explicitly blank instead.
+  if (!o.orderDate) {
+    return `<span style="font-size:10px;font-weight:700;color:var(--muted);background:#F1F5F9;padding:3px 8px;border-radius:10px;white-space:nowrap" title="No order date on file — open Edit on this order to add one">Ordered: —</span>`;
+  }
   const days = _orderAgeDays(o);
   if (days === null || days < 0) return '';
   // Show the order-placed date itself right in the badge, not just the day
