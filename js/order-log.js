@@ -61,10 +61,36 @@ function openOrderHistory(orderId) {
       }).join('')}
     </div>`;
 
+  // Every invoice with at least one line item billed against this order —
+  // so it can be deleted right from here instead of hunting for it on the
+  // Invoicing page. Deleting removes the whole invoice (same as the
+  // Invoicing page's own delete) even if it also carries items for other
+  // orders — there's no item-level delete anywhere else in the app either.
+  const relatedInvoices = typeof invoiceList !== 'undefined'
+    ? invoiceList.filter(iv => (iv.items || []).some(it => (it.orderId || iv.orderId) === orderId))
+    : [];
+  const invoicesHtml = `
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:6px">
+        🧾 Invoices${relatedInvoices.length ? ` — ${relatedInvoices.length}` : ''}
+      </div>
+      ${!relatedInvoices.length ? '<div class="empty-state" style="padding:10px">No invoices for this order.</div>' : relatedInvoices.map(iv => {
+        const qtyForThisOrder = (iv.items || []).reduce((s, it) => s + ((it.orderId || iv.orderId) === orderId ? (it.qty || 0) : 0), 0);
+        return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+          <div><strong style="font-family:monospace;color:var(--navy)">${iv.id}</strong> · ${iv.date ? new Date(iv.date).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) : '—'}</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <strong>${qtyForThisOrder.toLocaleString('en-IN')} pcs</strong>
+            <button class="btn-sm" onclick="editInvoice('${iv.id}')" title="Open ${iv.id}">📄</button>
+            <button class="btn-sm" style="color:var(--danger)" onclick="deleteInvoice('${iv.id}');openOrderHistory('${orderId}')" title="Delete this invoice">✕</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+
   const entries = getOrderLog(orderId);
   const body = document.getElementById('order-history-body');
   if (body) {
-    body.innerHTML = challansHtml + (!entries.length
+    body.innerHTML = challansHtml + invoicesHtml + (!entries.length
       ? '<div class="empty-state">No activity logged yet for this order.</div>'
       : entries.map(e => {
           const d = new Date(e.ts);
