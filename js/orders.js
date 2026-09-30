@@ -713,12 +713,15 @@ function renderOrders() {
         <span style="font-size:10px;color:#92400E;font-weight:700">⚠ ${dispPct}% dispatched, ${remaining.toLocaleString('en-IN')} pcs pending — mark complete?</span>
         <button class="btn-sm" style="font-size:9px;padding:2px 8px;background:#F59E0B;color:#fff;border:none;border-radius:4px;font-weight:700" onclick="event.stopPropagation();markOrderComplete('${o.id}')" title="Mark Complete (accepts the shortfall)">✅ Complete</button>
       </div>` : '';
+    // Clickable through to Order History — same as the dispatch bar —
+    // where the new Invoices breakdown lets an invoice be deleted
+    // directly instead of hunting for it on the Invoicing page.
     const invBar      = o.qty > 0 && invoiced > 0 ? `
-      <div style="margin-top:3px">
+      <div style="margin-top:3px;cursor:pointer" onclick="event.stopPropagation();openOrderHistory('${o.id}')" title="See invoice history">
         <div style="background:#EEF1F5;border-radius:2px;height:3px;width:100%">
           <div style="background:#0D9488;height:3px;border-radius:2px;width:${invPct}%;transition:width 0.3s"></div>
         </div>
-        <div style="font-size:10px;color:var(--muted);margin-top:2px">💵 ${invoiced.toLocaleString('en-IN')} invoiced${invoiced >= (o.qty||0) ? ' · <span style="color:var(--success)">fully invoiced</span>' : ''}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">💵 ${invoiced.toLocaleString('en-IN')} invoiced${invoiced >= (o.qty||0) ? ' · <span style="color:var(--success)">fully invoiced</span>' : ''} <span style="text-decoration:underline">· history</span></div>
       </div>` : '';
 
     const row      = document.createElement('div');
