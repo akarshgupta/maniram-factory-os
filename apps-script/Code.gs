@@ -75,6 +75,8 @@ function doPost(e) {
     else if (action === 'savePurchase')      savePurchase(data);
     else if (action === 'updatePurchase')    updatePurchase(data);
     else if (action === 'addReelStock')      addReelStock(data);
+    else if (action === 'setReelGroupRate')  setReelGroupRate(data);
+    else if (action === 'setReelLotRate')    setReelLotRate(data);
     else if (action === 'saveOverhead')      saveOverhead(data);
     // ── Tally sync ──
     else if (action === 'syncTally')         responseData = syncTallyData(data);
@@ -479,16 +481,15 @@ function updatePurchase(data) {
 // rows matching the sheet's existing column layout.
 // ══════════════════════════════════════════════════════════════
 
-function addReelStock(data) {
-  var ss    = SpreadsheetApp.openById(REEL_SHEET_ID);
-  var sheet = ss.getSheetByName(REEL_STOCK_TAB);
-  if (!sheet) sheet = ss.getSheets()[0];
-
+// Detects the Stock sheet's column layout (same logic as the JS frontend's
+// fetchReelStock header-detection). Shared by addReelStock and
+// setReelGroupRate so both stay in sync with the sheet's real layout.
+function _detectStockCols(sheet) {
   var rows      = sheet.getDataRange().getValues();
   var headerIdx = -1;
-  var colSize = -1, colGSM = -1, colBF = -1, colWeight = -1, colQty = -1;
+  var colSize = -1, colGSM = -1, colBF = -1, colWeight = -1, colQty = -1, colRate = -1, colTransport = -1;
+  var headerLen = 0;
 
-  // Detect header row (same logic as the JS frontend)
   for (var i = 0; i < rows.length; i++) {
     var r = rows[i].map(function(c) { return (c || '').toString().trim().toUpperCase(); });
     var si = -1;
@@ -498,35 +499,134 @@ function addReelStock(data) {
     if (si >= 0) {
       headerIdx = i;
       colSize   = si;
+      headerLen = rows[i].length;
       for (var j = 0; j < r.length; j++) {
         if (r[j] === 'GSM')                                                          colGSM    = j;
         if (r[j] === 'BF')                                                           colBF     = j;
         if (r[j].indexOf('WEIGHT') >= 0 || r[j] === 'WT' || r[j] === 'KG' || r[j] === 'NET WT' || r[j] === 'GROSS WT') colWeight = j;
         if (r[j] === 'QTY' || r[j] === 'QUANTITY' || r[j] === 'REELS' || r[j] === 'COUNT' || r[j] === 'NOS' || r[j] === 'NO.') colQty = j;
+        if (r[j].indexOf('RATE') >= 0)                                               colRate   = j;
+        if (r[j].indexOf('TRANSPORT') >= 0 || r[j].indexOf('FREIGHT') >= 0)          colTransport = j;
       }
       break;
     }
   }
 
-  var numReels     = parseInt(data.numReels)  || 1;
-  var weightPerReel = parseFloat(data.weightPerReel) || parseFloat(data.quantityKg) || 0;
+  return { rows: rows, headerIdx: headerIdx, headerLen: headerLen,
+           colSize: colSize, colGSM: colGSM, colBF: colBF, colWeight: colWeight, colQty: colQty,
+           colRate: colRate, colTransport: colTransport };
+}
 
-  if (headerIdx < 0 || (colSize < 0 && colGSM < 0)) {
+// Self-heals the Rate and Transport columns onto the Stock sheet header if
+// they don't exist yet, returning their (possibly new) column indexes.
+// Shared by addReelStock, setReelGroupRate and setReelLotRate.
+function _ensureRateTransportCols(sheet, cols) {
+  var nextCol = cols.headerLen;
+  var colRate = cols.colRate;
+  if (colRate < 0) {
+    colRate = nextCol++;
+    sheet.getRange(cols.headerIdx + 1, colRate + 1).setValue('Rate (₹/kg)');
+  }
+  var colTransport = cols.colTransport;
+  if (colTransport < 0) {
+    colTransport = nextCol++;
+    sheet.getRange(cols.headerIdx + 1, colTransport + 1).setValue('Transport (₹/kg)');
+  }
+  return { colRate: colRate, colTransport: colTransport };
+}
+
+function addReelStock(data) {
+  var ss    = SpreadsheetApp.openById(REEL_SHEET_ID);
+  var sheet = ss.getSheetByName(REEL_STOCK_TAB);
+  if (!sheet) sheet = ss.getSheets()[0];
+
+  var cols = _detectStockCols(sheet);
+  var numReels      = parseInt(data.numReels)  || 1;
+  var weightPerReel = parseFloat(data.weightPerReel) || parseFloat(data.quantityKg) || 0;
+  var rate          = parseFloat(data.rate) || 0;
+  var transport     = parseFloat(data.transport) || 0;
+
+  if (cols.headerIdx < 0 || (cols.colSize < 0 && cols.colGSM < 0)) {
     // Sheet has no recognisable header — just append a simple row
-    sheet.appendRow([data.reelSize || '', data.gsm || '', data.bf || '', weightPerReel, numReels]);
+    sheet.appendRow([data.reelSize || '', data.gsm || '', data.bf || '', weightPerReel, numReels, rate || '', transport || '']);
     return;
   }
 
-  var maxCol = Math.max(colSize, colGSM, colBF, colWeight, colQty) + 1;
+  var rc = _ensureRateTransportCols(sheet, cols);
+
+  var maxCol = Math.max(cols.colSize, cols.colGSM, cols.colBF, cols.colWeight, cols.colQty, rc.colRate, rc.colTransport) + 1;
   var newRow  = [];
   for (var k = 0; k < maxCol; k++) newRow.push('');
-  if (colSize   >= 0) newRow[colSize]   = data.reelSize   || '';
-  if (colGSM    >= 0) newRow[colGSM]    = data.gsm        || '';
-  if (colBF     >= 0) newRow[colBF]     = data.bf         || '';
-  if (colWeight >= 0) newRow[colWeight] = weightPerReel;
-  if (colQty    >= 0) newRow[colQty]    = numReels;
+  if (cols.colSize   >= 0) newRow[cols.colSize]   = data.reelSize   || '';
+  if (cols.colGSM    >= 0) newRow[cols.colGSM]    = data.gsm        || '';
+  if (cols.colBF     >= 0) newRow[cols.colBF]     = data.bf         || '';
+  if (cols.colWeight >= 0) newRow[cols.colWeight] = weightPerReel;
+  if (cols.colQty    >= 0) newRow[cols.colQty]    = numReels;
+  if (rate > 0)      newRow[rc.colRate]      = rate;
+  if (transport > 0) newRow[rc.colTransport] = transport;
 
   sheet.appendRow(newRow);
+}
+
+// Backfills a ₹/kg rate onto existing Stock rows for a given size+GSM group
+// that don't have one recorded yet (used to give currently-held stock a
+// rate retroactively). Never touches a row that already has a real rate —
+// those came from an actual purchase record and are left alone.
+function setReelGroupRate(data) {
+  var ss    = SpreadsheetApp.openById(REEL_SHEET_ID);
+  var sheet = ss.getSheetByName(REEL_STOCK_TAB);
+  if (!sheet) sheet = ss.getSheets()[0];
+
+  var cols = _detectStockCols(sheet);
+  if (cols.headerIdx < 0 || cols.colSize < 0) return;
+
+  var rate = parseFloat(data.rate) || 0;
+  if (!rate) return;
+
+  var rc = _ensureRateTransportCols(sheet, cols);
+
+  var wantSize = (data.reelSize || '').toString().trim();
+  var wantGsm  = (data.gsm || '').toString().trim();
+  var rows     = cols.rows;
+
+  for (var i = cols.headerIdx + 1; i < rows.length; i++) {
+    var r = rows[i];
+    if (!r[cols.colSize]) continue;
+    var rowSize = r[cols.colSize].toString().trim();
+    var rowGsm  = cols.colGSM >= 0 ? (r[cols.colGSM] || '').toString().trim() : '';
+    if (rowSize !== wantSize) continue;
+    if (rowGsm !== wantGsm) continue;
+
+    var existingRate = rc.colRate < r.length ? r[rc.colRate] : '';
+    if (existingRate && parseFloat(existingRate) > 0) continue; // real recorded rate — never overwritten
+
+    sheet.getRange(i + 1, rc.colRate + 1).setValue(rate);
+  }
+}
+
+// Updates the Rate and/or Transport for ONE specific Stock-sheet row (a
+// single lot), addressed by its sheet row number as returned by
+// fetchReelStock's per-lot data. Unlike setReelGroupRate (fills blanks
+// only), this is a direct, explicit edit of one row the owner can see on
+// screen — so it's allowed to overwrite/correct an existing value.
+function setReelLotRate(data) {
+  var ss    = SpreadsheetApp.openById(REEL_SHEET_ID);
+  var sheet = ss.getSheetByName(REEL_STOCK_TAB);
+  if (!sheet) sheet = ss.getSheets()[0];
+
+  var cols = _detectStockCols(sheet);
+  if (cols.headerIdx < 0 || cols.colSize < 0) return;
+
+  var rc = _ensureRateTransportCols(sheet, cols);
+
+  var rowNum = parseInt(data.sheetRow);
+  if (!rowNum || rowNum <= cols.headerIdx + 1) return; // must be a real data row below the header
+
+  var sizeCell = sheet.getRange(rowNum, cols.colSize + 1).getValue();
+  if (!sizeCell) return; // defensive — row no longer looks like a stock row (sheet reshuffled)
+
+  if (data.rate !== undefined)      sheet.getRange(rowNum, rc.colRate + 1).setValue(parseFloat(data.rate) || '');
+  if (data.transport !== undefined) sheet.getRange(rowNum, rc.colTransport + 1).setValue(parseFloat(data.transport) || '');
 }
 
 // ══════════════════════════════════════════════════════════════
