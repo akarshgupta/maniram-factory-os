@@ -475,7 +475,10 @@
     <div class="page" id="page-reels">
       <div class="section-header">
         <div class="section-title">Reel Stock — Live Inventory</div>
-        <button class="btn-secondary" style="font-size:12px" onclick="fetchReelStock()">⟳ Refresh</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn-secondary" style="font-size:12px" onclick="addReelStockManual()">+ Add Stock</button>
+          <button class="btn-secondary" style="font-size:12px" onclick="fetchReelStock()">⟳ Refresh</button>
+        </div>
       </div>
       <div class="sync-bar"><div class="sync-dot loading" id="reel-sync-dot2"></div><span id="reel-sync-label2">Fetching from Google Sheets...</span></div>
 

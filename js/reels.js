@@ -401,6 +401,12 @@ function renderFullReels() {
         ? ` · <span style="color:var(--muted)">${r.plain100Count} plain-100</span>`
         : '';
 
+    const unratedWeight = r.totalWeight - (r.ratedWeight || 0);
+    const gsmArg = (r.gsm === '—' ? '' : r.gsm).toString().replace(/'/g, "\\'");
+    const rateBtn = unratedWeight > 0.01
+      ? `<button class="btn-secondary" style="font-size:11px;padding:3px 8px" onclick="setReelGroupRate('${r.size}','${gsmArg}')">💰 ${hasRealRate ? 'Set Rate (rest)' : 'Set Rate'}</button>`
+      : '';
+
     const item = document.createElement('div');
     item.className = 'reel-item';
     item.innerHTML = `
@@ -410,6 +416,7 @@ function renderFullReels() {
         <div style="font-size:13px;font-weight:600">${r.count} reels · ${r.totalWeight.toLocaleString('en-IN')} kg ${rateStr}${valueStr}${plainNote}</div>
         <div style="font-size:11px;color:var(--muted)">GSM ${r.gsm} · BF ${r.bf}${gyNote}</div>
       </div>
+      ${rateBtn}
       <div class="reel-badge ${status}">${status === 'ok' ? 'OK' : status === 'low' ? 'LOW' : '⚠ CRITICAL'}</div>
     `;
     list.appendChild(item);
@@ -422,7 +429,7 @@ function renderReelStockValue() {
   if (!el) return;
   const rated = reelData.filter(r => r.avgRate != null);
   if (!rated.length) {
-    el.textContent = 'Stock value: no rates recorded yet — rates are captured from the next purchase marked received onward.';
+    el.textContent = 'Stock value: no rates recorded yet — use "💰 Set Rate" on each size below, or they\'ll be captured automatically from the next purchase marked received.';
     return;
   }
   const totalValue  = rated.reduce((s, r) => s + r.avgRate * r.totalWeight, 0);
@@ -430,7 +437,78 @@ function renderReelStockValue() {
   const allWeight   = reelData.reduce((s, r) => s + r.totalWeight, 0);
   const coverage    = allWeight > 0 ? Math.round((ratedWeight / allWeight) * 100) : 0;
   el.textContent = `Stock value: ₹${Math.round(totalValue).toLocaleString('en-IN')}` +
-    (coverage < 100 ? ` (${coverage}% of stock has a recorded rate; older lots are excluded)` : '');
+    (coverage < 100 ? ` (${coverage}% of stock has a recorded rate — use "💰 Set Rate" below to fill in the rest)` : '');
+}
+
+// ── Office: backfill/correct the rate for whatever stock in this size+GSM
+// group doesn't have one recorded yet. Never touches a lot that already
+// carries a real purchase rate. ──
+function setReelGroupRate(size, gsmKey) {
+  const r = reelData.find(x => x.size.toString() === size.toString() && (x.gsm === '—' ? '' : x.gsm).toString() === gsmKey);
+  if (!r) return;
+  const unratedWeight = r.totalWeight - (r.ratedWeight || 0);
+  if (unratedWeight <= 0.01) { alert('This entire group already has a recorded rate.'); return; }
+
+  const suggestion = r.avgRate != null ? Math.round(r.avgRate) : '';
+  const input = prompt(
+    `Set rate (₹/kg) for ${r.size}" / GSM ${r.gsm} stock that doesn't have a rate recorded yet ` +
+    `(${Math.round(unratedWeight).toLocaleString('en-IN')} kg of this group's ${Math.round(r.totalWeight).toLocaleString('en-IN')} kg).\n\n` +
+    `This will NOT change any lot that already has a real purchase rate.`,
+    suggestion
+  );
+  if (input === null) return;
+  const rate = parseFloat(input);
+  if (!rate || rate <= 0) { alert('Enter a valid rate greater than 0.'); return; }
+
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST', mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'setReelGroupRate', reelSize: r.size, gsm: r.gsm === '—' ? '' : r.gsm, rate }),
+  }).catch(() => {});
+
+  // Optimistic local update — the still-unrated portion of this group now carries the new rate
+  r.ratedValue  = (r.ratedValue || 0) + unratedWeight * rate;
+  r.ratedWeight = (r.ratedWeight || 0) + unratedWeight;
+  r.avgRate     = r.ratedValue / r.ratedWeight;
+  renderFullReels();
+  renderReelStockValue();
+
+  setTimeout(fetchReelStock, 2500);
+}
+
+// ── Office: add stock directly from the Reels page (not via Purchase
+// Register) — e.g. for an opening-balance correction or a delivery that
+// didn't go through a tracked purchase. Always carries a rate so the
+// stock value stays accurate going forward. ──
+function addReelStockManual() {
+  const reelSize = (prompt('Reel width (inches), e.g. 44:') || '').trim();
+  if (!reelSize) return;
+  const gsm = (prompt('GSM:', '100') || '').trim();
+  if (!gsm) return;
+  const bf = (prompt('BF:', '18') || '').trim();
+
+  const numReelsStr = prompt('Number of reels to add:', '1');
+  if (numReelsStr === null) return;
+  const numReels = parseInt(numReelsStr) || 1;
+
+  const weightStr = prompt(`Weight per reel (kg):`);
+  if (weightStr === null) return;
+  const weightPerReel = parseFloat(weightStr) || 0;
+  if (!weightPerReel) { alert('Enter a valid weight.'); return; }
+
+  const rateStr = prompt('Rate paid (₹/kg):');
+  if (rateStr === null) return;
+  const rate = parseFloat(rateStr) || 0;
+  if (!rate) { alert('Enter a valid rate — this is what makes the stock value accurate.'); return; }
+
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST', mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'addReelStock', reelSize, gsm, bf, numReels, weightPerReel, rate }),
+  }).catch(() => {});
+
+  alert(`✅ Added ${numReels} reel(s) of ${reelSize}" / GSM ${gsm} @ ₹${rate}/kg to stock.`);
+  setTimeout(fetchReelStock, 2500);
 }
 
 // ── Dashboard Stock Summary ──
