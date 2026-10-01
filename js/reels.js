@@ -440,6 +440,26 @@ function renderReelStockValue() {
     (coverage < 100 ? ` (${coverage}% of stock has a recorded rate — use "💰 Set Rate" below to fill in the rest)` : '');
 }
 
+// Posts a rate for a size+GSM group's unrated stock and updates reelData
+// in place (optimistic). Shared by the per-row "Set Rate" button and the
+// bulk "Enter Stock Rates" modal. Returns the kg that got rated (0 if the
+// group was already fully rated or the rate was invalid).
+function _applyGroupRate(r, rate) {
+  const unratedWeight = r.totalWeight - (r.ratedWeight || 0);
+  if (!rate || rate <= 0 || unratedWeight <= 0.01) return 0;
+
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST', mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'setReelGroupRate', reelSize: r.size, gsm: r.gsm === '—' ? '' : r.gsm, rate }),
+  }).catch(() => {});
+
+  r.ratedValue  = (r.ratedValue || 0) + unratedWeight * rate;
+  r.ratedWeight = (r.ratedWeight || 0) + unratedWeight;
+  r.avgRate     = r.ratedValue / r.ratedWeight;
+  return unratedWeight;
+}
+
 // ── Office: backfill/correct the rate for whatever stock in this size+GSM
 // group doesn't have one recorded yet. Never touches a lot that already
 // carries a real purchase rate. ──
@@ -460,20 +480,74 @@ function setReelGroupRate(size, gsmKey) {
   const rate = parseFloat(input);
   if (!rate || rate <= 0) { alert('Enter a valid rate greater than 0.'); return; }
 
-  fetch(APPS_SCRIPT_URL, {
-    method: 'POST', mode: 'no-cors',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'setReelGroupRate', reelSize: r.size, gsm: r.gsm === '—' ? '' : r.gsm, rate }),
-  }).catch(() => {});
+  _applyGroupRate(r, rate);
+  renderFullReels();
+  renderReelStockValue();
+  setTimeout(fetchReelStock, 2500);
+}
 
-  // Optimistic local update — the still-unrated portion of this group now carries the new rate
-  r.ratedValue  = (r.ratedValue || 0) + unratedWeight * rate;
-  r.ratedWeight = (r.ratedWeight || 0) + unratedWeight;
-  r.avgRate     = r.ratedValue / r.ratedWeight;
+// ── Office: bulk rate entry — lists every current stock group with an
+// input next to it, so all the sizes in the stock list can be priced in
+// one sitting instead of one prompt() at a time. Groups already fully
+// rated (from a real purchase) show read-only, same backfill-only rule
+// as the per-row button. ──
+function openReelRatesModal() {
+  if (!reelData.length) { alert('Stock not loaded yet — wait for the live fetch to finish, then try again.'); return; }
+  const list = document.getElementById('reel-rates-list');
+  const overlay = document.getElementById('reel-rates-overlay');
+  if (!list || !overlay) return;
+
+  list.innerHTML = '';
+  reelData.forEach((r, idx) => {
+    const unratedWeight = r.totalWeight - (r.ratedWeight || 0);
+    const fullyRated = unratedWeight <= 0.01 && r.avgRate != null;
+
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)';
+    row.innerHTML = `
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600">${r.size}" · GSM ${r.gsm} · BF ${r.bf}</div>
+        <div style="font-size:11px;color:var(--muted)">${r.totalWeight.toLocaleString('en-IN')} kg${
+          (!fullyRated && r.avgRate != null) ? ` · ${Math.round(unratedWeight).toLocaleString('en-IN')} kg unrated` : ''
+        }</div>
+      </div>
+      ${fullyRated
+        ? `<div style="font-size:13px;font-weight:700;color:var(--success)">✓ ₹${Math.round(r.avgRate)}/kg</div>`
+        : `<input class="form-input" type="number" min="0" step="0.1" placeholder="₹/kg" style="width:100px"
+             id="rr-input-${idx}" data-idx="${idx}">`
+      }
+    `;
+    list.appendChild(row);
+  });
+
+  overlay.style.display = 'flex';
+}
+
+function closeReelRatesModal() {
+  const overlay = document.getElementById('reel-rates-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function saveAllReelRates() {
+  const inputs = document.querySelectorAll('#reel-rates-list input[data-idx]');
+  let savedGroups = 0, savedKg = 0;
+  inputs.forEach(inp => {
+    const rate = parseFloat(inp.value);
+    if (!rate || rate <= 0) return;
+    const r = reelData[parseInt(inp.dataset.idx)];
+    if (!r) return;
+    const kg = _applyGroupRate(r, rate);
+    if (kg > 0) { savedGroups++; savedKg += kg; }
+  });
+
+  closeReelRatesModal();
   renderFullReels();
   renderReelStockValue();
 
-  setTimeout(fetchReelStock, 2500);
+  if (savedGroups > 0) {
+    alert(`✅ Saved rates for ${savedGroups} size(s) — ${Math.round(savedKg).toLocaleString('en-IN')} kg now valued.`);
+    setTimeout(fetchReelStock, 2500);
+  }
 }
 
 // ── Office: add stock directly from the Reels page (not via Purchase

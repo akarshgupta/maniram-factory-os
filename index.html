@@ -476,6 +476,7 @@
       <div class="section-header">
         <div class="section-title">Reel Stock — Live Inventory</div>
         <div style="display:flex;gap:8px">
+          <button class="btn-secondary" style="font-size:12px" onclick="openReelRatesModal()">💰 Enter Rates</button>
           <button class="btn-secondary" style="font-size:12px" onclick="addReelStockManual()">+ Add Stock</button>
           <button class="btn-secondary" style="font-size:12px" onclick="fetchReelStock()">⟳ Refresh</button>
         </div>
@@ -1617,6 +1618,24 @@
     <div style="display:flex;gap:10px">
       <button class="btn-primary" id="ov-save-btn" onclick="saveOverheadEntry()" style="flex:1">💾 Save</button>
       <button class="btn-secondary" onclick="closeOverheadModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- REEL STOCK — ENTER RATES MODAL -->
+<div class="popup-overlay" id="reel-rates-overlay" style="display:none" onclick="if(event.target===this)closeReelRatesModal()">
+  <div class="popup-box" style="width:min(520px,95vw);padding:24px;max-height:85vh" onclick="event.stopPropagation()">
+    <div class="popup-title">💰 Enter Stock Rates</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:16px">
+      Enter ₹/kg for each size below, then save. Groups already showing a ✓ rate came from a real
+      purchase record and won't be changed here.
+    </div>
+
+    <div id="reel-rates-list" style="max-height:50vh;overflow-y:auto;margin-bottom:16px"></div>
+
+    <div style="display:flex;gap:10px">
+      <button class="btn-primary" onclick="saveAllReelRates()" style="flex:1">💾 Save All Rates</button>
+      <button class="btn-secondary" onclick="closeReelRatesModal()">Cancel</button>
     </div>
   </div>
 </div>
