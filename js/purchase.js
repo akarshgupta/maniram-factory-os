@@ -179,6 +179,7 @@ function markPurchaseReceived(id) {
     quantityKg:   p.quantityKg,
     supplier:     p.supplier,
     purchaseId:   p.id,
+    rate:         p.ratePerKg,
   });
 
   setTimeout(() => {

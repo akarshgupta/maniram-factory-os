@@ -486,7 +486,8 @@ function addReelStock(data) {
 
   var rows      = sheet.getDataRange().getValues();
   var headerIdx = -1;
-  var colSize = -1, colGSM = -1, colBF = -1, colWeight = -1, colQty = -1;
+  var colSize = -1, colGSM = -1, colBF = -1, colWeight = -1, colQty = -1, colRate = -1;
+  var headerLen = 0;
 
   // Detect header row (same logic as the JS frontend)
   for (var i = 0; i < rows.length; i++) {
@@ -498,11 +499,13 @@ function addReelStock(data) {
     if (si >= 0) {
       headerIdx = i;
       colSize   = si;
+      headerLen = rows[i].length;
       for (var j = 0; j < r.length; j++) {
         if (r[j] === 'GSM')                                                          colGSM    = j;
         if (r[j] === 'BF')                                                           colBF     = j;
         if (r[j].indexOf('WEIGHT') >= 0 || r[j] === 'WT' || r[j] === 'KG' || r[j] === 'NET WT' || r[j] === 'GROSS WT') colWeight = j;
         if (r[j] === 'QTY' || r[j] === 'QUANTITY' || r[j] === 'REELS' || r[j] === 'COUNT' || r[j] === 'NOS' || r[j] === 'NO.') colQty = j;
+        if (r[j].indexOf('RATE') >= 0)                                               colRate   = j;
       }
       break;
     }
@@ -510,14 +513,21 @@ function addReelStock(data) {
 
   var numReels     = parseInt(data.numReels)  || 1;
   var weightPerReel = parseFloat(data.weightPerReel) || parseFloat(data.quantityKg) || 0;
+  var rate          = parseFloat(data.rate) || 0;
 
   if (headerIdx < 0 || (colSize < 0 && colGSM < 0)) {
     // Sheet has no recognisable header — just append a simple row
-    sheet.appendRow([data.reelSize || '', data.gsm || '', data.bf || '', weightPerReel, numReels]);
+    sheet.appendRow([data.reelSize || '', data.gsm || '', data.bf || '', weightPerReel, numReels, rate || '']);
     return;
   }
 
-  var maxCol = Math.max(colSize, colGSM, colBF, colWeight, colQty) + 1;
+  // Self-heal a Rate column onto the header if one doesn't exist yet
+  if (colRate < 0) {
+    colRate = headerLen;
+    sheet.getRange(headerIdx + 1, colRate + 1).setValue('Rate (₹/kg)');
+  }
+
+  var maxCol = Math.max(colSize, colGSM, colBF, colWeight, colQty, colRate) + 1;
   var newRow  = [];
   for (var k = 0; k < maxCol; k++) newRow.push('');
   if (colSize   >= 0) newRow[colSize]   = data.reelSize   || '';
@@ -525,6 +535,7 @@ function addReelStock(data) {
   if (colBF     >= 0) newRow[colBF]     = data.bf         || '';
   if (colWeight >= 0) newRow[colWeight] = weightPerReel;
   if (colQty    >= 0) newRow[colQty]    = numReels;
+  if (colRate   >= 0 && rate > 0) newRow[colRate] = rate;
 
   sheet.appendRow(newRow);
 }

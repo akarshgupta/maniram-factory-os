@@ -47,7 +47,7 @@ async function fetchReelStock() {
     if (json.error) throw new Error(json.error.message);
     const rows = json.values || [];
 
-    let headerRow = -1, colSize = -1, colGSM = -1, colBF = -1, colWeight = -1, colQty = -1;
+    let headerRow = -1, colSize = -1, colGSM = -1, colBF = -1, colWeight = -1, colQty = -1, colRate = -1;
     for (let i = 0; i < rows.length; i++) {
       const r  = rows[i].map(c => c.toString().trim().toUpperCase());
       const si = r.findIndex(c => c === 'SIZE' || c === 'REEL SIZE' || c === 'REEL_SIZE');
@@ -58,6 +58,7 @@ async function fetchReelStock() {
         colBF     = r.findIndex(c => c === 'BF');
         colWeight = r.findIndex(c => c.includes('WEIGHT') || c === 'WT' || c === 'NET WT' || c === 'GROSS WT' || c === 'KG');
         colQty    = r.findIndex(c => c === 'QTY' || c === 'QUANTITY' || c === 'REELS' || c === 'COUNT' || c === 'NOS' || c === 'NO.');
+        colRate   = r.findIndex(c => c.includes('RATE'));
         break;
       }
     }
@@ -72,16 +73,17 @@ async function fetchReelStock() {
       if (!size || isNaN(size)) continue;
       const qty      = colQty >= 0 ? (parseInt(r[colQty]) || 1) : 1;
       const gsmRaw   = colGSM >= 0 ? (r[colGSM] || '').toString().trim() : '';
+      const rate     = colRate >= 0 ? (parseFloat(r[colRate]) || 0) : 0;
       // GY is in a separate 5th column (no header) — never in the GSM value
       const isColoured = r.some((cell, ci) =>
-        ci !== colSize && ci !== colGSM && ci !== colBF && ci !== colWeight && ci !== colQty &&
+        ci !== colSize && ci !== colGSM && ci !== colBF && ci !== colWeight && ci !== colQty && ci !== colRate &&
         (cell || '').toString().trim().toUpperCase() === 'GY'
       );
       const gsm100 = parseInt(gsmRaw) === 100 || gsmRaw === '100';
       const is100Plain = gsm100 && !isColoured;
       parsed.push({
         size, gsm: gsmRaw || '—', bf: colBF >= 0 ? r[colBF] : '—',
-        weight: isNaN(weight) ? 0 : weight, qty, is100Plain, isColoured,
+        weight: isNaN(weight) ? 0 : weight, qty, is100Plain, isColoured, rate,
       });
     }
 
@@ -95,11 +97,21 @@ async function fetchReelStock() {
       if (!grouped[k]) grouped[k] = {
         size: r.size, count: 0, plain100Count: 0, colouredCount: 0,
         totalWeight: 0, gsm: r.gsm, bf: r.bf, hasColoured: false,
+        ratedValue: 0, ratedWeight: 0,
       };
       grouped[k].count         += r.qty;
       grouped[k].totalWeight   += r.weight * r.qty;
       if (r.is100Plain) grouped[k].plain100Count += r.qty;
       if (r.isColoured) { grouped[k].colouredCount += r.qty; grouped[k].hasColoured = true; }
+      // Only lots with a recorded rate contribute to the weighted average —
+      // older lots (no rate captured) are left out rather than treated as ₹0.
+      if (r.rate > 0) {
+        grouped[k].ratedValue  += r.rate * r.weight * r.qty;
+        grouped[k].ratedWeight += r.weight * r.qty;
+      }
+    });
+    Object.values(grouped).forEach(g => {
+      g.avgRate = g.ratedWeight > 0 ? (g.ratedValue / g.ratedWeight) : null;
     });
 
     // Same width: 100 GSM row first, then other GSMs ascending.
@@ -112,6 +124,7 @@ async function fetchReelStock() {
     const totalKg = reelData.reduce((s, r) => s + r.totalWeight, 0) + KATRA_BUFFER_KG;
     const now     = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
     setReelSyncStatus('ok', `Live · ${now} · Total ${totalKg.toLocaleString('en-IN')} kg`);
+    renderReelStockValue();
 
     _saveReelSnapshot(reelData);
     renderCriticalReels();
@@ -372,8 +385,13 @@ function renderFullReels() {
   reelData.forEach(r => {
     const status     = getReelStatus(r);
     const pct        = Math.round((r.count / max) * 100);
-    const latRate    = getLatestRate(r.size.toString());
-    const rateStr    = latRate ? `· ₹${latRate}/kg` : '';
+    // Prefer the real weighted-average rate recorded per GSM lot; fall back
+    // to the width-only purchase-history approximation when no lot in this
+    // size+GSM group has a recorded rate (older stock, captured before this).
+    const hasRealRate = r.avgRate != null;
+    const dispRate    = hasRealRate ? r.avgRate : getLatestRate(r.size.toString());
+    const rateStr     = dispRate ? `· ₹${Math.round(dispRate)}/kg${hasRealRate ? '' : ' (approx)'}` : '';
+    const valueStr    = hasRealRate ? ` · ₹${Math.round(r.avgRate * r.totalWeight).toLocaleString('en-IN')}` : '';
     const gyNote     = r.hasColoured
       ? `<span style="color:#B45309;font-weight:600"> · ${r.colouredCount} coloured (gy)</span>`
       : '';
@@ -389,13 +407,30 @@ function renderFullReels() {
       <div class="reel-size">${r.size}"</div>
       <div class="reel-bar-wrap"><div class="reel-bar ${status}" style="width:${pct}%"></div></div>
       <div style="flex:1;padding:0 12px">
-        <div style="font-size:13px;font-weight:600">${r.count} reels · ${r.totalWeight.toLocaleString('en-IN')} kg ${rateStr}${plainNote}</div>
+        <div style="font-size:13px;font-weight:600">${r.count} reels · ${r.totalWeight.toLocaleString('en-IN')} kg ${rateStr}${valueStr}${plainNote}</div>
         <div style="font-size:11px;color:var(--muted)">GSM ${r.gsm} · BF ${r.bf}${gyNote}</div>
       </div>
       <div class="reel-badge ${status}">${status === 'ok' ? 'OK' : status === 'low' ? 'LOW' : '⚠ CRITICAL'}</div>
     `;
     list.appendChild(item);
   });
+}
+
+// ── Total portfolio stock value (only counts lots with a recorded rate) ──
+function renderReelStockValue() {
+  const el = document.getElementById('reel-total-value');
+  if (!el) return;
+  const rated = reelData.filter(r => r.avgRate != null);
+  if (!rated.length) {
+    el.textContent = 'Stock value: no rates recorded yet — rates are captured from the next purchase marked received onward.';
+    return;
+  }
+  const totalValue  = rated.reduce((s, r) => s + r.avgRate * r.totalWeight, 0);
+  const ratedWeight = rated.reduce((s, r) => s + r.totalWeight, 0);
+  const allWeight   = reelData.reduce((s, r) => s + r.totalWeight, 0);
+  const coverage    = allWeight > 0 ? Math.round((ratedWeight / allWeight) * 100) : 0;
+  el.textContent = `Stock value: ₹${Math.round(totalValue).toLocaleString('en-IN')}` +
+    (coverage < 100 ? ` (${coverage}% of stock has a recorded rate; older lots are excluded)` : '');
 }
 
 // ── Dashboard Stock Summary ──
