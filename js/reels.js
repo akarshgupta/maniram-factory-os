@@ -53,17 +53,37 @@ function _getReelSnaps() {
 }
 
 // ── Fetch ──
+// Rate/transport never live in the Stock sheet itself — that sheet is
+// directly open-able by the supervisor (for manual stock-count entry), so
+// pricing is kept in ORDERS_SHEET_ID's "ReelRates" tab instead, which the
+// supervisor is never given a link to. Stock rows only carry an opaque
+// "Lot ID" used to join against that private tab, fetched separately here.
 async function fetchReelStock() {
   setReelSyncStatus('loading', 'Fetching live reel data...');
-  const range = encodeURIComponent(`${REEL_TAB}!A1:Z500`);
-  const url   = `https://sheets.googleapis.com/v4/spreadsheets/${REEL_SHEET_ID}/values/${range}?key=${API_KEY}&_=${Date.now()}`;
+  const stockRange = encodeURIComponent(`${REEL_TAB}!A1:Z500`);
+  const stockUrl   = `https://sheets.googleapis.com/v4/spreadsheets/${REEL_SHEET_ID}/values/${stockRange}?key=${API_KEY}&_=${Date.now()}`;
+  const ratesRange = encodeURIComponent('ReelRates!A1:E5000');
+  const ratesUrl   = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${ratesRange}?key=${API_KEY}&_=${Date.now()}`;
   try {
-    const res  = await fetch(url);
+    const [res, ratesRes] = await Promise.all([fetch(stockUrl), fetch(ratesUrl)]);
     const json = await res.json();
     if (json.error) throw new Error(json.error.message);
     const rows = json.values || [];
 
-    let headerRow = -1, colSize = -1, colGSM = -1, colBF = -1, colWeight = -1, colQty = -1, colRate = -1, colTransport = -1;
+    // Build the Lot ID -> {rate, transport} lookup. The ReelRates tab may
+    // not exist yet (no rate has ever been saved) — that's fine, just an
+    // empty map, not an error.
+    const rateMap = {};
+    try {
+      const ratesJson = await ratesRes.json();
+      const rateRows  = (ratesJson.values || []).slice(1); // skip header
+      rateRows.forEach(rr => {
+        if (!rr || !rr[0]) return;
+        rateMap[rr[0]] = { rate: parseFloat(rr[3]) || 0, transport: parseFloat(rr[4]) || 0 };
+      });
+    } catch {}
+
+    let headerRow = -1, colSize = -1, colGSM = -1, colBF = -1, colWeight = -1, colQty = -1, colLotId = -1;
     for (let i = 0; i < rows.length; i++) {
       const r  = rows[i].map(c => c.toString().trim().toUpperCase());
       const si = r.findIndex(c => c === 'SIZE' || c === 'REEL SIZE' || c === 'REEL_SIZE');
@@ -74,8 +94,7 @@ async function fetchReelStock() {
         colBF     = r.findIndex(c => c === 'BF');
         colWeight = r.findIndex(c => c.includes('WEIGHT') || c === 'WT' || c === 'NET WT' || c === 'GROSS WT' || c === 'KG');
         colQty    = r.findIndex(c => c === 'QTY' || c === 'QUANTITY' || c === 'REELS' || c === 'COUNT' || c === 'NOS' || c === 'NO.');
-        colRate   = r.findIndex(c => c.includes('RATE'));
-        colTransport = r.findIndex(c => c.includes('TRANSPORT') || c.includes('FREIGHT'));
+        colLotId  = r.findIndex(c => c === 'LOT ID' || c === 'LOT_ID' || c === 'LOTID');
         break;
       }
     }
@@ -90,18 +109,19 @@ async function fetchReelStock() {
       if (!size || isNaN(size)) continue;
       const qty       = colQty >= 0 ? (parseInt(r[colQty]) || 1) : 1;
       const gsmRaw    = colGSM >= 0 ? (r[colGSM] || '').toString().trim() : '';
-      const rate      = colRate >= 0 ? (parseFloat(r[colRate]) || 0) : 0;
-      const transport = colTransport >= 0 ? (parseFloat(r[colTransport]) || 0) : 0;
+      const lotId     = colLotId >= 0 ? (r[colLotId] || '') : '';
+      const rated     = rateMap[lotId] || { rate: 0, transport: 0 };
       // GY is in a separate 5th column (no header) — never in the GSM value
       const isColoured = r.some((cell, ci) =>
-        ci !== colSize && ci !== colGSM && ci !== colBF && ci !== colWeight && ci !== colQty && ci !== colRate && ci !== colTransport &&
+        ci !== colSize && ci !== colGSM && ci !== colBF && ci !== colWeight && ci !== colQty && ci !== colLotId &&
         (cell || '').toString().trim().toUpperCase() === 'GY'
       );
       const gsm100 = parseInt(gsmRaw) === 100 || gsmRaw === '100';
       const is100Plain = gsm100 && !isColoured;
       parsed.push({
         size, gsm: gsmRaw || '—', bf: colBF >= 0 ? r[colBF] : '—',
-        weight: isNaN(weight) ? 0 : weight, qty, is100Plain, isColoured, rate, transport,
+        weight: isNaN(weight) ? 0 : weight, qty, is100Plain, isColoured,
+        rate: rated.rate, transport: rated.transport,
         sheetRow: i + 1, // 1-based row number in the live sheet, for per-lot edits
       });
     }
