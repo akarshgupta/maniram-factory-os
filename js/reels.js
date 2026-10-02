@@ -26,10 +26,23 @@ function _saveReelSnapshot(data) {
   try { snaps = JSON.parse(localStorage.getItem(LS_REEL_SNAPS) || '{}'); } catch {}
   snaps[key] = { ts: Date.now(), data };
 
-  // Prune old entries
+  // Prune to the last 30 days, EXCEPT each calendar month's latest recorded
+  // date — that's the month's closing stock (and doubles as next month's
+  // opening, via _prevSnap) — which is kept forever instead of aging out.
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - SNAP_KEEP_DAYS);
-  Object.keys(snaps).forEach(k => { if (k < cutoff.toISOString().split('T')[0]) delete snaps[k]; });
+  const cutoffKey = cutoff.toISOString().split('T')[0];
+
+  const monthCloses = {}; // 'YYYY-MM' -> latest date key recorded in that month
+  Object.keys(snaps).forEach(k => {
+    const month = k.slice(0, 7);
+    if (!monthCloses[month] || k > monthCloses[month]) monthCloses[month] = k;
+  });
+  const keepForever = new Set(Object.values(monthCloses));
+
+  Object.keys(snaps).forEach(k => {
+    if (k < cutoffKey && !keepForever.has(k)) delete snaps[k];
+  });
 
   localStorage.setItem(LS_REEL_SNAPS, JSON.stringify(snaps));
   renderReelDateTabs();
@@ -40,17 +53,37 @@ function _getReelSnaps() {
 }
 
 // ── Fetch ──
+// Rate/transport never live in the Stock sheet itself — that sheet is
+// directly open-able by the supervisor (for manual stock-count entry), so
+// pricing is kept in ORDERS_SHEET_ID's "ReelRates" tab instead, which the
+// supervisor is never given a link to. Stock rows only carry an opaque
+// "Lot ID" used to join against that private tab, fetched separately here.
 async function fetchReelStock() {
   setReelSyncStatus('loading', 'Fetching live reel data...');
-  const range = encodeURIComponent(`${REEL_TAB}!A1:Z500`);
-  const url   = `https://sheets.googleapis.com/v4/spreadsheets/${REEL_SHEET_ID}/values/${range}?key=${API_KEY}&_=${Date.now()}`;
+  const stockRange = encodeURIComponent(`${REEL_TAB}!A1:Z500`);
+  const stockUrl   = `https://sheets.googleapis.com/v4/spreadsheets/${REEL_SHEET_ID}/values/${stockRange}?key=${API_KEY}&_=${Date.now()}`;
+  const ratesRange = encodeURIComponent('ReelRates!A1:E5000');
+  const ratesUrl   = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${ratesRange}?key=${API_KEY}&_=${Date.now()}`;
   try {
-    const res  = await fetch(url);
+    const [res, ratesRes] = await Promise.all([fetch(stockUrl), fetch(ratesUrl)]);
     const json = await res.json();
     if (json.error) throw new Error(json.error.message);
     const rows = json.values || [];
 
-    let headerRow = -1, colSize = -1, colGSM = -1, colBF = -1, colWeight = -1, colQty = -1, colRate = -1, colTransport = -1;
+    // Build the Lot ID -> {rate, transport} lookup. The ReelRates tab may
+    // not exist yet (no rate has ever been saved) — that's fine, just an
+    // empty map, not an error.
+    const rateMap = {};
+    try {
+      const ratesJson = await ratesRes.json();
+      const rateRows  = (ratesJson.values || []).slice(1); // skip header
+      rateRows.forEach(rr => {
+        if (!rr || !rr[0]) return;
+        rateMap[rr[0]] = { rate: parseFloat(rr[3]) || 0, transport: parseFloat(rr[4]) || 0 };
+      });
+    } catch {}
+
+    let headerRow = -1, colSize = -1, colGSM = -1, colBF = -1, colWeight = -1, colQty = -1, colLotId = -1;
     for (let i = 0; i < rows.length; i++) {
       const r  = rows[i].map(c => c.toString().trim().toUpperCase());
       const si = r.findIndex(c => c === 'SIZE' || c === 'REEL SIZE' || c === 'REEL_SIZE');
@@ -61,8 +94,7 @@ async function fetchReelStock() {
         colBF     = r.findIndex(c => c === 'BF');
         colWeight = r.findIndex(c => c.includes('WEIGHT') || c === 'WT' || c === 'NET WT' || c === 'GROSS WT' || c === 'KG');
         colQty    = r.findIndex(c => c === 'QTY' || c === 'QUANTITY' || c === 'REELS' || c === 'COUNT' || c === 'NOS' || c === 'NO.');
-        colRate   = r.findIndex(c => c.includes('RATE'));
-        colTransport = r.findIndex(c => c.includes('TRANSPORT') || c.includes('FREIGHT'));
+        colLotId  = r.findIndex(c => c === 'LOT ID' || c === 'LOT_ID' || c === 'LOTID');
         break;
       }
     }
@@ -77,18 +109,19 @@ async function fetchReelStock() {
       if (!size || isNaN(size)) continue;
       const qty       = colQty >= 0 ? (parseInt(r[colQty]) || 1) : 1;
       const gsmRaw    = colGSM >= 0 ? (r[colGSM] || '').toString().trim() : '';
-      const rate      = colRate >= 0 ? (parseFloat(r[colRate]) || 0) : 0;
-      const transport = colTransport >= 0 ? (parseFloat(r[colTransport]) || 0) : 0;
+      const lotId     = colLotId >= 0 ? (r[colLotId] || '') : '';
+      const rated     = rateMap[lotId] || { rate: 0, transport: 0 };
       // GY is in a separate 5th column (no header) — never in the GSM value
       const isColoured = r.some((cell, ci) =>
-        ci !== colSize && ci !== colGSM && ci !== colBF && ci !== colWeight && ci !== colQty && ci !== colRate && ci !== colTransport &&
+        ci !== colSize && ci !== colGSM && ci !== colBF && ci !== colWeight && ci !== colQty && ci !== colLotId &&
         (cell || '').toString().trim().toUpperCase() === 'GY'
       );
       const gsm100 = parseInt(gsmRaw) === 100 || gsmRaw === '100';
       const is100Plain = gsm100 && !isColoured;
       parsed.push({
         size, gsm: gsmRaw || '—', bf: colBF >= 0 ? r[colBF] : '—',
-        weight: isNaN(weight) ? 0 : weight, qty, is100Plain, isColoured, rate, transport,
+        weight: isNaN(weight) ? 0 : weight, qty, is100Plain, isColoured,
+        rate: rated.rate, transport: rated.transport,
         sheetRow: i + 1, // 1-based row number in the live sheet, for per-lot edits
       });
     }
@@ -147,15 +180,25 @@ async function fetchReelStock() {
 }
 
 // ── Date tabs + history view ──
+// Shows every retained daily snapshot (up to the last 30 days), plus a
+// separate row for older month-end closing snapshots that are kept
+// permanently (see _saveReelSnapshot's pruning rule).
 function renderReelDateTabs() {
   const tabs = document.getElementById('reel-date-tabs');
   if (!tabs) return;
 
-  const snaps   = _getReelSnaps();
-  const dates   = Object.keys(snaps).sort((a, b) => b.localeCompare(a)).slice(0, 7); // last 7 days
+  const snaps    = _getReelSnaps();
+  const allDates = Object.keys(snaps).sort((a, b) => b.localeCompare(a));
   const todayKey = new Date().toISOString().split('T')[0];
 
-  const active  = tabs.dataset.active || 'live';
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - SNAP_KEEP_DAYS);
+  const cutoffKey = cutoff.toISOString().split('T')[0];
+
+  const recentDates   = allDates.filter(d => d >= cutoffKey);
+  const monthEndDates = allDates.filter(d => d < cutoffKey);
+
+  const active = tabs.dataset.active || 'live';
 
   tabs.innerHTML = '';
 
@@ -167,7 +210,7 @@ function renderReelDateTabs() {
   liveBtn.onclick = () => { tabs.dataset.active = 'live'; renderReelDateTabs(); showReelLiveView(); };
   tabs.appendChild(liveBtn);
 
-  dates.forEach(d => {
+  recentDates.forEach(d => {
     const snap = snaps[d];
     const isPrev = d < todayKey;
     const label = d === todayKey
@@ -183,6 +226,24 @@ function renderReelDateTabs() {
     btn.onclick = () => { tabs.dataset.active = d; renderReelDateTabs(); showReelHistoryView(d, snap); };
     tabs.appendChild(btn);
   });
+
+  if (monthEndDates.length) {
+    const label = document.createElement('div');
+    label.textContent = 'Month-end closings:';
+    label.style.cssText = 'width:100%;font-size:11px;color:var(--muted);margin:6px 0 -2px';
+    tabs.appendChild(label);
+
+    monthEndDates.forEach(d => {
+      const snap = snaps[d];
+      const monthLabel = new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+      const btn = document.createElement('button');
+      btn.textContent = monthLabel;
+      btn.className   = `btn-secondary${active === d ? ' active' : ''}`;
+      btn.style.cssText = 'font-size:12px';
+      btn.onclick = () => { tabs.dataset.active = d; renderReelDateTabs(); showReelHistoryView(d, snap); };
+      tabs.appendChild(btn);
+    });
+  }
 }
 
 function _yesterday() {
@@ -459,7 +520,13 @@ function toggleReelGroup(key) {
 
 // ── Per-lot detail table (shown when a size/GSM group is expanded) ──
 function _reelLotsTableHtml(group) {
+  const gsmArg = (group.gsm === '—' ? '' : group.gsm).toString().replace(/'/g, "\\'");
+  const applyAllBtn = group.lots.length > 1
+    ? `<button class="btn-secondary" style="font-size:11px;padding:4px 10px;margin:4px 6px 2px"
+         onclick="applySameRateToGroup('${group.size}','${gsmArg}')">⚡ Apply Same Rate to All ${group.lots.length} Lots</button>`
+    : '';
   const header = `
+    ${applyAllBtn}
     <div style="overflow-x:auto"><div style="min-width:580px">
       <div style="display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr 1.1fr 0.6fr;gap:8px;font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.3px;padding:8px 6px 4px">
         <div>Lot</div><div>Rate (₹/kg)</div><div>Transport (₹/kg)</div><div>Subtotal</div><div>Incl. 18% GST</div><div></div>
@@ -467,6 +534,44 @@ function _reelLotsTableHtml(group) {
       ${group.lots.map(lot => _reelLotRowHtml(lot)).join('')}
     </div></div>`;
   return header;
+}
+
+// Sets ONE rate on EVERY lot in a size/GSM group at once — unlike
+// setReelGroupRate (fills blanks only), this is an explicit bulk action the
+// owner asked for directly, so it overwrites whatever rate each lot had.
+// Each lot's own transport figure (if any) is left untouched.
+function applySameRateToGroup(size, gsmKey) {
+  const r = reelData.find(x => x.size.toString() === size.toString() && (x.gsm === '—' ? '' : x.gsm).toString() === gsmKey);
+  if (!r || !r.lots || !r.lots.length) return;
+
+  const suggestion = r.avgRate != null ? Math.round(r.avgRate) : '';
+  const input = prompt(
+    `Apply this rate (₹/kg) to ALL ${r.lots.length} lots of ${r.size}" / GSM ${r.gsm} ` +
+    `(${r.count} reels, ${Math.round(r.totalWeight).toLocaleString('en-IN')} kg).\n\n` +
+    `This overwrites any rate already set on these lots. Transport figures are left as they are.`,
+    suggestion
+  );
+  if (input === null) return;
+  const rate = parseFloat(input);
+  if (!rate || rate <= 0) { alert('Enter a valid rate greater than 0.'); return; }
+
+  r.lots.forEach(lot => {
+    fetch(APPS_SCRIPT_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'setReelLotRate', sheetRow: lot.sheetRow, rate, transport: lot.transport || 0 }),
+    }).catch(() => {});
+    lot.rate = rate;
+  });
+
+  r.ratedValue  = rate * r.totalWeight;
+  r.ratedWeight = r.totalWeight;
+  r.avgRate     = rate;
+  reelExpandedGroups.add(_groupKey(r)); // keep this group open after re-render
+
+  renderFullReels();
+  renderReelStockValue();
+  setTimeout(fetchReelStock, 2500);
 }
 
 function _reelLotRowHtml(lot) {
