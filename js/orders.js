@@ -948,6 +948,8 @@ function renderOrderHistory() {
         <span style="font-size:13px;font-weight:600">${o.qty ? o.qty.toLocaleString('en-IN') : '—'}</span>
         ${o.rate ? `<span style="font-size:11px;color:var(--muted)">₹${(o.qty*o.rate).toLocaleString('en-IN',{maximumFractionDigits:0})}</span>` : ''}
         ${o.remarks && o.remarks.includes('short') ? `<span style="font-size:10px;color:#E67E22;font-weight:600" title="${o.remarks}">⚠️ short</span>` : ''}
+        <button class="btn-secondary" style="font-size:11px;padding:3px 7px" title="Edit this order"
+          onclick="event.stopPropagation();openEditModal('${o.id}')">✏️</button>
       </div>
     `;
     el.appendChild(row);
