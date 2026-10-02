@@ -459,7 +459,13 @@ function toggleReelGroup(key) {
 
 // ── Per-lot detail table (shown when a size/GSM group is expanded) ──
 function _reelLotsTableHtml(group) {
+  const gsmArg = (group.gsm === '—' ? '' : group.gsm).toString().replace(/'/g, "\\'");
+  const applyAllBtn = group.lots.length > 1
+    ? `<button class="btn-secondary" style="font-size:11px;padding:4px 10px;margin:4px 6px 2px"
+         onclick="applySameRateToGroup('${group.size}','${gsmArg}')">⚡ Apply Same Rate to All ${group.lots.length} Lots</button>`
+    : '';
   const header = `
+    ${applyAllBtn}
     <div style="overflow-x:auto"><div style="min-width:580px">
       <div style="display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr 1.1fr 0.6fr;gap:8px;font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.3px;padding:8px 6px 4px">
         <div>Lot</div><div>Rate (₹/kg)</div><div>Transport (₹/kg)</div><div>Subtotal</div><div>Incl. 18% GST</div><div></div>
@@ -467,6 +473,44 @@ function _reelLotsTableHtml(group) {
       ${group.lots.map(lot => _reelLotRowHtml(lot)).join('')}
     </div></div>`;
   return header;
+}
+
+// Sets ONE rate on EVERY lot in a size/GSM group at once — unlike
+// setReelGroupRate (fills blanks only), this is an explicit bulk action the
+// owner asked for directly, so it overwrites whatever rate each lot had.
+// Each lot's own transport figure (if any) is left untouched.
+function applySameRateToGroup(size, gsmKey) {
+  const r = reelData.find(x => x.size.toString() === size.toString() && (x.gsm === '—' ? '' : x.gsm).toString() === gsmKey);
+  if (!r || !r.lots || !r.lots.length) return;
+
+  const suggestion = r.avgRate != null ? Math.round(r.avgRate) : '';
+  const input = prompt(
+    `Apply this rate (₹/kg) to ALL ${r.lots.length} lots of ${r.size}" / GSM ${r.gsm} ` +
+    `(${r.count} reels, ${Math.round(r.totalWeight).toLocaleString('en-IN')} kg).\n\n` +
+    `This overwrites any rate already set on these lots. Transport figures are left as they are.`,
+    suggestion
+  );
+  if (input === null) return;
+  const rate = parseFloat(input);
+  if (!rate || rate <= 0) { alert('Enter a valid rate greater than 0.'); return; }
+
+  r.lots.forEach(lot => {
+    fetch(APPS_SCRIPT_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'setReelLotRate', sheetRow: lot.sheetRow, rate, transport: lot.transport || 0 }),
+    }).catch(() => {});
+    lot.rate = rate;
+  });
+
+  r.ratedValue  = rate * r.totalWeight;
+  r.ratedWeight = r.totalWeight;
+  r.avgRate     = rate;
+  reelExpandedGroups.add(_groupKey(r)); // keep this group open after re-render
+
+  renderFullReels();
+  renderReelStockValue();
+  setTimeout(fetchReelStock, 2500);
 }
 
 function _reelLotRowHtml(lot) {
