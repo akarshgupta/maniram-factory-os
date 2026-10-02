@@ -26,10 +26,23 @@ function _saveReelSnapshot(data) {
   try { snaps = JSON.parse(localStorage.getItem(LS_REEL_SNAPS) || '{}'); } catch {}
   snaps[key] = { ts: Date.now(), data };
 
-  // Prune old entries
+  // Prune to the last 30 days, EXCEPT each calendar month's latest recorded
+  // date — that's the month's closing stock (and doubles as next month's
+  // opening, via _prevSnap) — which is kept forever instead of aging out.
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - SNAP_KEEP_DAYS);
-  Object.keys(snaps).forEach(k => { if (k < cutoff.toISOString().split('T')[0]) delete snaps[k]; });
+  const cutoffKey = cutoff.toISOString().split('T')[0];
+
+  const monthCloses = {}; // 'YYYY-MM' -> latest date key recorded in that month
+  Object.keys(snaps).forEach(k => {
+    const month = k.slice(0, 7);
+    if (!monthCloses[month] || k > monthCloses[month]) monthCloses[month] = k;
+  });
+  const keepForever = new Set(Object.values(monthCloses));
+
+  Object.keys(snaps).forEach(k => {
+    if (k < cutoffKey && !keepForever.has(k)) delete snaps[k];
+  });
 
   localStorage.setItem(LS_REEL_SNAPS, JSON.stringify(snaps));
   renderReelDateTabs();
@@ -147,15 +160,25 @@ async function fetchReelStock() {
 }
 
 // ── Date tabs + history view ──
+// Shows every retained daily snapshot (up to the last 30 days), plus a
+// separate row for older month-end closing snapshots that are kept
+// permanently (see _saveReelSnapshot's pruning rule).
 function renderReelDateTabs() {
   const tabs = document.getElementById('reel-date-tabs');
   if (!tabs) return;
 
-  const snaps   = _getReelSnaps();
-  const dates   = Object.keys(snaps).sort((a, b) => b.localeCompare(a)).slice(0, 7); // last 7 days
+  const snaps    = _getReelSnaps();
+  const allDates = Object.keys(snaps).sort((a, b) => b.localeCompare(a));
   const todayKey = new Date().toISOString().split('T')[0];
 
-  const active  = tabs.dataset.active || 'live';
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - SNAP_KEEP_DAYS);
+  const cutoffKey = cutoff.toISOString().split('T')[0];
+
+  const recentDates   = allDates.filter(d => d >= cutoffKey);
+  const monthEndDates = allDates.filter(d => d < cutoffKey);
+
+  const active = tabs.dataset.active || 'live';
 
   tabs.innerHTML = '';
 
@@ -167,7 +190,7 @@ function renderReelDateTabs() {
   liveBtn.onclick = () => { tabs.dataset.active = 'live'; renderReelDateTabs(); showReelLiveView(); };
   tabs.appendChild(liveBtn);
 
-  dates.forEach(d => {
+  recentDates.forEach(d => {
     const snap = snaps[d];
     const isPrev = d < todayKey;
     const label = d === todayKey
@@ -183,6 +206,24 @@ function renderReelDateTabs() {
     btn.onclick = () => { tabs.dataset.active = d; renderReelDateTabs(); showReelHistoryView(d, snap); };
     tabs.appendChild(btn);
   });
+
+  if (monthEndDates.length) {
+    const label = document.createElement('div');
+    label.textContent = 'Month-end closings:';
+    label.style.cssText = 'width:100%;font-size:11px;color:var(--muted);margin:6px 0 -2px';
+    tabs.appendChild(label);
+
+    monthEndDates.forEach(d => {
+      const snap = snaps[d];
+      const monthLabel = new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+      const btn = document.createElement('button');
+      btn.textContent = monthLabel;
+      btn.className   = `btn-secondary${active === d ? ' active' : ''}`;
+      btn.style.cssText = 'font-size:12px';
+      btn.onclick = () => { tabs.dataset.active = d; renderReelDateTabs(); showReelHistoryView(d, snap); };
+      tabs.appendChild(btn);
+    });
+  }
 }
 
 function _yesterday() {
