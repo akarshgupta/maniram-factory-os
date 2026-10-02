@@ -215,14 +215,31 @@ function appendOrderRow(data) {
   sheet.appendRow(_orderRowVals(data));
 }
 
+// updateOrderRow does a full-row overwrite from whatever the client sends —
+// if that client is running JS loaded before OrderDate existed (a browser
+// tab left open across a deploy keeps running its old code indefinitely,
+// even though the SHEET and the LATEST deployed code are both fine), its
+// payload simply won't carry orderDate at all, and a blind overwrite would
+// silently erase a real date already on the sheet. An empty/missing
+// orderDate in the incoming payload is therefore treated as "this client
+// doesn't know about this field" and the sheet's existing value is kept —
+// never as "the owner wants it cleared" (there's no legitimate flow for
+// that today). Real, non-blank values always pass through and overwrite.
+function _preserveOrderDateIfBlank(sheet, row, data) {
+  if (data.orderDate) return;
+  var existing = sheet.getRange(row, 17).getValue();
+  if (existing) data.orderDate = existing;
+}
+
 function updateOrderRow(data) {
   var ss    = SpreadsheetApp.openById(ORDERS_SHEET_ID);
   var sheet = ss.getSheetByName('Orders');
   if (!sheet) return;
   _ensureOrderTwoPartHeader(sheet);
-  var vals = _orderRowVals(data);
   var row  = parseInt(data.rowIndex);
   if (row > 1) {
+    _preserveOrderDateIfBlank(sheet, row, data);
+    var vals = _orderRowVals(data);
     sheet.getRange(row, 1, 1, vals.length).setValues([vals]);
     return;
   }
@@ -230,7 +247,9 @@ function updateOrderRow(data) {
   var rows = sheet.getDataRange().getValues();
   for (var i = 1; i < rows.length; i++) {
     if ((rows[i][0] || '').toString() === (data.id || '').toString()) {
-      sheet.getRange(i + 1, 1, 1, vals.length).setValues([vals]);
+      _preserveOrderDateIfBlank(sheet, i + 1, data);
+      var vals2 = _orderRowVals(data);
+      sheet.getRange(i + 1, 1, 1, vals2.length).setValues([vals2]);
       return;
     }
   }
