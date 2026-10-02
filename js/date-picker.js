@@ -223,6 +223,41 @@ function showDateLoadHint(inputId) {
   `;
 }
 
+// Physical stock status for a reel width, shown the moment a reel size is
+// typed (unlike checkStockForCurrentOrder(), which also needs Weight+Qty
+// and therefore stays hidden until those are filled in too — leaving this
+// hint as the only thing visible in between, so it needs its own stock
+// awareness rather than just reading as "all clear" on scheduling alone).
+// Same multi-lane substitute math as findSubstitutes() in orders.js: a
+// reel roughly 2x/3x/4x the needed width can be slit into that many lanes.
+function _reelStockLineHtml(rs) {
+  if (typeof reelSizesAggregated !== 'function') return '';
+  const base = parseFloat(rs);
+  if (isNaN(base)) return '';
+  const byWidth = reelSizesAggregated();
+
+  const direct = byWidth.find(r => Math.abs(r.size - base) < 0.1);
+  if (direct && direct.count > 0) {
+    return `<div style="font-size:11px;color:var(--success);padding:2px 0 4px">
+      ✅ ${base}" reel in stock — ${direct.count} reel${direct.count>1?'s':''}, ${Math.round(direct.totalWeight).toLocaleString('en-IN')} kg
+    </div>`;
+  }
+
+  for (const lanes of [2, 3, 4]) {
+    const target = base * lanes;
+    const sub = byWidth.find(r => r.size >= target && r.size <= target + 1.5 && r.count > 0);
+    if (sub) {
+      return `<div style="font-size:11px;color:#B45309;padding:2px 0 4px">
+        ⚠ No ${base}" reel in stock — but ${sub.size}" is available (${sub.count} reel${sub.count>1?'s':''}, cut ${lanes} lanes)
+      </div>`;
+    }
+  }
+
+  return `<div style="font-size:11px;color:var(--danger);padding:2px 0 4px">
+    ❌ No ${base}" reel in stock, and no multi-lane substitute available
+  </div>`;
+}
+
 // ── Reel production hint ─────────────────────────────────────
 function showReelHint(reelSize, hintId) {
   const hint = document.getElementById(hintId);
@@ -231,6 +266,8 @@ function showReelHint(reelSize, hintId) {
   if (!rs) { hint.innerHTML = ''; return; }
 
   if (typeof orders === 'undefined') { hint.innerHTML = ''; return; }
+
+  const stockLine = _reelStockLineHtml(rs);
 
   const active = orders
     .filter(o =>
@@ -241,9 +278,11 @@ function showReelHint(reelSize, hintId) {
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
   if (!active.length) {
-    hint.innerHTML = `<div style="font-size:11px;color:var(--success);padding:5px 0">
-      ✅ No active orders using ${rs}" reel — this date gets a fresh reel run.
-    </div>`;
+    hint.innerHTML = `
+      ${stockLine}
+      <div style="font-size:11px;color:var(--success);padding:5px 0">
+        ✅ No active orders using ${rs}" reel — this date gets a fresh reel run.
+      </div>`;
     return;
   }
 
@@ -281,6 +320,7 @@ function showReelHint(reelSize, hintId) {
     : '';
 
   hint.innerHTML = `
+    ${stockLine}
     <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:4px">
       ${rs}" Reel — Active Schedule (${active.length} order${active.length>1?'s':''})
     </div>
