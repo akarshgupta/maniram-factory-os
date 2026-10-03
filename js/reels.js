@@ -24,39 +24,98 @@ function _groupKey(r) {
 }
 
 // ── Daily snapshot storage ──
+// A day's closing stock is the last live fetch that day. The shared record
+// lives in the private StockSnapshots tab (ORDERS_SHEET_ID — the supervisor
+// never has that link), so history survives any browser/device; localStorage
+// is only a cache so the calendar draws instantly. Kept: the last 31 days,
+// plus the first and last recorded day of every month forever (month
+// opening/closing). Code.gs's _pruneStockSnapshots applies the same rule.
 const LS_REEL_SNAPS = 'mi_reel_snapshots_v2';
-const SNAP_KEEP_DAYS = 30;
+const SNAP_KEEP_DAYS = 31;
 
-function _saveReelSnapshot(data) {
-  const key = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-  let snaps = {};
-  try { snaps = JSON.parse(localStorage.getItem(LS_REEL_SNAPS) || '{}'); } catch {}
-  snaps[key] = { ts: Date.now(), data };
+// Local (IST) calendar date — toISOString() is UTC and would file anything
+// fetched before 5:30am under the previous day.
+function _localDateKey(d) {
+  d = d || new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function _daysAgoKey(n) { const d = new Date(); d.setDate(d.getDate() - n); return _localDateKey(d); }
 
-  // Prune to the last 30 days, EXCEPT each calendar month's latest recorded
-  // date — that's the month's closing stock (and doubles as next month's
-  // opening, via _prevSnap) — which is kept forever instead of aging out.
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - SNAP_KEEP_DAYS);
-  const cutoffKey = cutoff.toISOString().split('T')[0];
+// Quantities only — a snapshot never carries rates or per-lot data.
+function _compactSnapData(data) {
+  return (data || []).map(r => ({
+    size: r.size, gsm: r.gsm, bf: r.bf, hasColoured: !!r.hasColoured,
+    count: r.count, totalWeight: Math.round(r.totalWeight || 0), plain100Count: r.plain100Count || 0,
+  }));
+}
 
-  const monthCloses = {}; // 'YYYY-MM' -> latest date key recorded in that month
+function _pruneSnaps(snaps) {
+  const cutoffKey = _daysAgoKey(SNAP_KEEP_DAYS - 1);
+  const first = {}, last = {};
   Object.keys(snaps).forEach(k => {
-    const month = k.slice(0, 7);
-    if (!monthCloses[month] || k > monthCloses[month]) monthCloses[month] = k;
+    const m = k.slice(0, 7);
+    if (!first[m] || k < first[m]) first[m] = k;
+    if (!last[m]  || k > last[m])  last[m]  = k;
   });
-  const keepForever = new Set(Object.values(monthCloses));
-
-  Object.keys(snaps).forEach(k => {
-    if (k < cutoffKey && !keepForever.has(k)) delete snaps[k];
-  });
-
-  localStorage.setItem(LS_REEL_SNAPS, JSON.stringify(snaps));
-  renderReelDateTabs();
+  const keep = new Set([...Object.values(first), ...Object.values(last)]);
+  Object.keys(snaps).forEach(k => { if (k < cutoffKey && !keep.has(k)) delete snaps[k]; });
+  return snaps;
 }
 
 function _getReelSnaps() {
   try { return JSON.parse(localStorage.getItem(LS_REEL_SNAPS) || '{}'); } catch { return {}; }
+}
+function _writeSnapsCache(snaps) {
+  try { localStorage.setItem(LS_REEL_SNAPS, JSON.stringify(snaps)); } catch {}
+}
+
+function _postSnapshot(key, snap) {
+  const data = _compactSnapData(snap.data);
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST', mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'saveStockSnapshot', date: key, ts: snap.ts || Date.now(),
+      totalKg: Math.round(_snapTotalKg(data)),
+      reels: data.reduce((s, r) => s + (r.count || 0), 0),
+      data: JSON.stringify(data),
+    }),
+  }).catch(() => {});
+}
+
+function _saveReelSnapshot(data) {
+  const key   = _localDateKey();
+  const snaps = _getReelSnaps();
+  snaps[key]  = { ts: Date.now(), data: _compactSnapData(data) };
+  _writeSnapsCache(_pruneSnaps(snaps));
+  _postSnapshot(key, snaps[key]);
+  renderReelDateTabs();
+}
+
+// Merge the shared sheet history into the local cache (newer ts wins per
+// day), and upload any day this browser has that the sheet doesn't — which
+// is how history recorded before the sheet existed gets preserved.
+async function fetchReelSnapshots() {
+  try {
+    const range = encodeURIComponent('StockSnapshots!A1:E2000');
+    const res   = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${range}?key=${API_KEY}&_=${Date.now()}`);
+    const json  = await res.json();
+    const rows  = (json.values || []).slice(1);
+    const snaps = _getReelSnaps();
+    const inSheet = new Set();
+    rows.forEach(r => {
+      const date = (r[0] || '').toString().trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+      let data; try { data = JSON.parse(r[4] || '[]'); } catch { return; }
+      inSheet.add(date);
+      const ts = parseFloat(r[3]) || 0;
+      if (!snaps[date] || (snaps[date].ts || 0) < ts) snaps[date] = { ts, data };
+    });
+    _pruneSnaps(snaps);
+    const todayKey = _localDateKey();
+    Object.keys(snaps).forEach(k => { if (k !== todayKey && !inSheet.has(k)) _postSnapshot(k, snaps[k]); });
+    _writeSnapsCache(snaps);
+  } catch {}
 }
 
 // ── Fetch ──
@@ -67,6 +126,7 @@ function _getReelSnaps() {
 // "Lot ID" used to join against that private tab, fetched separately here.
 async function fetchReelStock() {
   setReelSyncStatus('loading', 'Fetching live reel data...');
+  const snapsSync = fetchReelSnapshots();
   const stockRange = encodeURIComponent(`${REEL_TAB}!A1:Z500`);
   const stockUrl   = `https://sheets.googleapis.com/v4/spreadsheets/${REEL_SHEET_ID}/values/${stockRange}?key=${API_KEY}&_=${Date.now()}`;
   const ratesRange = encodeURIComponent('ReelRates!A1:E5000');
@@ -187,6 +247,7 @@ async function fetchReelStock() {
     setReelSyncStatus('ok', `Live · ${now} · Total ${totalKg.toLocaleString('en-IN')} kg`);
     renderReelStockValue();
 
+    await snapsSync;
     _saveReelSnapshot(reelData);
     renderCriticalReels();
     renderFullReels();
@@ -196,77 +257,115 @@ async function fetchReelStock() {
   }
 }
 
-// ── Date tabs + history view ──
-// Shows every retained daily snapshot (up to the last 30 days), plus a
-// separate row for older month-end closing snapshots that are kept
-// permanently (see _saveReelSnapshot's pruning rule).
+// ── Calendar (last 31 days) + monthly opening/closing ──
+let _reelCalSelected = 'live';
+
+function _fmtKg(kg) { return Math.round(kg).toLocaleString('en-IN'); }
+
+// A day's opening = closing of the last recorded day before it.
+function _snapOpening(dateKey, snaps) {
+  const prior = Object.keys(snaps).filter(k => k < dateKey).sort();
+  const pk = prior[prior.length - 1];
+  return pk ? { date: pk, kg: _snapTotalKg(snaps[pk].data) } : null;
+}
+
 function renderReelDateTabs() {
-  const tabs = document.getElementById('reel-date-tabs');
-  if (!tabs) return;
-
+  const el = document.getElementById('reel-date-tabs');
+  if (!el) return;
   const snaps    = _getReelSnaps();
-  const allDates = Object.keys(snaps).sort((a, b) => b.localeCompare(a));
-  const todayKey = new Date().toISOString().split('T')[0];
+  const todayKey = _localDateKey();
 
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - SNAP_KEEP_DAYS);
-  const cutoffKey = cutoff.toISOString().split('T')[0];
-
-  const recentDates   = allDates.filter(d => d >= cutoffKey);
-  const monthEndDates = allDates.filter(d => d < cutoffKey);
-
-  const active = tabs.dataset.active || 'live';
-
-  tabs.innerHTML = '';
-
-  // Live tab
-  const liveBtn = document.createElement('button');
-  liveBtn.textContent = 'Live';
-  liveBtn.className   = `btn-secondary${active === 'live' ? ' active' : ''}`;
-  liveBtn.style.cssText = 'font-size:12px';
-  liveBtn.onclick = () => { tabs.dataset.active = 'live'; renderReelDateTabs(); showReelLiveView(); };
-  tabs.appendChild(liveBtn);
-
-  recentDates.forEach(d => {
-    const snap = snaps[d];
-    const isPrev = d < todayKey;
-    const label = d === todayKey
-      ? `Today (${new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})`
-      : isPrev
-        ? (d === _yesterday() ? 'Yesterday' : new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }))
-        : new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-
-    const btn = document.createElement('button');
-    btn.textContent = label;
-    btn.className   = `btn-secondary${active === d ? ' active' : ''}`;
-    btn.style.cssText = 'font-size:12px';
-    btn.onclick = () => { tabs.dataset.active = d; renderReelDateTabs(); showReelHistoryView(d, snap); };
-    tabs.appendChild(btn);
-  });
-
-  if (monthEndDates.length) {
-    const label = document.createElement('div');
-    label.textContent = 'Month-end closings:';
-    label.style.cssText = 'width:100%;font-size:11px;color:var(--muted);margin:6px 0 -2px';
-    tabs.appendChild(label);
-
-    monthEndDates.forEach(d => {
-      const snap = snaps[d];
-      const monthLabel = new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
-      const btn = document.createElement('button');
-      btn.textContent = monthLabel;
-      btn.className   = `btn-secondary${active === d ? ' active' : ''}`;
-      btn.style.cssText = 'font-size:12px';
-      btn.onclick = () => { tabs.dataset.active = d; renderReelDateTabs(); showReelHistoryView(d, snap); };
-      tabs.appendChild(btn);
-    });
+  // 31 days ending today, padded so columns line up with weekdays (Sun first)
+  const start = new Date(); start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - (SNAP_KEEP_DAYS - 1));
+  const cells = [];
+  for (let i = 0; i < start.getDay(); i++) cells.push('<div></div>');
+  for (let i = 0; i < SNAP_KEEP_DAYS; i++) {
+    const d = new Date(start); d.setDate(start.getDate() + i);
+    const key   = _localDateKey(d);
+    const snap  = snaps[key];
+    const isSel = _reelCalSelected === key;
+    const dayLbl = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    let bg = '#F8FAFC', fg = '#CBD5E1', title = `${dayLbl} — no record`;
+    if (snap) {
+      const close = _snapTotalKg(snap.data);
+      const open  = _snapOpening(key, snaps);
+      const delta = open ? close - open.kg : 0;
+      bg = delta > 0 ? '#DCFCE7' : delta < 0 ? '#FEE2E2' : '#EFF6FF';
+      fg = delta > 0 ? '#166534' : delta < 0 ? '#991B1B' : 'var(--navy)';
+      title = `${dayLbl} — Opening ${_fmtKg(open ? open.kg : close)} kg · Closing ${_fmtKg(close)} kg`;
+    }
+    cells.push(`<div title="${title}" ${snap ? `onclick="selectReelDay('${key}')"` : ''}
+      style="text-align:center;padding:6px 0;border-radius:6px;font-size:11px;font-weight:${isSel ? 800 : 600};
+             background:${isSel ? 'var(--navy)' : bg};color:${isSel ? '#fff' : fg};cursor:${snap ? 'pointer' : 'default'};
+             ${key === todayKey && !isSel ? 'box-shadow:inset 0 0 0 2px var(--blue);' : ''}">${d.getDate()}</div>`);
   }
+  const rangeLbl = `${start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} – ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`;
+
+  // Month opening = closing of the last recorded day before the month;
+  // closing = its last recorded day. Both are kept forever.
+  const months = {};
+  Object.keys(snaps).sort().forEach(k => {
+    const m = k.slice(0, 7);
+    if (!months[m]) months[m] = { first: k, last: k };
+    months[m].last = k;
+  });
+  const monthRows = Object.keys(months).sort().reverse().map(m => {
+    const { first, last } = months[m];
+    const prev    = _snapOpening(first, snaps);
+    const openKg  = prev ? prev.kg : _snapTotalKg(snaps[first].data);
+    const closeKg = _snapTotalKg(snaps[last].data);
+    const delta   = closeKg - openKg;
+    const label   = new Date(m + '-01T00:00:00').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+    const note    = m === todayKey.slice(0, 7) ? ' <span style="font-size:10px;color:var(--muted)">(so far)</span>' : '';
+    const openTip = prev ? `close of ${prev.date}` : `no earlier record — first recorded day (${first})`;
+    return `<tr onclick="selectReelDay('${last}')" style="cursor:pointer;border-top:1px solid var(--border)">
+      <td style="padding:6px">${label}${note}</td>
+      <td style="padding:6px;text-align:right" title="${openTip}">${prev ? '' : '~'}${_fmtKg(openKg)}</td>
+      <td style="padding:6px;text-align:right">${_fmtKg(closeKg)}</td>
+      <td style="padding:6px;text-align:right;color:${delta > 0 ? 'var(--success)' : delta < 0 ? 'var(--danger)' : 'var(--muted)'}">${delta > 0 ? '+' : ''}${_fmtKg(delta)}</td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start;width:100%">
+      <div class="card" style="padding:12px;flex:0 1 320px;min-width:0;margin:0">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px">
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--navy)">Daily stock</div>
+            <div style="font-size:10px;color:var(--muted)">${rangeLbl}</div>
+          </div>
+          <button class="btn-secondary${_reelCalSelected === 'live' ? ' active' : ''}" style="font-size:11px;padding:3px 10px" onclick="selectReelDay('live')">Live</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;font-size:9px;color:var(--muted);text-align:center;font-weight:700;margin-bottom:3px">
+          ${['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(x => `<div>${x}</div>`).join('')}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">${cells.join('')}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.5">
+          <span style="color:#166534">■</span> stock up &nbsp;<span style="color:#991B1B">■</span> stock down &nbsp;<span style="color:#93C5FD">■</span> no change<br>Tap a day for its opening &amp; closing.
+        </div>
+      </div>
+      <div class="card" style="padding:12px;flex:1 1 280px;min-width:0;margin:0">
+        <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:6px">Monthly opening &amp; closing <span style="font-weight:400;color:var(--muted);font-size:10px">— kept permanently</span></div>
+        ${monthRows ? `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+          <tr style="color:var(--muted);font-size:10px;text-transform:uppercase">
+            <th style="text-align:left;padding:4px 6px">Month</th><th style="text-align:right;padding:4px 6px">Opening kg</th>
+            <th style="text-align:right;padding:4px 6px">Closing kg</th><th style="text-align:right;padding:4px 6px">Change</th>
+          </tr>${monthRows}</table></div>` : '<div class="empty-state" style="padding:10px">No history yet.</div>'}
+      </div>
+    </div>`;
+}
+
+function selectReelDay(key) {
+  _reelCalSelected = key;
+  renderReelDateTabs();
+  if (key === 'live') { showReelLiveView(); return; }
+  const snap = _getReelSnaps()[key];
+  if (snap) showReelHistoryView(key, snap);
 }
 
 function _yesterday() {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return d.toISOString().split('T')[0];
+  return _daysAgoKey(1);
 }
 
 // Total stock kg for a snapshot's data (matches the live total incl. katra buffer)
@@ -331,9 +430,11 @@ function showReelHistoryView(dateKey, snap) {
   const listEl  = document.getElementById('reel-hist-list');
   if (!listEl) return;
 
-  const dateLabel = dateKey === _yesterday()
-    ? 'Yesterday\'s Closing Stock'
-    : 'Closing Stock — ' + new Date(dateKey + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+  const dateLabel = dateKey === _localDateKey()
+    ? 'Today\'s Stock (so far)'
+    : dateKey === _yesterday()
+      ? 'Yesterday\'s Closing Stock'
+      : 'Closing Stock — ' + new Date(dateKey + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
   if (titleEl) titleEl.textContent = dateLabel;
   if (timeEl && snap.ts) {
     timeEl.textContent = 'Snapshot: ' + new Date(snap.ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
@@ -355,7 +456,7 @@ function showReelHistoryView(dateKey, snap) {
     const status    = getReelStatusFromData(r, histData);
     const pct       = Math.round((r.count / max) * 100);
     const gyNote    = r.hasColoured
-      ? `<span style="color:#B45309;font-weight:600"> · ${r.colouredCount} coloured (gy)</span>`
+      ? `<span style="color:#B45309;font-weight:700"> · 🎨 COLOURED (GY)</span>`
       : '';
     const s = r.size.toString();
     const plainNote = (s === '35' || s === '35.5' || s === '42' || s === '44')

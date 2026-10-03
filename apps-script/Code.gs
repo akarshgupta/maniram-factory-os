@@ -77,6 +77,7 @@ function doPost(e) {
     else if (action === 'addReelStock')      addReelStock(data);
     else if (action === 'setReelGroupRate')  setReelGroupRate(data);
     else if (action === 'setReelLotRate')    setReelLotRate(data);
+    else if (action === 'saveStockSnapshot') saveStockSnapshot(data);
     else if (action === 'saveOverhead')      saveOverhead(data);
     // ── Tally sync ──
     else if (action === 'syncTally')         responseData = syncTallyData(data);
@@ -779,6 +780,79 @@ function migrateReelRatesOffStockSheet() {
   // price-related is left in the sheet the supervisor can open.
   if (cols.colRate >= 0)      sheet.getRange(1, cols.colRate + 1, rows.length, 1).clearContent();
   if (cols.colTransport >= 0) sheet.getRange(1, cols.colTransport + 1, rows.length, 1).clearContent();
+}
+
+// ══════════════════════════════════════════════════════════════
+// STOCK SNAPSHOTS  →  ORDERS_SHEET_ID / "StockSnapshots" tab
+// One row per day: that day's closing stock (the latest live fetch on the
+// Reels page), upserted by date. Kept: the last 31 days, plus the first and
+// last recorded day of every month forever (month opening/closing) — same
+// rule as _pruneSnaps() in js/reels.js. Private spreadsheet, like ReelRates.
+// Columns: Date | TotalKg | Reels | UpdatedAt (ms) | Data (JSON, quantities only)
+// ══════════════════════════════════════════════════════════════
+
+function _snapDateKey(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  return (v || '').toString().trim();
+}
+
+function saveStockSnapshot(data) {
+  var date = (data.date || '').toString();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var ss    = SpreadsheetApp.openById(ORDERS_SHEET_ID);
+    var sheet = ss.getSheetByName('StockSnapshots');
+    if (!sheet) {
+      sheet = ss.insertSheet('StockSnapshots');
+      sheet.appendRow(['Date', 'TotalKg', 'Reels', 'UpdatedAt', 'Data']);
+      sheet.getRange('A:A').setNumberFormat('@');  // keep dates as plain text
+      sheet.getRange('D:D').setNumberFormat('@');  // keep ms timestamps exact
+    }
+    var ts  = String(data.ts || Date.now());
+    var row = [date, Number(data.totalKg) || 0, Number(data.reels) || 0, ts, data.data || '[]'];
+
+    var rows = sheet.getDataRange().getValues();
+    for (var i = 1; i < rows.length; i++) {
+      if (_snapDateKey(rows[i][0]) === date) {
+        // Never let an older snapshot (e.g. a stale browser's backfill)
+        // overwrite a newer one for the same day.
+        if ((parseFloat(rows[i][3]) || 0) > parseFloat(ts)) return;
+        sheet.getRange(i + 1, 1, 1, 5).setValues([row]);
+        _pruneStockSnapshots(sheet);
+        return;
+      }
+    }
+    sheet.appendRow(row);
+    _pruneStockSnapshots(sheet);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function _pruneStockSnapshots(sheet) {
+  var rows   = sheet.getDataRange().getValues();
+  var cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 30);
+  var cutoffKey = Utilities.formatDate(cutoff, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+  var first = {}, last = {};
+  for (var i = 1; i < rows.length; i++) {
+    var k = _snapDateKey(rows[i][0]);
+    if (!k) continue;
+    var m = k.slice(0, 7);
+    if (!first[m] || k < first[m]) first[m] = k;
+    if (!last[m]  || k > last[m])  last[m]  = k;
+  }
+  for (var j = rows.length - 1; j >= 1; j--) {
+    var key = _snapDateKey(rows[j][0]);
+    if (!key || key >= cutoffKey) continue;
+    var mm = key.slice(0, 7);
+    if (key === first[mm] || key === last[mm]) continue;
+    sheet.deleteRow(j + 1);
+  }
 }
 
 // ══════════════════════════════════════════════════════════════

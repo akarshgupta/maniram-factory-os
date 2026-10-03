@@ -110,7 +110,7 @@ function autoInvoiceChallans() {
     invoicedDcs.add(c.dcNum);
     created++;
     _mirrorInvoice(inv);
-    if (typeof logOrderEvent === 'function' && c.orderId) logOrderEvent(c.orderId, 'Invoiced', `${inv.id} · ₹${inv.total.toLocaleString('en-IN')} (auto, from ${c.dcNum})`);
+    if (typeof logOrderEvent === 'function' && c.orderId) logOrderEvent(c.orderId, 'Invoiced', `${inv.id} · ₹${inv.total.toLocaleString('en-IN')} (auto, from ${c.dcNum})`, eventTime(c.date, c.svTs));
   });
 
   if (ratesBackfilled && typeof saveChallans === 'function') saveChallans();
@@ -552,7 +552,7 @@ function _persistInvoice() {
   _mirrorInvoice(inv);
   if (typeof logOrderEvent === 'function') {
     [...new Set((inv.items || []).map(i => i.orderId).filter(Boolean))]
-      .forEach(oid => logOrderEvent(oid, 'Invoiced', `${inv.id} · ₹${inv.total.toLocaleString('en-IN')}`));
+      .forEach(oid => logOrderEvent(oid, 'Invoiced', `${inv.id} · ₹${inv.total.toLocaleString('en-IN')}`, eventTime(inv.date)));
   }
   return inv;
 }

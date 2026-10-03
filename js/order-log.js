@@ -16,13 +16,63 @@ function loadOrderLog()     { try { return JSON.parse(localStorage.getItem(LS_OR
 function saveOrderLogList() { localStorage.setItem(LS_ORDER_LOG, JSON.stringify(orderLog)); }
 function initOrderLog()     { orderLog = loadOrderLog(); }
 
-function logOrderEvent(orderId, event, detail) {
+function _localDayKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// When an event actually happened — not when the app got round to recording
+// it. A challan auto-created today from a dispatch on 12 Aug must log as
+// 12 Aug. Uses the Google Form's own submission time ("8/12/2026 14:03:05")
+// when it falls on the event's date; otherwise the event date alone
+// (dateOnly — no invented clock time); "now" only when the date is today.
+function eventTime(dateStr, formTs) {
+  const iso = String(dateStr || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const day = iso ? iso[0] : '';
+  const m = String(formTs || '').match(/(\d+)\/(\d+)\/(\d{4})\s+(\d+):(\d+)(?::(\d+))?/);
+  if (m) {
+    const d = new Date(+m[3], +m[1] - 1, +m[2], +m[4], +m[5], +(m[6] || 0));
+    if (!isNaN(d) && (!day || _localDayKey(d) === day)) return { ts: d.toISOString() };
+  }
+  if (!day || day === _localDayKey(new Date())) return { ts: new Date().toISOString() };
+  return { ts: new Date(+iso[1], +iso[2] - 1, +iso[3], 12).toISOString(), dateOnly: true };
+}
+
+function logOrderEvent(orderId, event, detail, at) {
   if (!orderId || !event) return;
-  const entry = { orderId, event, detail: detail || '', ts: new Date().toISOString() };
+  const when  = at || { ts: new Date().toISOString() };
+  const entry = { orderId, event, detail: detail || '', ts: when.ts };
+  if (when.dateOnly) entry.dateOnly = true;
   orderLog.push(entry);
   if (orderLog.length > ORDER_LOG_MAX) orderLog = orderLog.slice(orderLog.length - ORDER_LOG_MAX);
   saveOrderLogList();
   if (typeof mirrorToSheet === 'function') mirrorToSheet('logOrderEvent', entry);
+}
+
+// Entries logged before eventTime() existed carry the moment they were
+// recorded — e.g. a batch of old dispatches auto-matched today all show
+// today. Re-date any Dispatched/Invoiced entry from the challan (or
+// invoice) it names, but only where that record's own date differs from
+// the logged day, so genuinely same-day entries keep their real time.
+function _repairOrderLogTimes() {
+  const challans = typeof challanList !== 'undefined' ? challanList : [];
+  const invoices = typeof invoiceList !== 'undefined' ? invoiceList : [];
+  let changed = false;
+  orderLog.forEach(e => {
+    if (e.event !== 'Dispatched' && e.event !== 'Invoiced') return;
+    const dc  = (e.detail || '').match(/DC-\d+\/\d+/);
+    const inv = (e.detail || '').match(/^(INV\d+)/);
+    const c   = dc ? challans.find(x => x.dcNum === dc[0]) : null;
+    const iv  = !c && inv ? invoices.find(x => x.id === inv[1]) : null;
+    const date = c ? c.date : iv ? iv.date : '';
+    if (!date) return;
+    const loggedDay = _localDayKey(new Date(e.ts));
+    if (loggedDay === date) return;
+    const at = eventTime(date, c ? c.svTs : '');
+    e.ts = at.ts;
+    if (at.dateOnly) e.dateOnly = true; else delete e.dateOnly;
+    changed = true;
+  });
+  if (changed) saveOrderLogList();
 }
 
 function getOrderLog(orderId) {
@@ -87,6 +137,7 @@ function openOrderHistory(orderId) {
       }).join('')}
     </div>`;
 
+  _repairOrderLogTimes();
   const entries = getOrderLog(orderId);
   const body = document.getElementById('order-history-body');
   if (body) {
@@ -95,7 +146,7 @@ function openOrderHistory(orderId) {
       : entries.map(e => {
           const d = new Date(e.ts);
           const dateStr = isNaN(d) ? '' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-          const timeStr = isNaN(d) ? '' : d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+          const timeStr = isNaN(d) || e.dateOnly ? '' : d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
           return `<div style="display:flex;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)">
             <div style="width:100px;flex:none;font-size:11px;color:var(--muted);line-height:1.4">${dateStr}<br>${timeStr}</div>
             <div>
