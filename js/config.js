@@ -190,3 +190,17 @@ const PRODUCTION_DAYS = {
   }
 };
 const MAX_SIMULTANEOUS_ORDERS = 3;
+
+// ── Coloured (GY) reel marking ──
+// The Stock sheet marks coloured paper inconsistently: "GY" in the
+// Normal/GY column, or an "sg" stuck onto the BF value ("18sg", "18bfsg",
+// or just "sg"). All of these mean GY.
+function isColouredMark(v) {
+  const s = (v || '').toString().trim().toUpperCase();
+  return s === 'GY' || s === 'SG' || s.endsWith('SG') || s.endsWith('GY');
+}
+// BF with any "bf"/"sg"/"gy" letters stripped — "18sg" → "18".
+function cleanBf(v) {
+  const n = (v || '').toString().replace(/[^0-9.]/g, '');
+  return n || '—';
+}

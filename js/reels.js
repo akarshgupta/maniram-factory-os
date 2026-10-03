@@ -118,15 +118,15 @@ async function fetchReelStock() {
       const gsmRaw    = colGSM >= 0 ? (r[colGSM] || '').toString().trim() : '';
       const lotId     = colLotId >= 0 ? (r[colLotId] || '') : '';
       const rated     = rateMap[lotId] || { rate: 0, transport: 0 };
-      // GY is in a separate 5th column (no header) — never in the GSM value
+      // GY can be in the Normal/GY column or tacked onto BF ("18sg") — see isColouredMark()
       const isColoured = r.some((cell, ci) =>
-        ci !== colSize && ci !== colGSM && ci !== colBF && ci !== colWeight && ci !== colQty && ci !== colLotId &&
-        (cell || '').toString().trim().toUpperCase() === 'GY'
+        ci !== colSize && ci !== colGSM && ci !== colWeight && ci !== colQty && ci !== colLotId &&
+        isColouredMark(cell)
       );
       const gsm100 = parseInt(gsmRaw) === 100 || gsmRaw === '100';
       const is100Plain = gsm100 && !isColoured;
       parsed.push({
-        size, gsm: gsmRaw || '—', bf: colBF >= 0 ? r[colBF] : '—',
+        size, gsm: gsmRaw || '—', bf: colBF >= 0 ? cleanBf(r[colBF]) : '—',
         weight: isNaN(weight) ? 0 : weight, qty, is100Plain, isColoured,
         rate: rated.rate, transport: rated.transport,
         sheetRow: i + 1, // 1-based row number in the live sheet, for per-lot edits
