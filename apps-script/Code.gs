@@ -637,12 +637,22 @@ function addReelStock(data) {
 // Whether a Stock row is coloured (GY) paper — GY shows up in some OTHER
 // column the header-detection doesn't otherwise name, never in the GSM
 // value itself. Mirrors the same check js/reels.js's fetchReelStock() does.
+// Coloured paper is marked as "GY" in the Normal/GY column, or as an "sg"
+// suffix on the BF value ("18sg", "18bfsg", "sg") — same rule as
+// isColouredMark() in js/config.js.
+function _isColouredMark(v) {
+  var s = (v || '').toString().trim().toUpperCase();
+  return s === 'GY' || s === 'SG' || /SG$/.test(s) || /GY$/.test(s);
+}
+function _cleanBf(v) {
+  return (v || '').toString().replace(/[^0-9.]/g, '');
+}
 function _isColouredRow(row, cols) {
-  var known = [cols.colSize, cols.colGSM, cols.colBF, cols.colWeight, cols.colQty,
-               cols.colRate, cols.colTransport, cols.colLotId];
+  var skip = [cols.colSize, cols.colGSM, cols.colWeight, cols.colQty,
+              cols.colRate, cols.colTransport, cols.colLotId];
   for (var j = 0; j < row.length; j++) {
-    if (known.indexOf(j) >= 0) continue;
-    if ((row[j] || '').toString().trim().toUpperCase() === 'GY') return true;
+    if (skip.indexOf(j) >= 0) continue;
+    if (_isColouredMark(row[j])) return true;
   }
   return false;
 }
@@ -668,7 +678,7 @@ function setReelGroupRate(data) {
   var colLotId = _ensureLotIdCol(sheet, cols);
   var wantSize     = (data.reelSize || '').toString().trim();
   var wantGsm      = (data.gsm || '').toString().trim();
-  var wantBf       = (data.bf || '').toString().trim();
+  var wantBf       = _cleanBf(data.bf);
   var wantColoured = !!data.coloured;
   var rows     = cols.rows;
 
@@ -677,7 +687,7 @@ function setReelGroupRate(data) {
     if (!r[cols.colSize]) continue;
     var rowSize = r[cols.colSize].toString().trim();
     var rowGsm  = cols.colGSM >= 0 ? (r[cols.colGSM] || '').toString().trim() : '';
-    var rowBf   = cols.colBF  >= 0 ? (r[cols.colBF]  || '').toString().trim() : '';
+    var rowBf   = cols.colBF  >= 0 ? _cleanBf(r[cols.colBF]) : '';
     if (rowSize !== wantSize) continue;
     if (rowGsm !== wantGsm) continue;
     if (rowBf !== wantBf) continue;
