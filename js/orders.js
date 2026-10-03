@@ -85,7 +85,7 @@ function refreshOrderId() {
 // ── Fetch Orders ──
 async function fetchOrders() {
   setOrderSyncStatus('loading', 'Fetching orders...');
-  const range = encodeURIComponent(`${ORDERS_TAB}!A1:P500`);
+  const range = encodeURIComponent(`${ORDERS_TAB}!A1:Z2000`);
   const url   = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${range}?key=${API_KEY}`;
   try {
     const res  = await fetch(url);

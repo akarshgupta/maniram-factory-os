@@ -113,7 +113,7 @@ function _staffParseSheetDate(raw) {
 async function staffFetchOrders() {
   const syncEl = document.getElementById('staff-orders-sync');
   try {
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent(ORDERS_TAB + '!A1:P500')}?key=${API_KEY}`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent(ORDERS_TAB + '!A1:Z2000')}?key=${API_KEY}`;
     const res  = await fetch(url);
     const json = await res.json();
     if (json.error) throw new Error(json.error.message);
@@ -208,8 +208,8 @@ async function staffFetchStock() {
       const qty    = colQty >= 0 ? (parseInt(r[colQty]) || 1) : 1;
       const gsmRaw = colGSM >= 0 ? (r[colGSM] || '').toString().trim() : '';
       const isColoured = r.some((cell, ci) =>
-        ci !== colSize && ci !== colGSM && ci !== colBF && ci !== colWeight && ci !== colQty &&
-        (cell || '').toString().trim().toUpperCase() === 'GY'
+        ci !== colSize && ci !== colGSM && ci !== colWeight && ci !== colQty &&
+        isColouredMark(cell)
       );
       const is100Plain = (parseInt(gsmRaw) === 100 || gsmRaw === '100') && !isColoured;
       parsed.push({ size, gsm: gsmRaw || '—', bf: colBF >= 0 ? r[colBF] : '—', weight: isNaN(weight) ? 0 : weight, qty, is100Plain, isColoured });
