@@ -555,14 +555,13 @@ function applySameRateToGroup(size, gsmKey) {
   const rate = parseFloat(rateInput);
   if (!rate || rate <= 0) { alert('Enter a valid rate greater than 0.'); return; }
 
-  const transportSuggestion = r.lots.find(l => l.transport > 0) ? Math.round(r.lots.find(l => l.transport > 0).transport) : '';
-  const transportInput = prompt(
-    `Transport (₹/kg) to apply to all ${r.lots.length} lots too — leave blank to leave each lot's transport as it is.`,
-    transportSuggestion
-  );
-  if (transportInput === null) return;
-  const applyTransport = transportInput.trim() !== '';
-  const transport = applyTransport ? (parseFloat(transportInput) || 0) : null;
+  // No need to type a transport figure separately — if any lot in the group
+  // already has one recorded, just confirm reusing that same value for all.
+  const transportLot  = r.lots.find(l => l.transport > 0);
+  const applyTransport = transportLot
+    ? confirm(`Also apply ₹${transportLot.transport}/kg transport (same as already recorded on this group) to all ${r.lots.length} lots?`)
+    : false;
+  const transport = applyTransport ? transportLot.transport : null;
 
   r.lots.forEach(lot => {
     const lotTransport = applyTransport ? transport : (lot.transport || 0);
