@@ -544,24 +544,35 @@ function applySameRateToGroup(size, gsmKey) {
   const r = reelData.find(x => x.size.toString() === size.toString() && (x.gsm === '—' ? '' : x.gsm).toString() === gsmKey);
   if (!r || !r.lots || !r.lots.length) return;
 
-  const suggestion = r.avgRate != null ? Math.round(r.avgRate) : '';
-  const input = prompt(
+  const rateSuggestion = r.avgRate != null ? Math.round(r.avgRate) : '';
+  const rateInput = prompt(
     `Apply this rate (₹/kg) to ALL ${r.lots.length} lots of ${r.size}" / GSM ${r.gsm} ` +
     `(${r.count} reels, ${Math.round(r.totalWeight).toLocaleString('en-IN')} kg).\n\n` +
-    `This overwrites any rate already set on these lots. Transport figures are left as they are.`,
-    suggestion
+    `This overwrites any rate already set on these lots.`,
+    rateSuggestion
   );
-  if (input === null) return;
-  const rate = parseFloat(input);
+  if (rateInput === null) return;
+  const rate = parseFloat(rateInput);
   if (!rate || rate <= 0) { alert('Enter a valid rate greater than 0.'); return; }
 
+  const transportSuggestion = r.lots.find(l => l.transport > 0) ? Math.round(r.lots.find(l => l.transport > 0).transport) : '';
+  const transportInput = prompt(
+    `Transport (₹/kg) to apply to all ${r.lots.length} lots too — leave blank to leave each lot's transport as it is.`,
+    transportSuggestion
+  );
+  if (transportInput === null) return;
+  const applyTransport = transportInput.trim() !== '';
+  const transport = applyTransport ? (parseFloat(transportInput) || 0) : null;
+
   r.lots.forEach(lot => {
+    const lotTransport = applyTransport ? transport : (lot.transport || 0);
     fetch(APPS_SCRIPT_URL, {
       method: 'POST', mode: 'no-cors',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'setReelLotRate', sheetRow: lot.sheetRow, rate, transport: lot.transport || 0 }),
+      body: JSON.stringify({ action: 'setReelLotRate', sheetRow: lot.sheetRow, rate, transport: lotTransport }),
     }).catch(() => {});
     lot.rate = rate;
+    if (applyTransport) lot.transport = transport;
   });
 
   r.ratedValue  = rate * r.totalWeight;
