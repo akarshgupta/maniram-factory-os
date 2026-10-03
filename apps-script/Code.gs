@@ -634,10 +634,26 @@ function addReelStock(data) {
   if (rate > 0 || transport > 0) _upsertReelRate(lotId, data.reelSize, data.gsm, rate, transport);
 }
 
-// Backfills a ₹/kg rate onto existing Stock lots for a given size+GSM group
-// that don't have one recorded yet in the private ReelRates tab (used to
-// give currently-held stock a rate retroactively). Never touches a lot
-// that already has a real recorded rate — those are left alone.
+// Whether a Stock row is coloured (GY) paper — GY shows up in some OTHER
+// column the header-detection doesn't otherwise name, never in the GSM
+// value itself. Mirrors the same check js/reels.js's fetchReelStock() does.
+function _isColouredRow(row, cols) {
+  var known = [cols.colSize, cols.colGSM, cols.colBF, cols.colWeight, cols.colQty,
+               cols.colRate, cols.colTransport, cols.colLotId];
+  for (var j = 0; j < row.length; j++) {
+    if (known.indexOf(j) >= 0) continue;
+    if ((row[j] || '').toString().trim().toUpperCase() === 'GY') return true;
+  }
+  return false;
+}
+
+// Backfills a ₹/kg rate onto existing Stock lots for a given size+GSM+BF+
+// coloured group that don't have one recorded yet in the private ReelRates
+// tab (used to give currently-held stock a rate retroactively). Never
+// touches a lot that already has a real recorded rate — those are left
+// alone. Matches on BF and coloured(GY) status too, same as the frontend's
+// grouping, so this never spills over into an unrelated lot that merely
+// shares the same size+GSM.
 function setReelGroupRate(data) {
   var ss    = SpreadsheetApp.openById(REEL_SHEET_ID);
   var sheet = ss.getSheetByName(REEL_STOCK_TAB);
@@ -650,8 +666,10 @@ function setReelGroupRate(data) {
   if (!rate) return;
 
   var colLotId = _ensureLotIdCol(sheet, cols);
-  var wantSize = (data.reelSize || '').toString().trim();
-  var wantGsm  = (data.gsm || '').toString().trim();
+  var wantSize     = (data.reelSize || '').toString().trim();
+  var wantGsm      = (data.gsm || '').toString().trim();
+  var wantBf       = (data.bf || '').toString().trim();
+  var wantColoured = !!data.coloured;
   var rows     = cols.rows;
 
   for (var i = cols.headerIdx + 1; i < rows.length; i++) {
@@ -659,8 +677,11 @@ function setReelGroupRate(data) {
     if (!r[cols.colSize]) continue;
     var rowSize = r[cols.colSize].toString().trim();
     var rowGsm  = cols.colGSM >= 0 ? (r[cols.colGSM] || '').toString().trim() : '';
+    var rowBf   = cols.colBF  >= 0 ? (r[cols.colBF]  || '').toString().trim() : '';
     if (rowSize !== wantSize) continue;
     if (rowGsm !== wantGsm) continue;
+    if (rowBf !== wantBf) continue;
+    if (_isColouredRow(r, cols) !== wantColoured) continue;
 
     var lotId = colLotId < r.length ? r[colLotId] : '';
     if (!lotId) {
