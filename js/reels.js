@@ -14,7 +14,14 @@
 let reelData = [];
 const GST_RATE = 0.18;
 let reelExpandedGroups = new Set();
-function _groupKey(r) { return r.size.toString() + '|' + (r.gsm === '—' ? '' : r.gsm).toString(); }
+// Size + GSM + BF + coloured(GY) status all identify a distinct group — two
+// lots that only match on size+GSM but differ in BF or coloured status are
+// never blended into one row, so neither a different BF nor a coloured lot
+// can end up silently hidden inside an otherwise-plain group.
+function _groupKey(r) {
+  return r.size.toString() + '|' + (r.gsm === '—' ? '' : r.gsm).toString() + '|' +
+    (r.bf === '—' ? '' : r.bf).toString() + '|' + (r.hasColoured ? 'GY' : 'N');
+}
 
 // ── Daily snapshot storage ──
 const LS_REEL_SNAPS = 'mi_reel_snapshots_v2';
@@ -126,18 +133,22 @@ async function fetchReelStock() {
       });
     }
 
-    // Grouped by size AND GSM — a width that stocks both 100 GSM and some
-    // other GSM shows as two separate rows instead of one blended total,
-    // so each GSM's stock stays visible on its own. Each group also keeps
-    // its individual lots (sheet rows) so the Reels page can expand a
+    // Grouped by size + GSM + BF + coloured(GY) status — a width that stocks
+    // both 100 GSM and some other GSM shows as separate rows instead of one
+    // blended total, and the same split applies to BF and coloured paper:
+    // two lots that only match on size+GSM but differ in BF, or where one is
+    // coloured and the other isn't, never get blended into a single group
+    // where one of those lots would otherwise be invisible. Each group also
+    // keeps its individual lots (sheet rows) so the Reels page can expand a
     // group and show/edit each one.
     const grouped = {};
     parsed.forEach(r => {
       const gsmKey = (r.gsm || '—').toString();
-      const k = r.size.toString() + '|' + gsmKey;
+      const bfKey  = (r.bf === '—' ? '' : r.bf).toString();
+      const k = r.size.toString() + '|' + gsmKey + '|' + bfKey + '|' + (r.isColoured ? 'GY' : 'N');
       if (!grouped[k]) grouped[k] = {
         size: r.size, count: 0, plain100Count: 0, colouredCount: 0,
-        totalWeight: 0, gsm: r.gsm, bf: r.bf, hasColoured: false,
+        totalWeight: 0, gsm: r.gsm, bf: r.bf, hasColoured: r.isColoured,
         ratedValue: 0, ratedWeight: 0, lots: [],
       };
       grouped[k].count         += r.qty;
@@ -158,12 +169,18 @@ async function fetchReelStock() {
       g.avgRate = g.ratedWeight > 0 ? (g.ratedValue / g.ratedWeight) : null;
     });
 
-    // Same width: 100 GSM row first, then other GSMs ascending.
+    // Same width: 100 GSM row first, then other GSMs ascending, then BF
+    // ascending, with a plain group always listed just before its coloured
+    // (GY) counterpart so the two stay adjacent and easy to compare.
     reelData = Object.values(grouped).sort((a, b) => {
       if (b.size !== a.size) return b.size - a.size;
       const aG = parseFloat(a.gsm) || 0, bG = parseFloat(b.gsm) || 0;
       const a100 = aG === 100 ? 0 : 1, b100 = bG === 100 ? 0 : 1;
-      return a100 !== b100 ? a100 - b100 : aG - bG;
+      if (a100 !== b100) return a100 - b100;
+      if (aG !== bG) return aG - bG;
+      const aBf = parseFloat(a.bf) || 0, bBf = parseFloat(b.bf) || 0;
+      if (aBf !== bBf) return aBf - bBf;
+      return (a.hasColoured ? 1 : 0) - (b.hasColoured ? 1 : 0);
     });
     const totalKg = reelData.reduce((s, r) => s + r.totalWeight, 0) + KATRA_BUFFER_KG;
     const now     = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
@@ -468,8 +485,10 @@ function renderFullReels() {
     const dispRate     = hasRealRate ? r.avgRate : getLatestRate(r.size.toString());
     const rateStr      = dispRate ? `· ₹${Math.round(dispRate)}/kg${hasRealRate ? '' : ' (approx)'}` : '';
     const valueStr     = hasRealRate ? ` · ₹${Math.round(r.avgRate * r.totalWeight).toLocaleString('en-IN')}` : '';
+    // Groups are now split by coloured status too, so a coloured group is
+    // ALL coloured — labelled plainly rather than as an "N of M" fraction.
     const gyNote     = r.hasColoured
-      ? `<span style="color:#B45309;font-weight:600"> · ${r.colouredCount} coloured (gy)</span>`
+      ? `<span style="color:#B45309;font-weight:700"> · 🎨 COLOURED (GY)</span>`
       : '';
     const plainNote  = (r.size.toString() === '35' || r.size.toString() === '35.5')
       ? ` · <span style="color:var(--muted)">${r.plain100Count} plain-100</span>`
@@ -478,9 +497,8 @@ function renderFullReels() {
         : '';
 
     const unratedWeight = r.totalWeight - (r.ratedWeight || 0);
-    const gsmArg = (r.gsm === '—' ? '' : r.gsm).toString().replace(/'/g, "\\'");
     const rateBtn = unratedWeight > 0.01
-      ? `<button class="btn-secondary" style="font-size:11px;padding:3px 8px" onclick="event.stopPropagation();setReelGroupRate('${r.size}','${gsmArg}')">💰 ${hasRealRate ? 'Set Rate (rest)' : 'Set Rate'}</button>`
+      ? `<button class="btn-secondary" style="font-size:11px;padding:3px 8px" onclick="event.stopPropagation();setReelGroupRate('${key.replace(/'/g, "\\'")}')">💰 ${hasRealRate ? 'Set Rate (rest)' : 'Set Rate'}</button>`
       : '';
 
     const expanded   = reelExpandedGroups.has(key);
@@ -489,6 +507,7 @@ function renderFullReels() {
     const item = document.createElement('div');
     item.className = 'reel-item';
     item.style.cursor = 'pointer';
+    if (r.hasColoured) item.style.background = '#FFFBEB'; // light amber — visually separates coloured groups at a glance
     item.onclick = () => toggleReelGroup(key);
     item.innerHTML = `
       <div class="reel-size" style="display:flex;align-items:center;gap:5px"><span style="font-size:11px;color:var(--muted)">${toggleIcon}</span>${r.size}"</div>
@@ -520,10 +539,10 @@ function toggleReelGroup(key) {
 
 // ── Per-lot detail table (shown when a size/GSM group is expanded) ──
 function _reelLotsTableHtml(group) {
-  const gsmArg = (group.gsm === '—' ? '' : group.gsm).toString().replace(/'/g, "\\'");
+  const keyArg = _groupKey(group).replace(/'/g, "\\'");
   const applyAllBtn = group.lots.length > 1
     ? `<button class="btn-secondary" style="font-size:11px;padding:4px 10px;margin:4px 6px 2px"
-         onclick="applySameRateToGroup('${group.size}','${gsmArg}')">⚡ Apply Same Rate to All ${group.lots.length} Lots</button>`
+         onclick="applySameRateToGroup('${keyArg}')">⚡ Apply Same Rate to All ${group.lots.length} Lots</button>`
     : '';
   const header = `
     ${applyAllBtn}
@@ -540,13 +559,13 @@ function _reelLotsTableHtml(group) {
 // setReelGroupRate (fills blanks only), this is an explicit bulk action the
 // owner asked for directly, so it overwrites whatever rate each lot had.
 // Each lot's own transport figure (if any) is left untouched.
-function applySameRateToGroup(size, gsmKey) {
-  const r = reelData.find(x => x.size.toString() === size.toString() && (x.gsm === '—' ? '' : x.gsm).toString() === gsmKey);
+function applySameRateToGroup(key) {
+  const r = reelData.find(x => _groupKey(x) === key);
   if (!r || !r.lots || !r.lots.length) return;
 
   const rateSuggestion = r.avgRate != null ? Math.round(r.avgRate) : '';
   const rateInput = prompt(
-    `Apply this rate (₹/kg) to ALL ${r.lots.length} lots of ${r.size}" / GSM ${r.gsm} ` +
+    `Apply this rate (₹/kg) to ALL ${r.lots.length} lots of ${r.size}" / GSM ${r.gsm} / BF ${r.bf}${r.hasColoured ? ' / COLOURED (GY)' : ''} ` +
     `(${r.count} reels, ${Math.round(r.totalWeight).toLocaleString('en-IN')} kg).\n\n` +
     `This overwrites any rate already set on these lots.`,
     rateSuggestion
@@ -689,7 +708,10 @@ function _applyGroupRate(r, rate) {
   fetch(APPS_SCRIPT_URL, {
     method: 'POST', mode: 'no-cors',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'setReelGroupRate', reelSize: r.size, gsm: r.gsm === '—' ? '' : r.gsm, rate }),
+    body: JSON.stringify({
+      action: 'setReelGroupRate', reelSize: r.size, gsm: r.gsm === '—' ? '' : r.gsm,
+      bf: r.bf === '—' ? '' : r.bf, coloured: !!r.hasColoured, rate,
+    }),
   }).catch(() => {});
 
   r.ratedValue  = (r.ratedValue || 0) + unratedWeight * rate;
@@ -705,15 +727,15 @@ function _applyGroupRate(r, rate) {
 // ── Office: backfill/correct the rate for whatever stock in this size+GSM
 // group doesn't have one recorded yet. Never touches a lot that already
 // carries a real purchase rate. ──
-function setReelGroupRate(size, gsmKey) {
-  const r = reelData.find(x => x.size.toString() === size.toString() && (x.gsm === '—' ? '' : x.gsm).toString() === gsmKey);
+function setReelGroupRate(key) {
+  const r = reelData.find(x => _groupKey(x) === key);
   if (!r) return;
   const unratedWeight = r.totalWeight - (r.ratedWeight || 0);
   if (unratedWeight <= 0.01) { alert('This entire group already has a recorded rate.'); return; }
 
   const suggestion = r.avgRate != null ? Math.round(r.avgRate) : '';
   const input = prompt(
-    `Set rate (₹/kg) for ${r.size}" / GSM ${r.gsm} stock that doesn't have a rate recorded yet ` +
+    `Set rate (₹/kg) for ${r.size}" / GSM ${r.gsm} / BF ${r.bf}${r.hasColoured ? ' / COLOURED (GY)' : ''} stock that doesn't have a rate recorded yet ` +
     `(${Math.round(unratedWeight).toLocaleString('en-IN')} kg of this group's ${Math.round(r.totalWeight).toLocaleString('en-IN')} kg).\n\n` +
     `This will NOT change any lot that already has a real purchase rate.`,
     suggestion
@@ -748,7 +770,7 @@ function openReelRatesModal() {
     row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)';
     row.innerHTML = `
       <div style="flex:1">
-        <div style="font-size:13px;font-weight:600">${r.size}" · GSM ${r.gsm} · BF ${r.bf}</div>
+        <div style="font-size:13px;font-weight:600">${r.size}" · GSM ${r.gsm} · BF ${r.bf}${r.hasColoured ? ' · <span style="color:#B45309">🎨 COLOURED</span>' : ''}</div>
         <div style="font-size:11px;color:var(--muted)">${r.totalWeight.toLocaleString('en-IN')} kg${
           (!fullyRated && r.avgRate != null) ? ` · ${Math.round(unratedWeight).toLocaleString('en-IN')} kg unrated` : ''
         }</div>
