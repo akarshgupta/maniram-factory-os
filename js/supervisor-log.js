@@ -151,6 +151,35 @@ function _svOrderExistedBy(o, eDate) {
   return !o.orderDate || !eDate || eDate >= o.orderDate;
 }
 
+// Several open orders for the very SAME item — same party, product and
+// size, placed on different dates and often at different rates (e.g.
+// Yumnotri 17*11.5*27: 5000 @27.50 on 8 Sep, then 3000 @28 on 5 Oct).
+// A dispatch fills the OLDEST order first — its quantity and its rate —
+// and only moves to the newer order once the older one is used up.
+// Returns that fill order (oldest first, fully-dispatched ones dropped),
+// or null when the candidates aren't all the same item (different
+// customers, products or sizes stay "ambiguous" — never guessed).
+function _svOldestFirstQueue(cands) {
+  if (!cands || cands.length < 2) return null;
+  const a = cands[0];
+  const sameItem = cands.every(o =>
+    _svFuzzyEq(o.customer, a.customer) && _svFuzzyEq(o.product, a.product) &&
+    (!a.size && !o.size || _svFuzzyEq(o.size, a.size)));
+  if (!sameItem) return null;
+  const dispatched = o => (typeof getDispatchedQty === 'function' ? getDispatchedQty(o.id) : 0);
+  // Undated orders predate order-date tracking, so they're the oldest;
+  // order IDs are sequential, so they break ties.
+  const sorted = cands.slice().sort((x, y) =>
+    (x.orderDate || '').localeCompare(y.orderDate || '') || (x.id || '').localeCompare(y.id || ''));
+  const open = sorted.filter(o => dispatched(o) < (parseInt(o.qty) || 0));
+  return open.length ? open : sorted.slice(-1);
+}
+
+function _svFifo(cands, reason) {
+  const q = _svOldestFirstQueue(cands);
+  return q ? { order: q[0], reason: reason + ' — oldest order first', queue: q } : { order: null, reason: 'ambiguous' };
+}
+
 function _svMatchOrderByProduct(e) {
   if (typeof orders === 'undefined' || typeof FINISHED_STATUSES === 'undefined') return { order: null, reason: 'none' };
   const eDate = _svNormDate(e.date); // YYYY-MM-DD
@@ -174,11 +203,14 @@ function _svMatchOrderByProduct(e) {
       // Product given but doesn't match this party's one order — fall
       // through to product-only matching below instead of forcing it.
     } else if (byCustomer.length > 1) {
-      let narrowed = e.product ? byCustomer.filter(o => _svFuzzyEq(o.product, e.product)) : [];
-      if (narrowed.length === 1) return { order: narrowed[0], reason: 'party+product' };
-      narrowed = e.size ? byCustomer.filter(o => _svFuzzyEq(o.size, e.size)) : [];
-      if (narrowed.length === 1) return { order: narrowed[0], reason: 'party+size' };
-      return { order: null, reason: 'ambiguous' };
+      let cands = byCustomer;
+      const byProd = e.product ? cands.filter(o => _svFuzzyEq(o.product, e.product)) : [];
+      if (byProd.length === 1) return { order: byProd[0], reason: 'party+product' };
+      if (byProd.length > 1) cands = byProd;
+      const bySize = e.size ? cands.filter(o => _svFuzzyEq(o.size, e.size)) : [];
+      if (bySize.length === 1) return { order: bySize[0], reason: 'party+size' };
+      if (bySize.length > 1) cands = bySize;
+      return _svFifo(cands, 'party+product');
     }
   }
 
@@ -189,7 +221,7 @@ function _svMatchOrderByProduct(e) {
     if (byProduct.length > 1) {
       const narrowed = e.size ? byProduct.filter(o => _svFuzzyEq(o.size, e.size)) : [];
       if (narrowed.length === 1) return { order: narrowed[0], reason: 'product+size' };
-      return { order: null, reason: 'ambiguous' };
+      return _svFifo(narrowed.length > 1 ? narrowed : byProduct, 'product');
     }
   }
 
@@ -198,7 +230,7 @@ function _svMatchOrderByProduct(e) {
   if (e.party) {
     const byProdText = pending.filter(o => _svFuzzyEq(o.product, e.party));
     if (byProdText.length === 1) return { order: byProdText[0], reason: 'party-as-product' };
-    if (byProdText.length > 1) return { order: null, reason: 'ambiguous' };
+    if (byProdText.length > 1) return _svFifo(byProdText, 'party-as-product');
   }
 
   return { order: null, reason: 'none' };
@@ -207,7 +239,7 @@ function _svMatchOrderByProduct(e) {
 // Build + save one challan for a dispatch entry matched to an order, shared
 // by the automatic sweep below and the manual "Link to Order" picker.
 // Returns the created record.
-function _svCreateChallanFor(e, o, matchedBy) {
+function _svCreateChallanFor(e, o, matchedBy, qty) {
   const record = {
     dcNum:     _nextDcNum(),
     orderId:   o.id,
@@ -218,7 +250,7 @@ function _svCreateChallanFor(e, o, matchedBy) {
     colour:    o.colour || '',
     weight:    o.weight || '',
     rate:      o.rate   || 0,
-    qty:       e.pcs,
+    qty:       qty != null ? qty : e.pcs,
     date:      _svNormDate(e.date) || todayStr,
     note:      `Auto-generated from Supervisor Dispatch Log (matched by ${matchedBy})`,
     createdAt: new Date().toISOString(),
@@ -256,13 +288,16 @@ function _svCreateChallanFor(e, o, matchedBy) {
 // matching to safely guess.
 function _svAutoCreateChallans() {
   if (typeof challanList === 'undefined' || typeof orders === 'undefined') return;
+  // Reopen any order an invoice save wrongly closed BEFORE matching, so a
+  // dispatch can't skip past it to a newer order (see invoices.js)
+  if (typeof reopenWronglyInvoiceClosedOrders === 'function') reopenWronglyInvoiceClosedOrders();
   let created = 0;
   _svDisp.forEach(e => {
     if (!e.ts || !e.pcs) return;
     if (challanList.some(c => c.svTs === e.ts)) return;
     if (_svRejectedTs.has(e.ts)) return;
 
-    let o = null, matchedBy = '';
+    let o = null, matchedBy = '', queue = null;
     if (e.orderId) {
       const byId = orders.find(x => (x.id || '').toLowerCase() === e.orderId.toLowerCase());
       // Even an explicit Order ID pick can't win against an order that
@@ -273,12 +308,28 @@ function _svAutoCreateChallans() {
     }
     if (!o) {
       const m = _svMatchOrderByProduct(e);
-      if (m.order) { o = m.order; matchedBy = 'product/party match'; }
+      if (m.order) { o = m.order; matchedBy = 'product/party match'; queue = m.queue || null; }
     }
     if (!o) return;
 
-    _svCreateChallanFor(e, o, matchedBy);
-    created++;
+    if (!queue || queue.length < 2) {
+      _svCreateChallanFor(e, o, matchedBy);
+      created++;
+      return;
+    }
+    // Same item on several open orders: use up the oldest first (its qty
+    // and rate); anything beyond what it still needs goes to the next
+    // order, and the newest order takes whatever is left over.
+    let left = e.pcs;
+    queue.forEach((qo, i) => {
+      if (left <= 0) return;
+      const remaining = Math.max(0, (parseInt(qo.qty) || 0) - (typeof getDispatchedQty === 'function' ? getDispatchedQty(qo.id) : 0));
+      const take = i === queue.length - 1 ? left : Math.min(left, remaining);
+      if (take <= 0) return;
+      _svCreateChallanFor(e, qo, 'oldest order first', take);
+      left -= take;
+      created++;
+    });
   });
 
   // Self-healing sweep: an order can end up fully dispatched without ever
@@ -625,6 +676,10 @@ function linkDispatchToOrder(orderId) {
   // Already challaned — re-linking edits that challan's order in place
   // (same DC number, so the sheet row is updated rather than duplicated)
   // instead of creating a second one for the same dispatch entry.
+  if (challanList.filter(c => c.svTs === e.ts).length > 1) {
+    alert('This dispatch was split across more than one order (oldest order first). To re-link it, delete its challans from the Challans tab first, then link again.');
+    return;
+  }
   const existing = challanList.find(c => c.svTs === e.ts);
   if (existing) {
     const oldOrderId = existing.orderId;
@@ -764,6 +819,16 @@ function _svDispatchRow(e) {
     : null;
   if (directInv) {
     dcHtml = `<span style="color:var(--success,#27AE60);font-weight:700">✓ invoiced</span> <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="editInvoice('${directInv.id}')" title="Open ${directInv.id}">📄 ${directInv.id}</button>`;
+  } else if (dc && challanList.filter(c => c.svTs === e.ts).length > 1) {
+    // Split across orders, oldest first — list each part with its own invoice link
+    dcHtml = challanList.filter(c => c.svTs === e.ts).map(part => {
+      const pinv = typeof invoiceList !== 'undefined' ? invoiceList.find(iv => (iv.items || []).some(it => it.challanDc === part.dcNum)) : null;
+      return `<div style="white-space:nowrap"><span style="color:var(--success,#27AE60);font-weight:700" title="Split oldest order first">✓ ${part.dcNum} → ${part.orderId} · ${part.qty.toLocaleString('en-IN')}</span> ` +
+        (pinv
+          ? `<button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="editInvoice('${pinv.id}')" title="Open ${pinv.id}">📄 ${pinv.id}</button>`
+          : `<button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="resolveChallanInvoice('${part.dcNum.replace(/'/g, "\\'")}','${(part.orderId||'').replace(/'/g, "\\'")}')" title="No invoice yet for this challan">🧾 Invoice</button>`) +
+        `</div>`;
+    }).join('');
   } else if (dc) {
     dcHtml = `<span style="color:var(--success,#27AE60);font-weight:700" title="Auto-generated ${dc.dcNum} against ${dc.orderId}">✓ ${dc.dcNum} → ${dc.orderId}</span>`;
     // Jump straight from this row to the invoice — view/edit it if one
@@ -840,10 +905,7 @@ function _svDispatchHtml() {
     const entries = byDate[d];
     const pcs = entries.reduce((s, e) => s + (e.pcs || 0), 0);
     const kg  = entries.reduce((s, e) => s + (e.pcs * e.wtPc / 1000 || 0), 0);
-    const amt = entries.reduce((s, e) => {
-      const o = _svEntryOrder(e);
-      return s + (o ? (e.pcs || 0) * (o.rate || 0) : 0);
-    }, 0);
+    const amt = entries.reduce((s, e) => s + _svEntryAmount(e), 0);
     return { date: d, entries, pcs, kg, amt, rate: kg > 0 ? amt / kg : 0 };
   });
 
@@ -956,6 +1018,20 @@ function svShiftMonth(delta) {
 // unambiguous fuzzy product/party match used for auto-challan creation.
 // Used only to value a day's dispatches at the order's actual Rate —
 // entries with no resolvable order simply don't contribute an amount.
+// Value of one dispatch entry. When it has been challaned (possibly split
+// across orders, oldest first), each part counts at its own order's rate.
+function _svEntryAmount(e) {
+  const parts = typeof challanList !== 'undefined' ? challanList.filter(c => c.svTs === e.ts) : [];
+  if (parts.length) {
+    return parts.reduce((s, c) => {
+      const o = typeof orders !== 'undefined' ? orders.find(x => x.id === c.orderId) : null;
+      return s + (c.qty || 0) * ((o && o.rate) || c.rate || 0);
+    }, 0);
+  }
+  const o = _svEntryOrder(e);
+  return o ? (e.pcs || 0) * (o.rate || 0) : 0;
+}
+
 function _svEntryOrder(e) {
   if (typeof orders === 'undefined') return null;
   const dc = typeof challanList !== 'undefined' ? challanList.find(c => c.svTs === e.ts) : null;
