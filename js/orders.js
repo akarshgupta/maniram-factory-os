@@ -385,6 +385,7 @@ async function saveOrderToSheet() {
 }
 
 function clearOrderForm() {
+  if (typeof hideDateCalendar === 'function') hideDateCalendar();
   ['f-id','f-customer','f-qty','f-rate','f-date','f-reel-size'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   const od = document.getElementById('f-order-date');
   if (od) od.value = new Date().toISOString().split('T')[0];
@@ -445,6 +446,7 @@ function openEditModal(orderId) {
 }
 
 function closeEditModal(e) {
+  if (typeof hideDateCalendar === 'function') hideDateCalendar();
   if (!e || e.target === document.getElementById('edit-order-overlay')) {
     document.getElementById('edit-order-overlay').style.display = 'none';
     editingOrderId = null;

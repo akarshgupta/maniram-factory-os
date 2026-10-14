@@ -47,6 +47,7 @@ const LS_LAST_PAGE = 'mi_last_page_v1';
 let _popstateReplay = false;
 
 function showPage(id) {
+  if (typeof hideDateCalendar === 'function') hideDateCalendar();
   const target = document.getElementById('page-' + id);
   if (!target) return; // unknown page id — leave whatever's currently showing alone
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
