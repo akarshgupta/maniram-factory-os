@@ -177,6 +177,27 @@ function hideDateCalendar() {
   if (ov) ov.style.display = 'none';
 }
 
+// The calendar opens on focus and is position:fixed, so it used to stay
+// floating over whatever came next (the WhatsApp confirmation after saving
+// an order, another page) whenever focus left the field WITHOUT a mouse
+// click — Tab, Enter-to-save, a popup opening. Close it on all of those.
+function _calIsOpen() {
+  const ov = document.getElementById('__date-cal-overlay');
+  return !!ov && ov.style.display !== 'none';
+}
+document.addEventListener('focusin', e => {
+  if (!_calIsOpen()) return;
+  if (e.target.id === _calTarget || e.target.closest('#__date-cal-overlay')) return;
+  hideDateCalendar();
+}, true);
+document.addEventListener('keydown', e => {
+  if (_calIsOpen() && (e.key === 'Escape' || e.key === 'Tab' || e.key === 'Enter')) hideDateCalendar();
+}, true);
+window.addEventListener('scroll', e => {
+  if (_calIsOpen() && !(e.target.closest && e.target.closest('#__date-cal-overlay'))) hideDateCalendar();
+}, true);
+window.addEventListener('resize', hideDateCalendar);
+
 // ── Date load hint strip (shown below date input after picking) ──
 function showDateLoadHint(inputId) {
   const hintId = inputId + '-load-hint';
