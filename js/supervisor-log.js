@@ -574,13 +574,23 @@ function createOrderFromDispatch() {
   if (typeof renderOrders === 'function') renderOrders();
 }
 
+// "· 1,630 sent · 3,370 left" for an order that's partly dispatched — so the
+// right order is obvious when the same item is on more than one order.
+function _svPendingNote(o) {
+  const sent = typeof getDispatchedQty === 'function' ? getDispatchedQty(o.id) : 0;
+  if (!sent) return '';
+  const left = Math.max(0, (parseInt(o.qty) || 0) - sent);
+  return ` <span style="font-weight:600;color:var(--muted)">· ${sent.toLocaleString('en-IN')} sent · ${left.toLocaleString('en-IN')} left</span>`;
+}
+
 function _svLinkRow(o) {
   return `
     <div onclick="linkDispatchToOrder('${o.id}')"
       style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border)"
       onmouseover="this.style.background='var(--hover-bg,#f5f7fa)'" onmouseout="this.style.background=''">
       <div style="font-weight:700;font-size:14px;font-family:monospace">${o.size || '—'} <span style="font-family:inherit;color:var(--muted);font-weight:600">· ${o.status || '—'}</span> <span style="font-family:inherit;color:#16A34A;font-weight:700">· ${(o.qty || 0).toLocaleString('en-IN')} pcs</span></div>
-      <div style="font-weight:700;font-size:13px;color:var(--navy)">${o.date ? formatDate(o.date) : 'no date'} · ${o.rate ? '₹' + o.rate + '/pc' : 'no rate on file'}</div>
+      <div style="font-weight:700;font-size:13px;color:var(--navy)">Ordered ${o.orderDate ? formatDate(o.orderDate) : '—'} · ${o.rate ? '₹' + o.rate + '/pc' : 'no rate on file'}${_svPendingNote(o)}</div>
+      ${o.date ? `<div style="font-size:11px;color:var(--muted)">Delivery due ${formatDate(o.date)}</div>` : ''}
       <div style="font-size:11px;color:var(--muted)">${o.customer} · ${o.id}${o.product ? ' · ' + o.product : ''}</div>
     </div>`;
 }
@@ -606,7 +616,10 @@ function renderSvLinkResults(q) {
     .filter(o => typeof matchesSearch !== 'function' || matchesSearch(o, q))
     .filter(o => _svOrderExistedBy(o, eDate));
   const finished = typeof FINISHED_STATUSES !== 'undefined' ? FINISHED_STATUSES : ['Delivered', 'Dispatched', 'Cancelled'];
-  const openOrders      = matched.filter(o => !finished.includes(o.status)).slice(0, 40);
+  // Oldest order first — the same order dispatches are filled in
+  const openOrders      = matched.filter(o => !finished.includes(o.status))
+    .sort((a, b) => (a.orderDate || '').localeCompare(b.orderDate || '') || (a.id || '').localeCompare(b.id || ''))
+    .slice(0, 40);
   const completedOrders = matched.filter(o => finished.includes(o.status)).slice(0, 40);
   if (!openOrders.length && !completedOrders.length) { el.innerHTML = '<div class="empty-state">No matching orders (or every match postdates this dispatch — it may need a new order instead).</div>'; return; }
 
