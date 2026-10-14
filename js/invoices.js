@@ -569,45 +569,96 @@ function _mirrorInvoice(inv) {
   });
 }
 
-// Any order linked from this invoice's items is considered fully billed → Delivered.
-// Records each order's status just before the flip on inv.autoDeliveredOrders,
-// so rollbackInvoice() can put it back exactly where it was instead of guessing.
+// Total boxes billed against an order across every invoice — with the
+// invoice currently being saved counted in place of its earlier version.
+function _invoicedQtyForOrder(orderId, inv) {
+  const others = invoiceList.filter(iv => iv.id !== (inv && inv.id) && iv.id !== _ciEditingId);
+  return [...others, ...(inv ? [inv] : [])].reduce((s, iv) =>
+    s + (iv.items || []).filter(it => it.orderId === orderId).reduce((t, it) => t + (+it.qty || 0), 0), 0);
+}
+
+// An order is closed as Delivered only once its full ordered quantity has
+// been billed. (Previously ANY invoice touching an order closed it — so
+// saving a partial invoice, or just editing a rate on one, wrongly marked
+// a 5000-box order Delivered after 1630 boxes.) Records each order's
+// status just before the flip on inv.autoDeliveredOrders, so
+// rollbackInvoice() can put it back exactly where it was.
 function _markInvoicedOrdersDelivered(inv) {
   if (typeof orders === 'undefined') return;
   const orderIds = [...new Set((inv.items || []).map(i => i.orderId).filter(Boolean))];
   const autoDelivered = [];
   orderIds.forEach(oid => {
     const o = orders.find(x => x.id === oid);
-    if (o && o.status !== 'Delivered' && o.status !== 'Cancelled') {
-      autoDelivered.push({ orderId: oid, prevStatus: o.status });
-      markOrderDelivered(o);
-      if (typeof logOrderEvent === 'function') logOrderEvent(oid, 'Status Changed', `${autoDelivered[autoDelivered.length-1].prevStatus} → Delivered (auto — invoiced ${inv.id})`);
-    }
+    if (!o || o.status === 'Delivered' || o.status === 'Cancelled') return;
+    const ordered = parseInt(o.qty) || 0;
+    if (!ordered || _invoicedQtyForOrder(oid, inv) < ordered) return;
+    autoDelivered.push({ orderId: oid, prevStatus: o.status });
+    markOrderDelivered(o);
+    if (typeof logOrderEvent === 'function') logOrderEvent(oid, 'Status Changed', `${autoDelivered[autoDelivered.length-1].prevStatus} → Delivered (auto — fully invoiced, ${inv.id})`);
   });
   if (autoDelivered.length) inv.autoDeliveredOrders = autoDelivered;
 }
 
-// Flip an order to Delivered — optimistic local update + push to the sheet.
+// Flip an order to Delivered — optimistic local update + push to the sheet
+// through the one full-row writer (_pushOrderUpdate), which keeps the
+// order date, delivery date and remarks exactly as they are.
 function markOrderDelivered(o) {
   o.status = 'Delivered';
   if (typeof recordDeliveredOrder === 'function') recordDeliveredOrder(o);
   if (typeof recordDeliveryLead   === 'function') recordDeliveryLead(o);
-  try {
-    const d   = o.date ? new Date(o.date) : new Date();
-    const fmt = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
-    const od  = o.orderDate ? new Date(o.orderDate) : d;
-    const fod = `${String(od.getDate()).padStart(2,'0')}/${String(od.getMonth()+1).padStart(2,'0')}/${od.getFullYear()}`;
-    fetch(APPS_SCRIPT_URL, {
-      method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'update', rowIndex: o.rowIndex, id: o.id, customer: o.customer,
-        product: o.product, size: o.size, ply: o.ply, colour: o.colour, weight: o.weight,
-        qty: o.qty, rate: o.rate, date: fmt, orderDate: fod, status: 'Delivered',
-        priority: o.priority, reelSize: o.reelSize, reservedKg: o.reservedKg || 0, remarks: '',
-        twoPart: !!o.twoPart,
-      }),
-    }).catch(() => {});
-  } catch (e) { /* non-fatal */ }
+  if (typeof _pushOrderUpdate     === 'function') _pushOrderUpdate(o);
+}
+
+// Undo the old bug above: reopen every order an invoice save closed as
+// Delivered while it was NOT actually fully billed or fully dispatched,
+// back to the status it had before. Runs once orders are loaded; only
+// touches orders the bug itself closed (recorded on the invoice, or in the
+// order's own log), and leaves anything genuinely complete alone.
+function reopenWronglyInvoiceClosedOrders() {
+  if (typeof orders === 'undefined' || !orders.length) return 0;
+  const victims = {}; // orderId -> prevStatus
+  invoiceList.forEach(iv => (iv.autoDeliveredOrders || []).forEach(a => {
+    if (!victims[a.orderId]) victims[a.orderId] = a.prevStatus || 'New';
+  }));
+  if (typeof orderLog !== 'undefined') {
+    // Latest status change per order — only counts if it was the invoice auto-close
+    const last = {};
+    orderLog.forEach(e => { if (e.event === 'Status Changed') last[e.orderId] = e; });
+    Object.values(last).forEach(e => {
+      const m = (e.detail || '').match(/^(.+?) → Delivered \(auto — invoiced INV/);
+      if (m && !victims[e.orderId]) victims[e.orderId] = m[1];
+    });
+  }
+
+  let reopened = 0;
+  Object.entries(victims).forEach(([oid, prev]) => {
+    const o = orders.find(x => x.id === oid);
+    if (!o || o.status !== 'Delivered') return;
+    const ordered    = parseInt(o.qty) || 0;
+    const dispatched = typeof getDispatchedQty === 'function' ? getDispatchedQty(oid) : 0;
+    if (!ordered || dispatched >= ordered || _invoicedQtyForOrder(oid, null) >= ordered) return;
+    const back = (prev && prev !== 'Delivered') ? prev : 'New';
+    o.status = back;
+    if (typeof _pushOrderUpdate === 'function') _pushOrderUpdate(o);
+    if (typeof logOrderEvent === 'function') logOrderEvent(oid, 'Reopened',
+      `Delivered → ${back} — had been closed by an invoice save at only ${dispatched.toLocaleString('en-IN')} of ${ordered.toLocaleString('en-IN')} pcs dispatched`);
+    reopened++;
+  });
+  // Clear the stale records so rollbackInvoice() won't act on them later
+  if (reopened) {
+    invoiceList.forEach(iv => {
+      if (!iv.autoDeliveredOrders) return;
+      iv.autoDeliveredOrders = iv.autoDeliveredOrders.filter(a => {
+        const o = orders.find(x => x.id === a.orderId);
+        return o && o.status === 'Delivered';
+      });
+      if (!iv.autoDeliveredOrders.length) delete iv.autoDeliveredOrders;
+    });
+    saveInvoiceList();
+    if (typeof renderOrders === 'function') renderOrders();
+    if (typeof updateDashboardOrders === 'function') updateDashboardOrders();
+  }
+  return reopened;
 }
 
 // The invoice form is a fixed overlay that no longer navigates away from

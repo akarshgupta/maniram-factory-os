@@ -157,6 +157,8 @@ async function init() {
   // once the data arrives, unlike Dashboard which updates itself as
   // fetches complete regardless of what page is showing.
   await ordersReady;
+  // Undo orders wrongly closed as Delivered by an invoice save (old bug) — see invoices.js
+  if (typeof reopenWronglyInvoiceClosedOrders === 'function') reopenWronglyInvoiceClosedOrders();
   const lastPage = localStorage.getItem(LS_LAST_PAGE);
   if (lastPage && lastPage !== 'dashboard') showPage(lastPage);
 
