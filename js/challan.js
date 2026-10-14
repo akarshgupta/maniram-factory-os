@@ -296,6 +296,7 @@ function deleteChallan(idx) {
   // refresh would silently recreate the exact challan just deleted.
   if (dc?.svTs && typeof _svRejectDispatchMatch === 'function') _svRejectDispatchMatch(dc.svTs);
 
+  const dcOrderId = dc?.orderId;
   challanList.splice(idx, 1);
   saveChallans();
   if (dcNum && typeof mirrorToSheet === 'function') mirrorToSheet('deleteChallan', { id: dcNum });
@@ -315,8 +316,12 @@ function deleteChallan(idx) {
     }
   }
 
+  // Removing a delivery can leave a Delivered order short of its quantity —
+  // bring it back to active orders so its dispatched/pending bar shows again.
+  if (typeof _svRevertStaleDeliveredOrder === 'function') _svRevertStaleDeliveredOrder(dcOrderId, `challan ${dcNum} was removed, so it is no longer fully dispatched`);
   renderChallansTab();
   renderOrders();
+  if (typeof activeOrderTab !== 'undefined' && activeOrderTab === 'history' && typeof renderOrderHistory === 'function') renderOrderHistory();
 }
 
 // ── Re-print an existing challan ──

@@ -667,7 +667,7 @@ function _relinkInvoiceForChallan(dcNum, o) {
 // stage it's really at from there. Only touches it if it's genuinely no
 // longer fully dispatched — an order that still reaches its total via
 // other challans is left alone.
-function _svRevertStaleDeliveredOrder(oldOrderId) {
+function _svRevertStaleDeliveredOrder(oldOrderId, why) {
   if (!oldOrderId || typeof orders === 'undefined' || typeof FINISHED_STATUSES === 'undefined') return;
   const o = orders.find(x => x.id === oldOrderId);
   if (!o || !FINISHED_STATUSES.includes(o.status)) return;
@@ -676,7 +676,7 @@ function _svRevertStaleDeliveredOrder(oldOrderId) {
 
   const prevStatus = o.status;
   o.status = 'New';
-  if (typeof logOrderEvent === 'function') logOrderEvent(oldOrderId, 'Rolled Back', `Reopened from ${prevStatus} — a dispatch previously counted toward it was re-linked to a different order`);
+  if (typeof logOrderEvent === 'function') logOrderEvent(oldOrderId, 'Rolled Back', `Reopened from ${prevStatus} — ${why || 'a dispatch previously counted toward it was re-linked to a different order'}`);
   if (typeof _pushOrderUpdate === 'function') _pushOrderUpdate(o);
 }
 

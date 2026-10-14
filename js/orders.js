@@ -909,6 +909,29 @@ function removeOrder(orderId) {
   if (typeof renderProductionPlan === 'function') renderProductionPlan();
 }
 
+// "3,200 of 5,000 sent" on a completed order that never reached its quantity
+function _histDispatchNote(o) {
+  const sent = typeof getDispatchedQty === 'function' ? getDispatchedQty(o.id) : 0;
+  const total = parseInt(o.qty) || 0;
+  if (!total || sent >= total) return '';
+  return `<span style="font-size:10px;color:#B45309;font-weight:700" title="This order is closed but not fully dispatched">⚠ ${sent.toLocaleString('en-IN')} of ${total.toLocaleString('en-IN')} sent</span>`;
+}
+
+// Move a completed order back to active orders (status New) — its
+// dispatched/pending bar comes back with it. Challans are untouched.
+function reopenOrder(orderId) {
+  const o = orders.find(x => x.id === orderId);
+  if (!o) return;
+  if (!confirm(`Move ${o.id} — ${o.customer} (${o.product || o.size || ''}) back to active orders?`)) return;
+  const prev = o.status;
+  o.status = 'New';
+  logOrderEvent(orderId, 'Reopened', `${prev} → New — reopened by hand`);
+  _pushOrderUpdate(o);
+  renderOrders();
+  renderOrderHistory();
+  if (typeof updateDashboardOrders === 'function') updateDashboardOrders();
+}
+
 // ── Render Order History (completed orders) ──
 function renderOrderHistory() {
   const el = document.getElementById('history-orders-list');
@@ -948,6 +971,11 @@ function renderOrderHistory() {
         <span style="font-size:13px;font-weight:600">${o.qty ? o.qty.toLocaleString('en-IN') : '—'}</span>
         ${o.rate ? `<span style="font-size:11px;color:var(--muted)">₹${(o.qty*o.rate).toLocaleString('en-IN',{maximumFractionDigits:0})}</span>` : ''}
         ${o.remarks && o.remarks.includes('short') ? `<span style="font-size:10px;color:#E67E22;font-weight:600" title="${o.remarks}">⚠️ short</span>` : ''}
+        ${_histDispatchNote(o)}
+        <button class="btn-secondary" style="font-size:11px;padding:3px 7px" title="Dispatch history — see or remove each delivery"
+          onclick="event.stopPropagation();openOrderHistory('${o.id}')">🚚 History</button>
+        <button class="btn-secondary" style="font-size:11px;padding:3px 7px" title="Move back to active orders"
+          onclick="event.stopPropagation();reopenOrder('${o.id}')">↩ Reopen</button>
         <button class="btn-secondary" style="font-size:11px;padding:3px 7px" title="Edit this order"
           onclick="event.stopPropagation();openEditModal('${o.id}')">✏️</button>
       </div>
