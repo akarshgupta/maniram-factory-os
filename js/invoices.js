@@ -822,9 +822,11 @@ function _deleteInvoiceCore(invId) {
     }
   });
 
+  if (typeof trashRecord === 'function') trashRecord('invoice', inv);
   invoiceList = invoiceList.filter(iv => iv.id !== invId);
   saveInvoiceList();
   if (typeof mirrorToSheet === 'function') mirrorToSheet('deleteInvoice', { id: invId });
+  if (typeof _refreshTrashButtons === 'function') _refreshTrashButtons();
   renderInvoicingPage();
   renderUnratedChallanBanner();
   if (typeof renderOrders === 'function') renderOrders();
@@ -906,6 +908,7 @@ function renderInvoicingPage() {
     <div style="position:sticky;top:56px;z-index:40;background:var(--bg);padding:10px 0;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px">
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
         ${monthSelect}
+        ${typeof _trashButtonHtml === 'function' ? _trashButtonHtml() : ''}
         <div class="stat-card good" style="padding:10px 16px;min-width:140px">
           <div class="stat-label">Total Invoiced${_invMonthFilter !== 'all' ? ' — ' + _invMonthLabel(_invMonthFilter) : ''}</div>
           <div class="stat-value" style="color:var(--success);font-size:18px">₹${fmt2(totalInvoiced)}</div>

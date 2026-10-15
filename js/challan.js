@@ -297,6 +297,8 @@ function deleteChallan(idx) {
   if (dc?.svTs && typeof _svRejectDispatchMatch === 'function') _svRejectDispatchMatch(dc.svTs);
 
   const dcOrderId = dc?.orderId;
+  const lineGone = linkedInv && linkedInv.items.length > 1 ? linkedInv.items.find(it => it.challanDc === dcNum) : null;
+  trashRecord('challan', dc, lineGone ? { invoiceId: linkedInv.id, invoiceLine: lineGone } : {});
   challanList.splice(idx, 1);
   saveChallans();
   if (dcNum && typeof mirrorToSheet === 'function') mirrorToSheet('deleteChallan', { id: dcNum });
@@ -319,6 +321,7 @@ function deleteChallan(idx) {
   // Removing a delivery can leave a Delivered order short of its quantity —
   // bring it back to active orders so its dispatched/pending bar shows again.
   if (typeof _svRevertStaleDeliveredOrder === 'function') _svRevertStaleDeliveredOrder(dcOrderId, `challan ${dcNum} was removed, so it is no longer fully dispatched`);
+  _refreshTrashButtons();
   renderChallansTab();
   renderOrders();
   if (typeof activeOrderTab !== 'undefined' && activeOrderTab === 'history' && typeof renderOrderHistory === 'function') renderOrderHistory();
@@ -344,6 +347,133 @@ function _chMonthLabel(key) {
 function setChallanMonthFilter(key) {
   _chMonthFilter = key;
   renderChallansTab();
+}
+
+// ══════════════════════════════════════════════════════════════
+// RECENTLY DELETED — every challan or invoice removed (by hand, from an
+// order's history, or by "Remove duplicates") is kept here, with when and
+// why, so it can be seen and restored. Stored in this browser — the same
+// place challans and invoices themselves live — newest first, capped at
+// 300 entries / 120 days.
+// ══════════════════════════════════════════════════════════════
+const LS_TRASH = 'mi_trash_v1';
+let _trashReason = '';   // set around bulk operations so entries say why
+
+function loadTrash() { try { return JSON.parse(localStorage.getItem(LS_TRASH) || '[]'); } catch { return []; } }
+function saveTrash(list) { try { localStorage.setItem(LS_TRASH, JSON.stringify(list)); } catch {} }
+
+function trashRecord(type, rec, extra) {
+  if (!rec) return;
+  const cutoff = Date.now() - 120 * 86400000;
+  const list = loadTrash().filter(t => new Date(t.deletedAt).getTime() > cutoff);
+  list.unshift(Object.assign({
+    id: 't' + Date.now() + Math.random().toString(36).slice(2, 6),
+    type, record: JSON.parse(JSON.stringify(rec)),
+    deletedAt: new Date().toISOString(), reason: _trashReason || 'Deleted by hand',
+  }, extra || {}));
+  saveTrash(list.slice(0, 300));
+}
+
+function _trashLabel(t) {
+  const r = t.record || {};
+  if (t.type === 'challan') return { no: r.dcNum, line: `${r.customer || '—'} · ${r.product || ''} · ${(r.qty || 0).toLocaleString('en-IN')} pcs · ${r.orderId || ''}`, date: r.date };
+  if (t.type === 'invoiceLine') return { no: `${t.invoiceId} (line)`, line: `${(r.desc || '')} · ${(r.qty || 0).toLocaleString('en-IN')} pcs @ ₹${r.rate || 0}`, date: '' };
+  const qty = (r.items || []).reduce((a, it) => a + (it.qty || 0), 0);
+  return { no: r.id, line: `${r.party || '—'} · ${qty.toLocaleString('en-IN')} pcs · ₹${Math.round(r.total || 0).toLocaleString('en-IN')}`, date: r.date };
+}
+
+function openTrash() {
+  let ov = document.getElementById('trash-overlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'trash-overlay'; ov.className = 'popup-overlay';
+    ov.onclick = e => { if (e.target === ov) ov.style.display = 'none'; };
+    document.body.appendChild(ov);
+  }
+  const list = loadTrash();
+  const fmtDay = d => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+  const rows = list.map(t => {
+    const l = _trashLabel(t);
+    const icon = t.type === 'challan' ? '🚚' : '🧾';
+    return `<div style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700">${icon} <span style="font-family:monospace">${l.no}</span> <span style="font-weight:400;color:var(--muted);font-size:11px">· ${fmtDay(l.date)}</span></div>
+        <div style="font-size:12px;color:var(--muted)">${l.line}</div>
+        <div style="font-size:11px;color:#B45309">Deleted ${new Date(t.deletedAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} — ${t.reason}</div>
+      </div>
+      <button class="btn-primary" style="font-size:11px;padding:5px 10px" onclick="restoreTrash('${t.id}')">↩ Restore</button>
+      <button class="btn-secondary" style="font-size:11px;padding:5px 8px;color:var(--danger)" onclick="purgeTrash('${t.id}')" title="Remove from this list for good">✕</button>
+    </div>`;
+  }).join('');
+  ov.innerHTML = `<div class="popup-box" style="width:min(560px,95vw);padding:22px;max-height:85vh;overflow-y:auto" onclick="event.stopPropagation()">
+    <div class="popup-title">🗑 Recently Deleted</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Challans and invoices you removed, newest first. Restore puts one back exactly as it was. Kept for 120 days.</div>
+    ${rows || '<div class="empty-state" style="padding:16px">Nothing deleted yet.</div>'}
+    <div style="margin-top:12px"><button class="btn-secondary" style="width:100%" onclick="document.getElementById('trash-overlay').style.display='none'">Close</button></div>
+  </div>`;
+  ov.style.display = 'flex';
+}
+
+function purgeTrash(id) {
+  saveTrash(loadTrash().filter(t => t.id !== id));
+  openTrash(); _refreshTrashButtons();
+}
+
+function restoreTrash(id) {
+  const t = loadTrash().find(x => x.id === id);
+  if (!t) return;
+  const rec = t.record;
+  let note = '';
+  if (t.type === 'challan') {
+    if (challanList.some(c => c.dcNum === rec.dcNum)) {
+      const old = rec.dcNum; rec.dcNum = _nextDcNum();
+      note = ` (${old} was taken by another challan — restored as ${rec.dcNum})`;
+    }
+    challanList.push(rec); saveChallans();
+    if (rec.svTs && typeof _svRejectedTs !== 'undefined') { _svRejectedTs.delete(rec.svTs); if (typeof _saveSvRejectedTs === 'function') _saveSvRejectedTs(); }
+    if (typeof mirrorToSheet === 'function') mirrorToSheet('saveChallan', { id: rec.dcNum, date: rec.date, orderId: rec.orderId, customer: rec.customer, product: rec.product, qty: rec.qty, vehicle: rec.vehicle || '', notes: rec.note || '' });
+    // Its invoice line (if the invoice survived) goes back with it
+    const inv = t.invoiceId ? invoiceList.find(i => i.id === t.invoiceId) : null;
+    if (inv && t.invoiceLine && !(inv.items || []).some(it => it.challanDc === t.invoiceLine.challanDc)) {
+      inv.items.push(t.invoiceLine);
+      const sub = inv.items.reduce((a, it) => a + (it.qty || 0) * (it.rate || 0), 0);
+      inv.subtotal = sub; inv.total = Math.round(sub); inv.roundOff = inv.total - sub;
+      saveInvoiceList(); if (typeof _mirrorInvoice === 'function') _mirrorInvoice(inv);
+    }
+    if (typeof logOrderEvent === 'function' && rec.orderId) logOrderEvent(rec.orderId, 'Restored', `${rec.dcNum} · ${rec.qty} pcs restored from Recently Deleted`);
+    if (typeof checkOrderFullyDispatched === 'function' && rec.orderId) checkOrderFullyDispatched(rec.orderId);
+  } else if (t.type === 'invoiceLine') {
+    const inv = invoiceList.find(i => i.id === t.invoiceId);
+    if (!inv) { alert(`Invoice ${t.invoiceId} no longer exists — restore the whole invoice instead if it is in this list.`); return; }
+    inv.items.push(rec);
+    const sub = inv.items.reduce((a, it) => a + (it.qty || 0) * (it.rate || 0), 0);
+    inv.subtotal = sub; inv.total = Math.round(sub); inv.roundOff = inv.total - sub;
+    saveInvoiceList(); if (typeof _mirrorInvoice === 'function') _mirrorInvoice(inv);
+  } else {
+    if (invoiceList.some(i => i.id === rec.id)) { alert(`Invoice ${rec.id} already exists — nothing to restore.`); return; }
+    delete rec.autoDeliveredOrders;   // the order was already reopened when this was deleted
+    invoiceList.unshift(rec); saveInvoiceList();
+    if (typeof _mirrorInvoice === 'function') _mirrorInvoice(rec);
+    const ids = [...new Set((rec.items || []).map(i => i.orderId).filter(Boolean))];
+    if (typeof logOrderEvent === 'function') ids.forEach(oid => logOrderEvent(oid, 'Restored', `${rec.id} restored from Recently Deleted`));
+  }
+  saveTrash(loadTrash().filter(x => x.id !== id));
+  renderChallansTab();
+  if (typeof renderInvoicingPage === 'function') renderInvoicingPage();
+  if (typeof renderOrders === 'function') renderOrders();
+  if (typeof updateDashboardOrders === 'function') updateDashboardOrders();
+  if (typeof _refreshSvlogIfOpen === 'function') _refreshSvlogIfOpen();
+  openTrash(); _refreshTrashButtons();
+  if (note) alert('Restored' + note);
+}
+
+function _trashButtonHtml() {
+  const n = loadTrash().length;
+  return `<button class="btn-secondary trash-btn" style="font-size:12px" onclick="openTrash()">🗑 Deleted (${n})</button>`;
+}
+function _refreshTrashButtons() {
+  const n = loadTrash().length;
+  document.querySelectorAll('.trash-btn').forEach(b => { b.textContent = `🗑 Deleted (${n})`; });
 }
 
 // ── Duplicate challans / invoices ──
@@ -390,6 +520,7 @@ function removeDuplicateChallans() {
   if (!d.challans.length && !d.invoices.length) { alert('No duplicates found.'); return; }
   if (!confirm(`Remove ${d.challans.length} duplicate challan(s) (${d.challans.join(', ') || 'none'}) and ${d.invoices.length} duplicate invoice(s) (${d.invoices.join(', ') || 'none'})?\n\nThe oldest copy of each is kept. This cannot be undone.`)) return;
 
+  _trashReason = 'Duplicate removed';
   // Invoices first: a duplicate invoice that bills a DUPLICATE challan goes
   // whole (the kept challan still has its own original invoice).
   d.invoices.forEach(id => { if (typeof _deleteInvoiceCore === 'function') _deleteInvoiceCore(id); });
@@ -397,6 +528,7 @@ function removeDuplicateChallans() {
   const gone = new Set(d.challans);
   invoiceList.forEach(iv => {
     if (!(iv.items || []).some(it => gone.has(it.challanDc))) return;
+    iv.items.filter(it => gone.has(it.challanDc)).forEach(it => trashRecord('invoiceLine', it, { invoiceId: iv.id }));
     iv.items = iv.items.filter(it => !gone.has(it.challanDc));
     const sub = iv.items.reduce((t, it) => t + (it.qty || 0) * (it.rate || 0), 0);
     iv.subtotal = sub; iv.total = Math.round(sub); iv.roundOff = iv.total - sub;
@@ -406,6 +538,7 @@ function removeDuplicateChallans() {
   d.challans.forEach(dc => {
     const i = challanList.findIndex(c => c.dcNum === dc);
     if (i < 0) return;
+    trashRecord('challan', challanList[i]);
     challanList.splice(i, 1);
     if (typeof mirrorToSheet === 'function') mirrorToSheet('deleteChallan', { id: dc });
   });
@@ -416,7 +549,9 @@ function removeDuplicateChallans() {
   if (typeof renderOrders === 'function') renderOrders();
   if (typeof updateDashboardOrders === 'function') updateDashboardOrders();
   if (typeof _refreshSvlogIfOpen === 'function') _refreshSvlogIfOpen();
-  alert('Done — duplicates removed.');
+  _trashReason = '';
+  _refreshTrashButtons();
+  alert('Done — duplicates removed. They are in 🗑 Deleted if you need any back.');
 }
 
 function renderChallansTab() {
@@ -487,7 +622,7 @@ function renderChallansTab() {
   }).join('');
 
   el.innerHTML = `
-    <div style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">${monthSelect}${(() => {
+    <div style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">${monthSelect}${_trashButtonHtml()}${(() => {
       const d = findDuplicateChallans(); const n = d.challans.length + d.invoices.length;
       return n ? `<button class="btn-secondary" style="font-size:12px;color:var(--danger)" onclick="removeDuplicateChallans()" title="${d.challans.length} challan(s), ${d.invoices.length} invoice(s)">🧹 Remove ${n} duplicate${n > 1 ? 's' : ''}</button>` : '';
     })()}</div>
