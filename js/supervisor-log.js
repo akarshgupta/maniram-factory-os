@@ -240,6 +240,10 @@ function _svMatchOrderByProduct(e) {
 // by the automatic sweep below and the manual "Link to Order" picker.
 // Returns the created record.
 function _svCreateChallanFor(e, o, matchedBy, qty) {
+  // One supervisor entry is only ever challaned once per order — whatever
+  // path got here (auto sweep, manual link, a stale list), never a second copy.
+  const already = challanList.find(c => c.svTs === e.ts && c.orderId === o.id && (qty == null || c.qty === qty));
+  if (already) return already;
   const record = {
     dcNum:     _nextDcNum(),
     orderId:   o.id,
@@ -778,6 +782,7 @@ function renderSupervisorLog(loading, error) {
     <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
       ${tabBtn('dispatch', `🚚 Dispatch Weights (${_svDisp.length})`)}
       ${tabBtn('production', `⚙️ Production (${_svProd.length})`)}
+      <button class="btn-primary" style="font-size:12px;padding:6px 14px;margin-left:auto" onclick="openSvAddEntry()">+ Add ${_svTab === 'dispatch' ? 'Dispatch' : 'Production'} Entry</button>
     </div>
     ${monthNav}
     ${body}`;
@@ -1158,4 +1163,119 @@ function _svDailySummaryHtml() {
 function _svProductionHtml() {
   if (!_svProd.length) return '<div class="empty-state">No production entries yet.</div>';
   return _svDailySummaryHtml();
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// ADD AN ENTRY FROM THE OFFICE — same two Apps Script actions and column
+// layout the Staff Portal uses (supervisorDispatchAppend /
+// supervisorProductionAppend), so the entry lands in the register sheet
+// exactly like a Google Form response and flows through the same
+// matching, challans and invoicing. Works with the Forms switched off.
+// ══════════════════════════════════════════════════════════════
+function _svToMDY(iso) {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${+m[2]}/${+m[3]}/${m[1]}` : '';
+}
+
+function openSvAddEntry() {
+  let ov = document.getElementById('sv-add-overlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'sv-add-overlay';
+    ov.className = 'popup-overlay';
+    ov.onclick = e => { if (e.target === ov) closeSvAddEntry(); };
+    document.body.appendChild(ov);
+  }
+  const inp = 'class="form-input" style="width:100%"';
+  const lbl = t => `<label class="form-label" style="font-size:11px">${t}</label>`;
+  let body;
+  if (_svTab === 'dispatch') {
+    const open = (typeof orders !== 'undefined' ? orders : [])
+      .filter(o => !FINISHED_STATUSES.includes(o.status))
+      .sort((a, b) => (a.orderDate || '').localeCompare(b.orderDate || '') || (a.id || '').localeCompare(b.id || ''));
+    const opts = open.map(o => {
+      const left = Math.max(0, (parseInt(o.qty) || 0) - (typeof getDispatchedQty === 'function' ? getDispatchedQty(o.id) : 0));
+      return `<option value="${o.id}">${o.id} — ${o.customer} — ${o.product || o.size} (${left.toLocaleString('en-IN')} left)</option>`;
+    }).join('');
+    body = `
+      <div class="popup-title">🚚 Add Dispatch Entry</div>
+      <div class="form-group">${lbl('Date')}<input ${inp} type="date" id="sva-date" value="${todayStr}"></div>
+      <div class="form-group">${lbl('Order (optional — fills party, product and size)')}
+        <select ${inp} id="sva-order" onchange="svAddPickOrder(this.value)"><option value="">— none / not on an order —</option>${opts}</select></div>
+      <div class="form-group">${lbl('Party name')}<input ${inp} id="sva-party" list="sva-parties" placeholder="Customer">
+        <datalist id="sva-parties">${[...new Set((typeof orders !== 'undefined' ? orders : []).map(o => o.customer).filter(Boolean))].map(c => `<option value="${c}">`).join('')}</datalist></div>
+      <div class="form-group">${lbl('Product name')}<input ${inp} id="sva-product" placeholder="e.g. Yumnotri"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <div class="form-group">${lbl('Pieces')}<input ${inp} type="number" id="sva-pcs" min="1"></div>
+        <div class="form-group">${lbl('Size L×W×H')}<input ${inp} id="sva-size" placeholder="17*14*26"></div>
+        <div class="form-group">${lbl('Weight / piece (gm)')}<input ${inp} type="number" id="sva-wt" step="0.1"></div>
+      </div>`;
+  } else {
+    body = `
+      <div class="popup-title">⚙️ Add Production Entry</div>
+      <div class="form-group">${lbl('Date')}<input ${inp} type="date" id="svp-date" value="${todayStr}"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-group">${lbl('Reel 1 width')}<input ${inp} id="svp-r1w"></div>
+        <div class="form-group">${lbl('Reel 1 GSM')}<input ${inp} id="svp-r1g"></div>
+        <div class="form-group">${lbl('Reel 2 width')}<input ${inp} id="svp-r2w"></div>
+        <div class="form-group">${lbl('Reel 2 GSM')}<input ${inp} id="svp-r2g"></div>
+        <div class="form-group">${lbl('Cut size')}<input ${inp} id="svp-cut"></div>
+        <div class="form-group">${lbl('Ply / pieces')}<input ${inp} id="svp-ply"></div>
+        <div class="form-group">${lbl('Sheets')}<input ${inp} id="svp-sheets"></div>
+        <div class="form-group">${lbl('Rolls')}<input ${inp} id="svp-rolls"></div>
+      </div>`;
+  }
+  ov.innerHTML = `<div class="popup-box" style="width:min(460px,95vw);padding:22px;max-height:90vh;overflow-y:auto" onclick="event.stopPropagation()">
+    ${body}
+    <div id="sv-add-msg" style="font-size:12px;min-height:18px;margin:6px 0"></div>
+    <div style="display:flex;gap:10px"><button class="btn-primary" style="flex:1" onclick="saveSvAddEntry()">💾 Save Entry</button>
+    <button class="btn-secondary" onclick="closeSvAddEntry()">Cancel</button></div></div>`;
+  ov.style.display = 'flex';
+}
+
+function closeSvAddEntry() {
+  const ov = document.getElementById('sv-add-overlay');
+  if (ov) ov.style.display = 'none';
+}
+
+function svAddPickOrder(id) {
+  const o = (typeof orders !== 'undefined' ? orders : []).find(x => x.id === id);
+  if (!o) return;
+  document.getElementById('sva-party').value   = o.customer || '';
+  document.getElementById('sva-product').value = o.product || '';
+  document.getElementById('sva-size').value    = o.size || '';
+  const wt = document.getElementById('sva-wt'); if (wt && !wt.value && o.weight) wt.value = o.weight;
+}
+
+function saveSvAddEntry() {
+  const msg = document.getElementById('sv-add-msg');
+  const v = id => (document.getElementById(id) || {}).value || '';
+  let payload, action;
+  if (_svTab === 'dispatch') {
+    const date = _svToMDY(v('sva-date')), pcs = parseInt(v('sva-pcs')) || 0;
+    if (!date) { msg.innerHTML = '⚠️ Pick a date.'; return; }
+    if (!v('sva-party').trim() && !v('sva-product').trim()) { msg.innerHTML = '⚠️ Enter a party or a product.'; return; }
+    if (pcs <= 0) { msg.innerHTML = '⚠️ Enter the pieces dispatched.'; return; }
+    action  = 'supervisorDispatchAppend';
+    payload = { date, party: v('sva-party').trim(), pcs, size: v('sva-size').trim(), wtPc: parseFloat(v('sva-wt')) || '',
+                product: v('sva-product').trim(), orderId: v('sva-order') };
+  } else {
+    const date = _svToMDY(v('svp-date'));
+    if (!date) { msg.innerHTML = '⚠️ Pick a date.'; return; }
+    payload = { date, r1w: v('svp-r1w').trim(), r1g: v('svp-r1g').trim(), r2w: v('svp-r2w').trim(), r2g: v('svp-r2g').trim(),
+                cutSize: v('svp-cut').trim(), plyPcs: v('svp-ply').trim(), sheets: v('svp-sheets').trim(), rolls: v('svp-rolls').trim() };
+    if (!payload.r1w && !payload.cutSize) { msg.innerHTML = '⚠️ Enter at least a reel width or cut size.'; return; }
+    action = 'supervisorProductionAppend';
+  }
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(Object.assign({ action }, payload)),
+  }).catch(() => {});
+  closeSvAddEntry();
+  // Not added to the list locally: the sheet stamps the entry's own time,
+  // and the auto-challan sweep keys on it — a locally invented one would
+  // later be challaned a second time. Reload from the sheet instead.
+  [3000, 8000, 15000].forEach(ms => setTimeout(() => fetchSupervisorLog(), ms));
+  alert('✅ Entry saved — it appears in the register in a few seconds.');
 }

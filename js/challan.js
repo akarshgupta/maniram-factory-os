@@ -346,6 +346,79 @@ function setChallanMonthFilter(key) {
   renderChallansTab();
 }
 
+// ── Duplicate challans / invoices ──
+// Challans and invoices live in each browser's own storage, so the same
+// supervisor dispatch could be challaned more than once (a rebuilt list, a
+// second device) — each copy with its own DC number, its own invoice, and
+// double-counted "dispatched" quantity. Two challans are the same delivery
+// when they are for the same order, date and quantity AND come from the
+// same supervisor entry (or both lack one). The oldest DC number is kept.
+// A dispatch split across orders, or two genuinely separate loads that
+// happen to match, are never touched: split parts have different orders,
+// and loads logged separately carry different supervisor entries.
+function _dupKey(c) { return [c.orderId || '', c.date || '', +c.qty || 0, c.svTs || ''].join('|'); }
+
+function findDuplicateChallans() {
+  const groups = {};
+  challanList.forEach(c => { (groups[_dupKey(c)] = groups[_dupKey(c)] || []).push(c); });
+  const dupDcs = new Set();
+  Object.values(groups).forEach(g => {
+    if (g.length < 2) return;
+    // Entries with no supervisor stamp are manual challans — only flag those
+    // when they are identical in every field a person would type.
+    if (!g[0].svTs && !g.every(c => (c.vehicle || '') === (g[0].vehicle || '') && (c.note || '') === (g[0].note || ''))) return;
+    g.slice().sort((a, b) => (a.dcNum || '').localeCompare(b.dcNum || '', undefined, { numeric: true }))
+      .slice(1).forEach(c => dupDcs.add(c.dcNum));
+  });
+  const invoiceOf = dc => invoiceList.find(iv => (iv.items || []).some(it => it.challanDc === dc));
+  const dupInvoices = new Set();
+  // Invoices billing a duplicate challan (or the same challan twice)
+  const billed = {};
+  invoiceList.forEach(iv => (iv.items || []).forEach(it => {
+    if (!it.challanDc) return;
+    if (billed[it.challanDc] && billed[it.challanDc] !== iv.id) dupInvoices.add(iv.id);
+    else billed[it.challanDc] = iv.id;
+  }));
+  // Only whole-invoice removal when EVERY line on it bills a duplicate; a
+  // mixed invoice just loses the duplicate lines (see removeDuplicateChallans).
+  dupDcs.forEach(dc => { const iv = invoiceOf(dc); if (iv && (iv.items || []).every(it => !it.challanDc || dupDcs.has(it.challanDc))) dupInvoices.add(iv.id); });
+  return { challans: [...dupDcs], invoices: [...dupInvoices] };
+}
+
+function removeDuplicateChallans() {
+  const d = findDuplicateChallans();
+  if (!d.challans.length && !d.invoices.length) { alert('No duplicates found.'); return; }
+  if (!confirm(`Remove ${d.challans.length} duplicate challan(s) (${d.challans.join(', ') || 'none'}) and ${d.invoices.length} duplicate invoice(s) (${d.invoices.join(', ') || 'none'})?\n\nThe oldest copy of each is kept. This cannot be undone.`)) return;
+
+  // Invoices first: a duplicate invoice that bills a DUPLICATE challan goes
+  // whole (the kept challan still has its own original invoice).
+  d.invoices.forEach(id => { if (typeof _deleteInvoiceCore === 'function') _deleteInvoiceCore(id); });
+  // Mixed invoices: drop only the lines billing a removed duplicate challan
+  const gone = new Set(d.challans);
+  invoiceList.forEach(iv => {
+    if (!(iv.items || []).some(it => gone.has(it.challanDc))) return;
+    iv.items = iv.items.filter(it => !gone.has(it.challanDc));
+    const sub = iv.items.reduce((t, it) => t + (it.qty || 0) * (it.rate || 0), 0);
+    iv.subtotal = sub; iv.total = Math.round(sub); iv.roundOff = iv.total - sub;
+    if (typeof _mirrorInvoice === 'function') _mirrorInvoice(iv);
+  });
+  if (typeof saveInvoiceList === 'function') saveInvoiceList();
+  d.challans.forEach(dc => {
+    const i = challanList.findIndex(c => c.dcNum === dc);
+    if (i < 0) return;
+    challanList.splice(i, 1);
+    if (typeof mirrorToSheet === 'function') mirrorToSheet('deleteChallan', { id: dc });
+  });
+  saveChallans();
+  // The kept copy still has the same supervisor entry, so the auto-match
+  // sweep sees it as already challaned and won't recreate anything.
+  renderChallansTab();
+  if (typeof renderOrders === 'function') renderOrders();
+  if (typeof updateDashboardOrders === 'function') updateDashboardOrders();
+  if (typeof _refreshSvlogIfOpen === 'function') _refreshSvlogIfOpen();
+  alert('Done — duplicates removed.');
+}
+
 function renderChallansTab() {
   const el = document.getElementById('challans-list');
   if (!el) return;
@@ -414,7 +487,10 @@ function renderChallansTab() {
   }).join('');
 
   el.innerHTML = `
-    <div style="margin-bottom:12px">${monthSelect}</div>
+    <div style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">${monthSelect}${(() => {
+      const d = findDuplicateChallans(); const n = d.challans.length + d.invoices.length;
+      return n ? `<button class="btn-secondary" style="font-size:12px;color:var(--danger)" onclick="removeDuplicateChallans()" title="${d.challans.length} challan(s), ${d.invoices.length} invoice(s)">🧹 Remove ${n} duplicate${n > 1 ? 's' : ''}</button>` : '';
+    })()}</div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
       <div class="stat-card"><div class="stat-value">${filtered.length}</div><div class="stat-label">Challans Issued${_chMonthFilter !== 'all' ? ' — ' + _chMonthLabel(_chMonthFilter) : ''}</div></div>
       <div class="stat-card"><div class="stat-value">${fmt0(totalQty)}</div><div class="stat-label">Total Boxes Dispatched</div></div>
