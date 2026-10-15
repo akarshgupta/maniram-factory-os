@@ -1191,21 +1191,19 @@ function openSvAddEntry() {
   const lbl = t => `<label class="form-label" style="font-size:11px">${t}</label>`;
   let body;
   if (_svTab === 'dispatch') {
-    const open = (typeof orders !== 'undefined' ? orders : [])
-      .filter(o => !FINISHED_STATUSES.includes(o.status))
-      .sort((a, b) => (a.orderDate || '').localeCompare(b.orderDate || '') || (a.id || '').localeCompare(b.id || ''));
-    const opts = open.map(o => {
-      const left = Math.max(0, (parseInt(o.qty) || 0) - (typeof getDispatchedQty === 'function' ? getDispatchedQty(o.id) : 0));
-      return `<option value="${o.id}">${o.id} — ${o.customer} — ${o.product || o.size} (${left.toLocaleString('en-IN')} left)</option>`;
-    }).join('');
+    const names = [...new Set([
+      ...(typeof orders !== 'undefined' ? orders : []).map(o => o.customer),
+      ...(typeof CLIENTS !== 'undefined' ? CLIENTS : []).map(c => c.name),
+    ].filter(Boolean))].sort();
     body = `
       <div class="popup-title">🚚 Add Dispatch Entry</div>
       <div class="form-group">${lbl('Date')}<input ${inp} type="date" id="sva-date" value="${todayStr}"></div>
-      <div class="form-group">${lbl('Order (optional — fills party, product and size)')}
-        <select ${inp} id="sva-order" onchange="svAddPickOrder(this.value)"><option value="">— none / not on an order —</option>${opts}</select></div>
-      <div class="form-group">${lbl('Party name')}<input ${inp} id="sva-party" list="sva-parties" placeholder="Customer">
-        <datalist id="sva-parties">${[...new Set((typeof orders !== 'undefined' ? orders : []).map(o => o.customer).filter(Boolean))].map(c => `<option value="${c}">`).join('')}</datalist></div>
-      <div class="form-group">${lbl('Product name')}<input ${inp} id="sva-product" placeholder="e.g. Yumnotri"></div>
+      <div class="form-group">${lbl('Party name — type or pick')}<input ${inp} id="sva-party" list="sva-parties" placeholder="Customer" autocomplete="off" oninput="svAddPartyChanged()" onchange="svAddPartyChanged()">
+        <datalist id="sva-parties">${names.map(c => `<option value="${c}">`).join('')}</datalist></div>
+      <div id="sva-orders" style="margin-bottom:10px"></div>
+      <input type="hidden" id="sva-order" value="">
+      <div class="form-group">${lbl('Product name')}<input ${inp} id="sva-product" list="sva-products" placeholder="Pick the party first" autocomplete="off" onchange="svAddProductChanged()">
+        <datalist id="sva-products"></datalist></div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
         <div class="form-group">${lbl('Pieces')}<input ${inp} type="number" id="sva-pcs" min="1"></div>
         <div class="form-group">${lbl('Size L×W×H')}<input ${inp} id="sva-size" placeholder="17*14*26"></div>
@@ -1239,10 +1237,64 @@ function closeSvAddEntry() {
   if (ov) ov.style.display = 'none';
 }
 
-function svAddPickOrder(id) {
+// ONLY the chosen party's things are offered: their open orders (oldest
+// first, with order ID and what's left) and their own products — from their
+// orders and the client master — never the whole product list.
+function _svPartyOrders(party) {
+  if (!party || typeof orders === 'undefined') return [];
+  return orders.filter(o => !FINISHED_STATUSES.includes(o.status) && _svFuzzyEq(o.customer, party))
+    .sort((a, b) => (a.orderDate || '').localeCompare(b.orderDate || '') || (a.id || '').localeCompare(b.id || ''));
+}
+function _svPartyProducts(party) {
+  const set = new Set();
+  (typeof orders !== 'undefined' ? orders : []).filter(o => _svFuzzyEq(o.customer, party)).forEach(o => o.product && set.add(o.product));
+  (typeof CLIENTS !== 'undefined' ? CLIENTS : []).filter(c => _svFuzzyEq(c.name, party))
+    .forEach(c => (c.products || []).forEach(p => p.name && set.add(p.name)));
+  return [...set].sort();
+}
+
+function svAddPartyChanged() {
+  const party = document.getElementById('sva-party').value.trim();
+  const dl = document.getElementById('sva-products');
+  const prod = document.getElementById('sva-product');
+  const box = document.getElementById('sva-orders');
+  document.getElementById('sva-order').value = '';
+  const products = _svPartyProducts(party);
+  dl.innerHTML = products.map(n => `<option value="${n.replace(/"/g, '&quot;')}">`).join('');
+  prod.placeholder = party ? (products.length ? 'Pick one of this party\'s products' : 'No products on file for this party') : 'Pick the party first';
+  const open = _svPartyOrders(party);
+  box.innerHTML = !party ? '' : !open.length
+    ? '<div style="font-size:12px;color:var(--muted)">No open orders for this party — the entry will be saved against the party and product only.</div>'
+    : `<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Open orders — tap one to fill it in</div>` +
+      open.map(o => {
+        const left = Math.max(0, (parseInt(o.qty) || 0) - (typeof getDispatchedQty === 'function' ? getDispatchedQty(o.id) : 0));
+        return `<div data-oid="${o.id}" onclick="svAddPickOrder('${o.id}')" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;margin-bottom:5px;cursor:pointer">
+          <div style="font-weight:700;font-size:13px"><span style="font-family:monospace;color:var(--navy)">${o.id}</span> · ${o.product || '—'} <span style="font-weight:600;color:#16A34A">· ${left.toLocaleString('en-IN')} left</span></div>
+          <div style="font-size:11px;color:var(--muted)">${o.size || ''} · ordered ${o.orderDate ? formatDate(o.orderDate) : '—'} · ₹${o.rate || 0}/pc</div></div>`;
+      }).join('');
+}
+
+// Product chosen → if exactly one open order of this party has it, select it
+function svAddProductChanged() {
+  const party = document.getElementById('sva-party').value.trim();
+  const name = document.getElementById('sva-product').value.trim();
+  const match = _svPartyOrders(party).filter(o => _svFuzzyEq(o.product, name));
+  if (match.length >= 1) svAddPickOrder(match[0].id, true);   // oldest first
+}
+
+function svAddPickOrder(id, fromProduct) {
+  const cur = document.getElementById('sva-order');
   const o = (typeof orders !== 'undefined' ? orders : []).find(x => x.id === id);
   if (!o) return;
-  document.getElementById('sva-party').value   = o.customer || '';
+  // tapping the selected order again un-selects it
+  const same = cur.value === id && !fromProduct;
+  cur.value = same ? '' : id;
+  document.querySelectorAll('#sva-orders [data-oid]').forEach(el => {
+    const on = el.dataset.oid === cur.value;
+    el.style.borderColor = on ? 'var(--blue,#2563EB)' : 'var(--border)';
+    el.style.background  = on ? '#EFF6FF' : '';
+  });
+  if (same) return;
   document.getElementById('sva-product').value = o.product || '';
   document.getElementById('sva-size').value    = o.size || '';
   const wt = document.getElementById('sva-wt'); if (wt && !wt.value && o.weight) wt.value = o.weight;
