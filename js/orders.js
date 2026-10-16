@@ -67,12 +67,19 @@ function addBusinessDays(fromDate, days) {
 }
 
 // ── Order ID ──
+// Highest order number ever used, never lowered — deleting the newest order
+// must not let its number be handed to a brand-new order, because challans,
+// invoices and the order log still point at the old one by ID and would
+// silently attach themselves to the new order.
+const LS_MAX_ORDER_NO = 'mi_max_order_no_v1';
 function generateOrderId() {
   let max = 0;
-  orders.forEach(o => {
-    const m = o.id.match(/MIORD(\d+)/i);
-    if (m) max = Math.max(max, parseInt(m[1]));
-  });
+  const seen = id => { const m = String(id || '').match(/MIORD(\d+)/i); if (m) max = Math.max(max, parseInt(m[1])); };
+  orders.forEach(o => seen(o.id));
+  if (typeof challanList !== 'undefined') challanList.forEach(c => seen(c.orderId));
+  if (typeof invoiceList !== 'undefined') invoiceList.forEach(iv => { seen(iv.orderId); (iv.items || []).forEach(it => seen(it.orderId)); });
+  if (typeof orderLog !== 'undefined') orderLog.forEach(e => seen(e.orderId));
+  try { max = Math.max(max, parseInt(localStorage.getItem(LS_MAX_ORDER_NO)) || 0); } catch (e) {}
   return 'MIORD' + String(max + 1).padStart(3, '0');
 }
 
@@ -895,6 +902,8 @@ function removeOrder(orderId) {
   if (!o) return;
   if (!confirm(`Delete order ${o.id} — ${o.customer} (${o.product || o.size || ''})?\nIt will also be removed from the Google Sheet. This cannot be undone.`)) return;
 
+  const delNo = parseInt((orderId.match(/MIORD(\d+)/i) || [])[1]) || 0;
+  try { if (delNo > (parseInt(localStorage.getItem(LS_MAX_ORDER_NO)) || 0)) localStorage.setItem(LS_MAX_ORDER_NO, String(delNo)); } catch (e) {}
   orders = orders.filter(x => x.id !== orderId);
   pendingOrderIds.delete(orderId);
   try {

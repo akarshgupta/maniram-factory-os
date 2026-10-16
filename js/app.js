@@ -160,6 +160,7 @@ async function init() {
   await ordersReady;
   // Undo orders wrongly closed as Delivered by an invoice save (old bug) — see invoices.js
   if (typeof reopenWronglyInvoiceClosedOrders === 'function') reopenWronglyInvoiceClosedOrders();
+  if (typeof unlinkMislinkedOrderRecords === 'function') unlinkMislinkedOrderRecords();
   const lastPage = localStorage.getItem(LS_LAST_PAGE);
   if (lastPage && lastPage !== 'dashboard') showPage(lastPage);
 
