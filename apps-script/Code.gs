@@ -1183,7 +1183,7 @@ function supervisorDispatchAppend(d) {
   sh.appendRow([
     ts, d.date || '', d.party || '',
     d.pcs || '', d.size || '', d.wtPc || '',
-    d.product || '', d.orderId || ''
+    d.product || '', d.orderId || '', d.notes || ''
   ]);
 }
 

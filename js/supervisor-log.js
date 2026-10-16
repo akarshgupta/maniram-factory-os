@@ -85,6 +85,7 @@ async function fetchSupervisorLog() {
       // refreshOrderIdDropdown) shows choices as "MIORD019 — Party — Product" so the supervisor
       // can recognise the right order; only the leading ID token is what matters here.
       orderId: (r[7] || '').toString().split('—')[0].trim(),
+      notes: r[8] || '',    // "Notes" — column I, only written by the office's Add Dispatch Entry
     })).sort(byDateDesc);
     _svAutoCreateChallans();
     if (document.getElementById('svlog-root')) renderSupervisorLog(false); // keep the register live if it's the open page
@@ -892,7 +893,7 @@ function _svDispatchRow(e) {
   }
   return `<tr style="border-top:1px solid var(--border,#e5e7eb)">
     <td style="padding:8px 10px;font-weight:600">${e.party || '—'}</td>
-    <td style="padding:8px 10px">${e.product || '<span style="color:var(--muted,#888)">—</span>'}</td>
+    <td style="padding:8px 10px">${e.product || '<span style="color:var(--muted,#888)">—</span>'}${e.notes ? `<div style="font-size:11px;color:#B45309;margin-top:2px;white-space:pre-wrap">📝 ${String(e.notes).replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div>` : ''}</td>
     <td style="padding:8px 10px">${e.size || '—'}</td>
     <td style="padding:8px 10px">${e.pcs.toLocaleString('en-IN')}</td>
     <td style="padding:8px 10px;font-weight:700">${e.wtPc ? e.wtPc + ' gm' : '—'}</td>
@@ -1208,7 +1209,8 @@ function openSvAddEntry() {
         <div class="form-group">${lbl('Pieces')}<input ${inp} type="number" id="sva-pcs" min="1"></div>
         <div class="form-group">${lbl('Size L×W×H')}<input ${inp} id="sva-size" placeholder="17*14*26"></div>
         <div class="form-group">${lbl('Weight / piece (gm)')}<input ${inp} type="number" id="sva-wt" step="0.1"></div>
-      </div>`;
+      </div>
+      <div class="form-group">${lbl('Notes (optional)')}<textarea ${inp} id="sva-notes" rows="2" placeholder="Vehicle no., driver, short delivery, anything to remember"></textarea></div>`;
   } else {
     body = `
       <div class="popup-title">⚙️ Add Production Entry</div>
@@ -1311,7 +1313,7 @@ function saveSvAddEntry() {
     if (pcs <= 0) { msg.innerHTML = '⚠️ Enter the pieces dispatched.'; return; }
     action  = 'supervisorDispatchAppend';
     payload = { date, party: v('sva-party').trim(), pcs, size: v('sva-size').trim(), wtPc: parseFloat(v('sva-wt')) || '',
-                product: v('sva-product').trim(), orderId: v('sva-order') };
+                product: v('sva-product').trim(), orderId: v('sva-order'), notes: v('sva-notes').trim() };
   } else {
     const date = _svToMDY(v('svp-date'));
     if (!date) { msg.innerHTML = '⚠️ Pick a date.'; return; }
