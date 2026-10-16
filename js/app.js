@@ -161,6 +161,8 @@ async function init() {
   // Undo orders wrongly closed as Delivered by an invoice save (old bug) — see invoices.js
   if (typeof reopenWronglyInvoiceClosedOrders === 'function') reopenWronglyInvoiceClosedOrders();
   if (typeof unlinkMislinkedOrderRecords === 'function') unlinkMislinkedOrderRecords();
+  // Data checker — again shortly after the supervisor register lands, then every 5 min
+  if (typeof runHealthCheck === 'function') { runHealthCheck(); setTimeout(runHealthCheck, 15000); setInterval(runHealthCheck, 5 * 60 * 1000); }
   const lastPage = localStorage.getItem(LS_LAST_PAGE);
   if (lastPage && lastPage !== 'dashboard') showPage(lastPage);
 
