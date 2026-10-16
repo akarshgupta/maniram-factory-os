@@ -68,10 +68,10 @@ function _buildInvoiceFromChallan(c) {
   const roundOff = total - amount;
   return {
     id:        generateInvoiceId(),
-    party:     c.customer,
+    party:     (c.customer || '').trim() || 'Cash Customer',
     date:      c.date || (typeof todayStr !== 'undefined' ? todayStr : new Date().toISOString().slice(0, 10)),
-    orderId:   c.orderId || null,
-    items:     [{ desc, qty, rate, amount, orderId: c.orderId || null, challanDc: c.dcNum }],
+    orderId:   (c.customer || '').trim() ? (c.orderId || null) : null,
+    items:     [{ desc, qty, rate, amount, orderId: (c.customer || '').trim() ? (c.orderId || null) : null, challanDc: c.dcNum }],
     subtotal:  amount,
     gstPct:    0,
     gstAmt:    0,
@@ -492,12 +492,16 @@ function recalcInvoiceTotals() {
 }
 
 function _buildInvoiceRecord() {
-  const party   = (document.getElementById('ci-party')?.value || '').trim();
+  let party     = (document.getElementById('ci-party')?.value || '').trim();
   const dateVal = document.getElementById('ci-date')?.value || new Date().toISOString().slice(0, 10);
+
+  // No party = a cash sale: billed to "Cash Customer", never linked to an order
+  const isCash = !party || /^cash( customer)?$/i.test(party);
+  if (isCash) { party = 'Cash Customer'; _ciItems.forEach(i => { i.orderId = null; }); }
 
   const items = _ciItems.filter(item => item.desc && +(item.qty || 0) > 0);
 
-  if (!party)        { alert('Please enter party name.'); return null; }
+
   if (!items.length) { alert('Please add at least one item with a product name and qty > 0.'); return null; }
 
   const subtotal = items.reduce((s, i) => s + +(i.qty) * +(i.rate || 0), 0);
@@ -712,7 +716,7 @@ function editInvoice(invId) {
   if (titleEl) titleEl.textContent = `✏️ Edit Invoice ${inv.id}`;
 
   const partyEl = document.getElementById('ci-party');
-  if (partyEl) partyEl.value = inv.party || '';
+  if (partyEl) partyEl.value = inv.party || 'Cash Customer';
   const dateEl = document.getElementById('ci-date');
   if (dateEl) dateEl.value = inv.date || new Date().toISOString().slice(0, 10);
 
