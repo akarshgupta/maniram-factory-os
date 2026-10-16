@@ -830,6 +830,7 @@ function _finalizeOrderDelivered(o) {
   if (typeof recordDeliveredOrder === 'function') recordDeliveredOrder(o);
   _pushOrderUpdate(o);
   renderOrders();
+  renderOrderHistory();
   if (typeof activeOrderTab !== 'undefined' && activeOrderTab === 'grouped') renderGroupedOrders();
   if (typeof updateDashboardOrders === 'function') updateDashboardOrders();
   if (typeof renderCalendar === 'function') renderCalendar();
@@ -982,6 +983,8 @@ function renderOrderHistory() {
           onclick="event.stopPropagation();reopenOrder('${o.id}')">↩ Reopen</button>
         <button class="btn-secondary" style="font-size:11px;padding:3px 7px" title="Edit this order"
           onclick="event.stopPropagation();openEditModal('${o.id}')">✏️</button>
+        <button class="btn-secondary" style="font-size:11px;padding:3px 7px;color:var(--danger)" title="Delete this order for good"
+          onclick="event.stopPropagation();removeOrder('${o.id}')">🗑 Delete</button>
       </div>
     `;
     el.appendChild(row);
