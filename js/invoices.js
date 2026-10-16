@@ -430,7 +430,7 @@ function renderInvoiceItemRows() {
     _ciItems.map((item, i) => {
       const linked = item.orderId
         ? `<div style="font-size:10px;color:#15803D;margin-top:3px;display:flex;align-items:center;gap:4px;white-space:nowrap">
-             ✅ <strong>${item.orderId}</strong> · deducts + marks Delivered
+             ✅ <strong>${item.orderId}</strong> · deducts from this order (marks it Delivered only once the full quantity is billed)
              <button onclick="_ciItems[${i}].orderId=null;_ciItems[${i}].challanDc=null;renderInvoiceItemRows()" title="Unlink" style="background:none;border:none;cursor:pointer;color:#15803D;font-size:13px;line-height:1">×</button>
            </div>`
         : '';
