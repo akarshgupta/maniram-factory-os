@@ -28,7 +28,14 @@ function calToggleDelivered(orderId) {
 
   const nowDelivered = o.status !== 'Delivered';
   const newStatus    = nowDelivered ? 'Delivered' : 'Ready';
+  // One tick must not silently close an order that hasn't gone out yet
+  if (nowDelivered && typeof getDispatchedQty === 'function') {
+    const sent = getDispatchedQty(orderId), total = parseInt(o.qty) || 0;
+    if (total && sent < total && !confirm(`${o.id} — ${o.customer} (${o.product || o.size || ''}): only ${sent.toLocaleString('en-IN')} of ${total.toLocaleString('en-IN')} boxes are recorded as dispatched.\n\nMark it Delivered anyway?`)) { renderCalendar(); return; }
+  }
+  const prevStatus = o.status;
   o.status = newStatus;
+  if (typeof logOrderEvent === 'function') logOrderEvent(orderId, 'Status Changed', `${prevStatus} → ${newStatus} (Calendar tick)`);
   if (nowDelivered && typeof recordDeliveredOrder === 'function') recordDeliveredOrder(o);
   // clear dispatch log when manually reverting to un-delivered
   if (!nowDelivered && typeof clearDispatch === 'function') clearDispatch(orderId);

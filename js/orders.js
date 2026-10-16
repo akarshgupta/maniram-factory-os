@@ -973,6 +973,8 @@ function renderOrderHistory() {
         <span style="font-size:13px;font-weight:600">${o.qty ? o.qty.toLocaleString('en-IN') : '—'}</span>
         ${o.rate ? `<span style="font-size:11px;color:var(--muted)">₹${(o.qty*o.rate).toLocaleString('en-IN',{maximumFractionDigits:0})}</span>` : ''}
         ${o.remarks && o.remarks.includes('short') ? `<span style="font-size:10px;color:#E67E22;font-weight:600" title="${o.remarks}">⚠️ short</span>` : ''}
+      </div>
+      <div style="grid-column:1/-1;display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px">
         ${_histDispatchNote(o)}
         <button class="btn-secondary" style="font-size:11px;padding:3px 7px" title="Dispatch history — see or remove each delivery"
           onclick="event.stopPropagation();openOrderHistory('${o.id}')">🚚 History</button>
