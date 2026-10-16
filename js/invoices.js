@@ -613,6 +613,51 @@ function markOrderDelivered(o) {
   if (typeof _pushOrderUpdate     === 'function') _pushOrderUpdate(o);
 }
 
+// An order number that was deleted and then handed to a brand-new order
+// (old behaviour) leaves challans/invoices pointing at the new order that
+// were really for the old one — e.g. 2,600 plain 20*14*28 boxes sitting on a
+// Chanda Mama 18*19*10 order, which then "completed" it. Unlink any record
+// whose box size clearly differs from the order it points at, and reopen
+// the order if that was the only reason it was closed.
+function _dimsKey(s) {
+  const m = String(s || '').match(/(\d+(?:\.\d+)?)\s*[*x×]\s*(\d+(?:\.\d+)?)\s*[*x×]\s*(\d+(?:\.\d+)?)/i);
+  return m ? [m[1], m[2], m[3]].map(Number).sort((a, b) => a - b).join('x') : '';
+}
+function unlinkMislinkedOrderRecords() {
+  if (typeof orders === 'undefined' || !orders.length) return 0;
+  const byId = {}; orders.forEach(o => { byId[o.id] = o; });
+  const hit = {}; let n = 0;
+  const bad = (oid, text) => { const o = byId[oid]; const a = _dimsKey(o && o.size), b = _dimsKey(text); return !!(a && b && a !== b); };
+  (typeof challanList !== 'undefined' ? challanList : []).forEach(c => {
+    if (c.orderId && bad(c.orderId, c.size)) { (hit[c.orderId] = hit[c.orderId] || []).push(c.dcNum); c.orderId = null; n++; }
+  });
+  let invChanged = false;
+  (typeof invoiceList !== 'undefined' ? invoiceList : []).forEach(iv => {
+    (iv.items || []).forEach(it => {
+      if (it.orderId && bad(it.orderId, it.desc)) { (hit[it.orderId] = hit[it.orderId] || []).push(iv.id); it.orderId = null; n++; invChanged = true; }
+    });
+    if (iv.orderId && !(iv.items || []).some(it => it.orderId === iv.orderId) && (iv.items || []).length) { iv.orderId = ((iv.items.find(it => it.orderId) || {}).orderId) || null; invChanged = true; }
+  });
+  if (!n) return 0;
+  if (typeof saveChallans === 'function') saveChallans();
+  if (invChanged) saveInvoiceList();
+  Object.entries(hit).forEach(([oid, refs]) => {
+    const o = byId[oid];
+    if (typeof logOrderEvent === 'function') logOrderEvent(oid, 'Unlinked', `${[...new Set(refs)].join(', ')} belonged to a different box size (old order number reused) — unlinked`);
+    const ordered = parseInt(o.qty) || 0;
+    const sent = typeof getDispatchedQty === 'function' ? getDispatchedQty(oid) : 0;
+    if (o.status === 'Delivered' && ordered && sent < ordered) {
+      o.status = 'New';
+      if (typeof _pushOrderUpdate === 'function') _pushOrderUpdate(o);
+      if (typeof logOrderEvent === 'function') logOrderEvent(oid, 'Reopened', `Delivered → New — it had been closed by records of another order (${sent.toLocaleString('en-IN')} of ${ordered.toLocaleString('en-IN')} pcs really dispatched)`);
+    }
+  });
+  if (typeof renderOrders === 'function') renderOrders();
+  if (typeof renderOrderHistory === 'function') renderOrderHistory();
+  if (typeof updateDashboardOrders === 'function') updateDashboardOrders();
+  return n;
+}
+
 // Undo the old bug above: reopen every order an invoice save closed as
 // Delivered while it was NOT actually fully billed or fully dispatched,
 // back to the status it had before. Runs once orders are loaded; only
