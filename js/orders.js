@@ -830,6 +830,7 @@ function _finalizeOrderDelivered(o) {
   if (typeof recordDeliveredOrder === 'function') recordDeliveredOrder(o);
   _pushOrderUpdate(o);
   renderOrders();
+  renderOrderHistory();
   if (typeof activeOrderTab !== 'undefined' && activeOrderTab === 'grouped') renderGroupedOrders();
   if (typeof updateDashboardOrders === 'function') updateDashboardOrders();
   if (typeof renderCalendar === 'function') renderCalendar();
@@ -973,6 +974,8 @@ function renderOrderHistory() {
         <span style="font-size:13px;font-weight:600">${o.qty ? o.qty.toLocaleString('en-IN') : '—'}</span>
         ${o.rate ? `<span style="font-size:11px;color:var(--muted)">₹${(o.qty*o.rate).toLocaleString('en-IN',{maximumFractionDigits:0})}</span>` : ''}
         ${o.remarks && o.remarks.includes('short') ? `<span style="font-size:10px;color:#E67E22;font-weight:600" title="${o.remarks}">⚠️ short</span>` : ''}
+      </div>
+      <div style="grid-column:1/-1;display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px">
         ${_histDispatchNote(o)}
         <button class="btn-secondary" style="font-size:11px;padding:3px 7px" title="Dispatch history — see or remove each delivery"
           onclick="event.stopPropagation();openOrderHistory('${o.id}')">🚚 History</button>
@@ -980,6 +983,8 @@ function renderOrderHistory() {
           onclick="event.stopPropagation();reopenOrder('${o.id}')">↩ Reopen</button>
         <button class="btn-secondary" style="font-size:11px;padding:3px 7px" title="Edit this order"
           onclick="event.stopPropagation();openEditModal('${o.id}')">✏️</button>
+        <button class="btn-secondary" style="font-size:11px;padding:3px 7px;color:var(--danger)" title="Delete this order for good"
+          onclick="event.stopPropagation();removeOrder('${o.id}')">🗑 Delete</button>
       </div>
     `;
     el.appendChild(row);

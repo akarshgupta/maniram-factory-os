@@ -613,11 +613,17 @@ function quickUpdateStatus(orderId, newStatus) {
   if (!o || o.status === newStatus) return;
   const prevStatus = o.status;
 
+  if (newStatus === 'Delivered' && typeof getDispatchedQty === 'function') {
+    const sent = getDispatchedQty(orderId), total = parseInt(o.qty) || 0;
+    if (total && sent < total && !confirm(`${o.id} — ${o.customer} (${o.product || o.size || ''}): only ${sent.toLocaleString('en-IN')} of ${total.toLocaleString('en-IN')} boxes are recorded as dispatched.\n\nMark it Delivered anyway?`)) {
+      renderProductionPlan(); return;
+    }
+  }
   if (newStatus === 'Delivered' && typeof recordDeliveredOrder === 'function') {
     recordDeliveredOrder(o);
   }
   o.status = newStatus;
-  if (typeof logOrderEvent === 'function') logOrderEvent(orderId, 'Status Changed', `${prevStatus} → ${newStatus}`);
+  if (typeof logOrderEvent === 'function') logOrderEvent(orderId, 'Status Changed', `${prevStatus} → ${newStatus} (Production Plan)`);
   if (typeof _pushOrderUpdate === 'function') _pushOrderUpdate(o);
 
   renderProductionPlan();
