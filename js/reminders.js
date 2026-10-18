@@ -32,12 +32,19 @@ function saveLapsedSnooze(s) { localStorage.setItem(LS_LAPSED_SNOOZE, JSON.strin
 function buildLapsedCustomers() {
   if (typeof orders === 'undefined') return [];
   const byCustomer = {};
+  const partyKey = n => n.toLowerCase().replace(/^m\/s\.?\s*/, '').replace(/[^a-z0-9]/g, ''); // "S S D" = "SSD"
+  // A party with any order still pending isn't lapsed — they're a live customer
+  const busy = new Set(orders
+    .filter(o => o.customer && !(typeof FINISHED_STATUSES !== 'undefined' ? FINISHED_STATUSES : ['Delivered', 'Dispatched', 'Cancelled']).includes(o.status))
+    .map(o => partyKey(o.customer)));
   orders.forEach(o => {
-    if (!o.customer || !o.date || o.status === 'Cancelled') return;
+    // When the order was placed; delivery date only for old rows with no order date
+    const when = o.orderDate || o.date;
+    if (!o.customer || !when || o.status === 'Cancelled') return;
     const key = o.customer.trim();
-    if (!key) return;
-    if (!byCustomer[key] || o.date > byCustomer[key].date) {
-      byCustomer[key] = { customer: o.customer, date: o.date, product: o.product || '', size: o.size || '' };
+    if (!key || busy.has(partyKey(key))) return;
+    if (!byCustomer[key] || when > byCustomer[key].date) {
+      byCustomer[key] = { customer: o.customer, date: when, product: o.product || '', size: o.size || '' };
     }
   });
 
