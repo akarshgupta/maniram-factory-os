@@ -140,6 +140,7 @@ function renderReceivables() {
             </div>
             <div style="font-size:10px;color:var(--muted);text-transform:uppercase">Outstanding</div>
           </div>
+          ${isOverdue ? `<button class="btn-secondary" style="font-size:12px;padding:7px 12px;color:#15803D;border-color:#86EFAC" onclick="openPaymentReminder('${safeCustomer}')" title="Send a payment reminder on WhatsApp">📲 Reminder</button>` : ''}
           <button class="btn-primary" style="font-size:12px;padding:7px 14px" onclick="openRecordPayment('${safeCustomer}')">💰 Record Payment</button>
         </div>
       </div>
@@ -147,7 +148,7 @@ function renderReceivables() {
         <div style="background:var(--bg);border-radius:4px;height:6px;margin-bottom:6px">
           <div style="background:var(--success);height:6px;border-radius:4px;width:${paidPct}%;transition:width 0.4s"></div>
         </div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:8px">${paidPct}% collected</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px">${paidPct}% collected${isOverdue && _payRemindedNote(s.customer) ? ' · ' + _payRemindedNote(s.customer) : ''}</div>
         ${recentPayments ? `
           <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Recent Payments</div>
           ${recentPayments}
@@ -212,4 +213,126 @@ function deletePayment(id) {
   savePayments();
   if (typeof mirrorToSheet === 'function') mirrorToSheet('deletePayment', { id });
   renderReceivables();
+}
+
+// ══════════════════════════════════════════════════════════════
+// PAYMENT REMINDER — WhatsApp. Pre-fills the outstanding amount (editable),
+// picks a tone (friendly → firm → final), lists the party's recent bills,
+// and ends with two easy reply options so the party actually answers
+// instead of leaving the message on "seen". Sending opens WhatsApp with
+// the text ready; the date sent is remembered per party.
+// ══════════════════════════════════════════════════════════════
+const LS_PAY_REMINDED = 'mi_pay_reminded_v1';
+let _payRemFor = null;
+
+function _payReminded()       { try { return JSON.parse(localStorage.getItem(LS_PAY_REMINDED) || '{}'); } catch { return {}; } }
+function _payRemindedNote(c)  {
+  const r = _payReminded()[c];
+  if (!r) return '';
+  const days = Math.floor((Date.now() - new Date(r.at).getTime()) / 86400000);
+  return `📲 Reminded ${days === 0 ? 'today' : days === 1 ? 'yesterday' : days + ' days ago'} (${r.tone})`;
+}
+
+function _payRemBills(customer) {
+  if (typeof invoiceList === 'undefined') return [];
+  const k = customer.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return invoiceList
+    .filter(iv => (iv.party || '').toLowerCase().replace(/[^a-z0-9]/g, '') === k && iv.total > 0)
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+    .slice(0, 5);
+}
+
+function openPaymentReminder(customer) {
+  _payRemFor = customer;
+  const s = getCustomerSummaries().find(x => x.customer === customer);
+  const client = typeof _findClientForParty === 'function' ? _findClientForParty(customer) : null;
+  const raw = (client?.phone || '').replace(/\D/g, '');
+  const phone = raw.length > 10 && raw.startsWith('91') ? raw.slice(2) : raw;
+  const due = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+  const bills = _payRemBills(customer);
+
+  let ov = document.getElementById('payrem-overlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'payrem-overlay'; ov.className = 'popup-overlay';
+    ov.onclick = e => { if (e.target === ov) closePaymentReminder(); };
+    document.body.appendChild(ov);
+  }
+  const lbl = t => `<label class="form-label">${t}</label>`;
+  ov.innerHTML = `<div class="popup-box" style="width:min(520px,95vw);max-width:none;padding:22px;max-height:92vh;overflow-y:auto" onclick="event.stopPropagation()">
+    <div class="popup-title">📲 Payment Reminder — ${customer}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group">${lbl('Amount due (₹)')}<input class="form-input" type="number" id="payrem-amount" value="${Math.max(0, Math.round(s ? s.outstanding : 0))}" oninput="refreshPaymentReminder()"></div>
+      <div class="form-group">${lbl('WhatsApp number')}<input class="form-input" type="tel" id="payrem-phone" value="${phone}" placeholder="10-digit mobile"></div>
+      <div class="form-group">${lbl('Contact name')}<input class="form-input" id="payrem-name" value="${(client?.contact || customer).replace(/"/g, '&quot;')}" oninput="refreshPaymentReminder()"></div>
+      <div class="form-group">${lbl('Pay by')}<input class="form-input" type="date" id="payrem-due" value="${due}" onchange="refreshPaymentReminder()"></div>
+    </div>
+    <div class="form-group">${lbl('Tone')}
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${[['friendly', '🙂 Friendly'], ['firm', '📌 Firm'], ['final', '⚠️ Final']].map(([v, t], i) =>
+          `<label class="wa-chip"><input type="radio" name="payrem-tone" value="${v}" ${i === 0 ? 'checked' : ''} onchange="refreshPaymentReminder()"> <span>${t}</span></label>`).join('')}
+        ${bills.length ? `<label class="wa-chip"><input type="checkbox" id="payrem-bills" checked onchange="refreshPaymentReminder()"> <span>List recent bills</span></label>` : ''}
+      </div>
+    </div>
+    <div class="form-group">${lbl('Message — edit anything before sending')}<textarea class="form-input" id="payrem-msg" rows="14" style="font-size:12.5px;line-height:1.45"></textarea></div>
+    ${_payRemindedNote(customer) ? `<div style="font-size:11px;color:var(--muted);margin-bottom:8px">${_payRemindedNote(customer)}</div>` : ''}
+    <div style="display:flex;gap:10px">
+      <button class="btn-primary" style="flex:1;background:#16A34A" onclick="sendPaymentReminder()">📲 Open in WhatsApp</button>
+      <button class="btn-secondary" onclick="copyPaymentReminder()">📋 Copy</button>
+      <button class="btn-secondary" onclick="closePaymentReminder()">Cancel</button>
+    </div></div>`;
+  ov.style.display = 'flex';
+  refreshPaymentReminder();
+}
+
+function _buildPaymentReminder() {
+  const v = id => (document.getElementById(id) || {}).value || '';
+  const amt  = Math.round(parseFloat(v('payrem-amount')) || 0).toLocaleString('en-IN');
+  const name = v('payrem-name').trim() || _payRemFor;
+  const tone = (document.querySelector('input[name="payrem-tone"]:checked') || {}).value || 'friendly';
+  const d    = v('payrem-due') ? new Date(v('payrem-due') + 'T00:00:00') : null;
+  const by   = d && !isNaN(d) ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long' }) : '';
+  const bills = document.getElementById('payrem-bills')?.checked ? _payRemBills(_payRemFor) : [];
+  const billTxt = bills.length
+    ? '\n\n*Recent bills:*\n' + bills.map(iv => `• ${iv.id} — ${iv.date ? new Date(iv.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : ''} — ₹${Math.round(iv.total).toLocaleString('en-IN')}`).join('\n')
+    : '';
+  const reply = `\n\nA quick reply helps us update our records:\n*1* — Already paid (please share the UTR / cheque no.)\n*2* — Will pay on ____ (just tell us the date)`;
+  const sign  = `\n\nThank you,\nManiram Industries, Jhansi`;
+
+  if (tone === 'firm') return `Dear ${name},\n\nGreetings from Maniram Industries 🙏\n\nOur records show an outstanding balance of *₹${amt}* on your account, which is now overdue.${billTxt}\n\nWe request you to kindly clear it${by ? ` by *${by}*` : ' at the earliest'}. Timely payments help us keep your supplies running on schedule.${reply}${sign}`;
+  if (tone === 'final') return `Dear ${name},\n\nThis is a final reminder regarding the outstanding balance of *₹${amt}* on your account with Maniram Industries.${billTxt}\n\nDespite our earlier reminders, the payment is still pending. Please clear it${by ? ` by *${by}*` : ' immediately'} — after that we will have to hold further dispatches until the account is settled.\n\nIf you have already paid, please send the UTR / cheque details so we can update our records right away.${sign}`;
+  return `Dear ${name},\n\nGreetings from Maniram Industries 🙏\n\nHope business is going well. This is a gentle reminder that *₹${amt}* is pending on your account.${billTxt}\n\nCould you please arrange the payment${by ? ` by *${by}*` : ''}?${reply}${sign}`;
+}
+
+function refreshPaymentReminder() {
+  const el = document.getElementById('payrem-msg');
+  if (el) el.value = _buildPaymentReminder();
+}
+
+function _markPaymentReminded() {
+  const r = _payReminded();
+  r[_payRemFor] = { at: new Date().toISOString(), tone: (document.querySelector('input[name="payrem-tone"]:checked') || {}).value || 'friendly' };
+  try { localStorage.setItem(LS_PAY_REMINDED, JSON.stringify(r)); } catch (e) {}
+}
+
+function sendPaymentReminder() {
+  const raw = (document.getElementById('payrem-phone')?.value || '').replace(/\D/g, '');
+  const num = raw.length === 10 ? '91' + raw : raw;
+  const msg = document.getElementById('payrem-msg')?.value || '';
+  window.open(num ? `https://wa.me/${num}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+  _markPaymentReminded();
+  closePaymentReminder();
+  renderReceivables();
+}
+
+function copyPaymentReminder() {
+  const msg = document.getElementById('payrem-msg')?.value || '';
+  (navigator.clipboard ? navigator.clipboard.writeText(msg) : Promise.reject()).then(
+    () => { _markPaymentReminded(); alert('Message copied.'); },
+    () => { const el = document.getElementById('payrem-msg'); el.select(); document.execCommand('copy'); _markPaymentReminded(); });
+}
+
+function closePaymentReminder() {
+  const ov = document.getElementById('payrem-overlay');
+  if (ov) ov.style.display = 'none';
 }
