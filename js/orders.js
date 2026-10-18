@@ -36,6 +36,7 @@ function onOrderSearch() {
   orderSearchQuery = (document.getElementById('order-search')?.value || '').trim().toLowerCase();
   if (activeOrderTab === 'all')     renderOrders();
   if (activeOrderTab === 'history') renderOrderHistory();
+  if (activeOrderTab === 'grouped') renderGroupedOrders();
 }
 
 // ── Helpers ──
@@ -562,7 +563,7 @@ function switchOrderTab(tab, e) {
   if (tab === 'history')    renderOrderHistory();
   // Show/hide search bar only for filterable tabs
   const searchBar = document.getElementById('order-search-bar');
-  if (searchBar) searchBar.style.display = ['all','history'].includes(tab) ? 'flex' : 'none';
+  if (searchBar) searchBar.style.display = ['all','history','grouped'].includes(tab) ? 'flex' : 'none';
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1003,9 +1004,9 @@ function renderOrderHistory() {
 // ── Render Grouped (active only) ──
 function renderGroupedOrders() {
   const el = document.getElementById('grouped-orders-list');
-  const activeOrders = orders.filter(o => !FINISHED_STATUSES.includes(o.status));
+  const activeOrders = orders.filter(o => !FINISHED_STATUSES.includes(o.status)).filter(o => matchesSearch(o, orderSearchQuery));
 
-  if (!activeOrders.length) { el.innerHTML = '<div class="empty-state">No active orders.</div>'; return; }
+  if (!activeOrders.length) { el.innerHTML = `<div class="empty-state">${orderSearchQuery ? `No active orders matching "${orderSearchQuery}".` : 'No active orders.'}</div>`; return; }
 
   const groups = {};
   activeOrders.forEach(o => {
