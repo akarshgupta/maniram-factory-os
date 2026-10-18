@@ -219,7 +219,7 @@ function showDateLoadHint(inputId) {
   for (let i = -3; i <= 3; i++) {
     const d = new Date(val + 'T00:00:00');
     d.setDate(d.getDate() + i);
-    const ds  = d.toISOString().split('T')[0];
+    const ds  = localISODate(d);
     const cnt = map[ds] || 0;
     const c   = _loadColour(cnt);
     const isCur = i === 0;

@@ -48,7 +48,7 @@ function _costingOrders() {
   if (period === 'all') return all;
   if (period === 'active') return all.filter(o => !FINISHED_STATUSES.includes(o.status));
   // this month — by delivery date, plus anything still active
-  const ym = new Date().toISOString().slice(0, 7);
+  const ym = localISODate(new Date()).slice(0, 7);
   return all.filter(o => (o.date || '').startsWith(ym) || !FINISHED_STATUSES.includes(o.status));
 }
 

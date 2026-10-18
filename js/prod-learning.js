@@ -68,7 +68,7 @@ function recordDeliveredOrder(order) {
 
   const s1 = new Date(order.date + 'T00:00:00');
   s1.setDate(s1.getDate() - 1);
-  const s1Str = s1.toISOString().split('T')[0];
+  const s1Str = localISODate(s1);
   const staff  = getStaffForDate(s1Str) || getStaffForDate(order.date) || 0;
   const entry  = {
     orderId: order.id,

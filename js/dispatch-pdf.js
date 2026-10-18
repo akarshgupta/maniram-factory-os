@@ -167,7 +167,7 @@ async function generateDispatchPDF(orderId, dispatchedQty) {
   doc.text('This is a computer-generated document.', W / 2, 198, { align: 'center' });
 
   // ── Share or download ────────────────────────────────────────
-  const filename = `DC_${o.id}_${today.toISOString().split('T')[0]}.pdf`;
+  const filename = `DC_${o.id}_${localISODate(today)}.pdf`;
   const blob     = doc.output('blob');
   const file     = new File([blob], filename, { type: 'application/pdf' });
 

@@ -81,9 +81,16 @@ const LS_REMINDER_SENT = 'mi_reminder_sent';
 const LS_CLIENTS       = 'mi_clients_v2';
 const LS_PURCHASES     = 'mi_purchases_v1';
 
+// YYYY-MM-DD in the browser's own (India) time. toISOString() converts to
+// UTC first, which in IST (UTC+5:30) turns a local-midnight date into the
+// previous day — and before 5:30 AM makes "today" still yesterday.
+function localISODate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 const today       = new Date();
-const todayStr    = today.toISOString().split('T')[0];
-const tomorrowStr = new Date(today.getTime() + 86400000).toISOString().split('T')[0];
+const todayStr    = localISODate(today);
+const tomorrowStr = localISODate(new Date(today.getTime() + 86400000));
 
 // ── Sheet Length formula (skills/rate-calculator.md) — shared by every
 // place that computes it (job card, rate calculator, deckle optimizer,

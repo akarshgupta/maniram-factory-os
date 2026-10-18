@@ -30,7 +30,7 @@ function _daysBetween(a, b) {
 // Called when an order flips to Delivered.
 function recordDeliveryLead(order) {
   if (!order || !order.id || !order.orderDate) return;
-  const deliveredDate = new Date().toISOString().split('T')[0];
+  const deliveredDate = localISODate(new Date());
   const leadDays = _daysBetween(order.orderDate, deliveredDate);
   if (leadDays === null || leadDays < 0 || leadDays > 365) return; // ignore nonsense
 
@@ -64,7 +64,7 @@ function getDeliveryLearningStatus() {
   const list = _loadLeads();
   if (!list.length) return { ready: false, samples: 0, daysOfData: 0 };
   const firstDate = list.map(l => l.deliveredDate).sort()[0];
-  const daysOfData = _daysBetween(firstDate, new Date().toISOString().split('T')[0]) || 0;
+  const daysOfData = _daysBetween(firstDate, localISODate(new Date())) || 0;
   const ready = daysOfData >= LEARN_WARMUP_DAYS && list.length >= LEARN_MIN_SAMPLES;
   return { ready, samples: list.length, daysOfData };
 }

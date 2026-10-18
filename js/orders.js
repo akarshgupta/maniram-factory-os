@@ -63,7 +63,7 @@ function addBusinessDays(fromDate, days) {
     d.setDate(d.getDate() + 1);
     if (d.getDay() !== 0) added++;
   }
-  return d.toISOString().split('T')[0];
+  return localISODate(d);
 }
 
 // ── Order ID ──
@@ -86,7 +86,7 @@ function generateOrderId() {
 function refreshOrderId() {
   document.getElementById('f-id').value = generateOrderId();
   const od = document.getElementById('f-order-date');
-  if (od && !od.value) od.value = new Date().toISOString().split('T')[0];
+  if (od && !od.value) od.value = localISODate(new Date());
 }
 
 // ── Fetch Orders ──
@@ -344,7 +344,7 @@ async function saveOrderToSheet() {
   const qty      = document.getElementById('f-qty').value;
   const rate      = document.getElementById('f-rate').value;
   const date      = document.getElementById('f-date').value;
-  const orderDate = document.getElementById('f-order-date').value || new Date().toISOString().split('T')[0];
+  const orderDate = document.getElementById('f-order-date').value || localISODate(new Date());
   const status    = document.getElementById('f-status').value;
   const priority  = document.getElementById('f-priority').value;
   const reelSize  = document.getElementById('f-reel-size').value.trim();
@@ -395,7 +395,7 @@ function clearOrderForm() {
   if (typeof hideDateCalendar === 'function') hideDateCalendar();
   ['f-id','f-customer','f-qty','f-rate','f-date','f-reel-size'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   const od = document.getElementById('f-order-date');
-  if (od) od.value = new Date().toISOString().split('T')[0];
+  if (od) od.value = localISODate(new Date());
   // The date-load strip below the field isn't tied to the input's value —
   // it only redraws on its own onchange — so clearing the field above
   // leaves it showing the previous pick, making an empty Delivery Date
@@ -1251,7 +1251,7 @@ function getSuggestedDeliveryDate() {
 
 function guessReelSize(boxSize) {
   if (!boxSize) return null;
-  const parts = boxSize.split(/[×xX]/).map(p => parseFloat(p.trim()));
+  const parts = boxSize.split(/[×xX*]/).map(p => parseFloat(p.trim()));
   if (parts.length < 3 || isNaN(parts[1]) || isNaN(parts[2])) return null;
   const needed = parts[1] + parts[2] + 0.5; // sheet width = W + H + 0.5"
   const sizes  = reelData.map(r => r.size).sort((a, b) => a - b);

@@ -177,9 +177,9 @@ function autoScheduleOrders() {
     for (let i = 0; i < 60; i++) {
       const d     = new Date(earliest);
       d.setDate(earliest.getDate() + i);
-      const ds    = d.toISOString().split('T')[0];
+      const ds    = localISODate(d);
       const s1d   = new Date(d); s1d.setDate(d.getDate() - 1);
-      const s1ds  = s1d.toISOString().split('T')[0];
+      const s1ds  = localISODate(s1d);
 
       if (orderKg && (simKg[ds] || 0) + orderKg > MAX_DAILY_KG) continue;
       const s1slot   = simS1[s1ds] || {};
@@ -307,7 +307,7 @@ function getStage1Load() {
       const d = new Date(o.date + 'T00:00:00');
       if (isNaN(d)) return;
       d.setDate(d.getDate() - 1); // day before delivery = Stage 1 day
-      const key = d.toISOString().split('T')[0];
+      const key = localISODate(d);
       const rs  = String(o.reelSize || '');
       if (!load[key]) load[key] = {};
       load[key][rs] = (load[key][rs] || 0) + 1;
@@ -343,10 +343,10 @@ function getNextAvailableDispatchDate(earliestDeliveryStr, reelSize, orderKg) {
     for (let i = 0; i < 60; i++) {
       const tryDeliv     = new Date(start);
       tryDeliv.setDate(start.getDate() + i);
-      const tryDelivStr  = tryDeliv.toISOString().split('T')[0];
+      const tryDelivStr  = localISODate(tryDeliv);
       const tryStage1    = new Date(tryDeliv);
       tryStage1.setDate(tryDeliv.getDate() - 1);
-      const tryStage1Str = tryStage1.toISOString().split('T')[0];
+      const tryStage1Str = localISODate(tryStage1);
       const total = Object.values(load[tryStage1Str] || {}).reduce((s, v) => s + v, 0);
       if (total < MAX_SIMULTANEOUS_ORDERS && kgOk(tryDelivStr)) {
         return { date: tryDelivStr, pushedBy: i, reason: 'fresh' };
@@ -361,10 +361,10 @@ function getNextAvailableDispatchDate(earliestDeliveryStr, reelSize, orderKg) {
   for (let i = 0; i < 60; i++) {
     const tryDeliv     = new Date(start);
     tryDeliv.setDate(start.getDate() + i);
-    const tryDelivStr  = tryDeliv.toISOString().split('T')[0];
+    const tryDelivStr  = localISODate(tryDeliv);
     const tryStage1    = new Date(tryDeliv);
     tryStage1.setDate(tryDeliv.getDate() - 1);
-    const tryStage1Str = tryStage1.toISOString().split('T')[0];
+    const tryStage1Str = localISODate(tryStage1);
     const count        = (load[tryStage1Str] || {})[rs] || 0;
     const fits         = kgOk(tryDelivStr);
 
@@ -398,7 +398,7 @@ function getMergeOpportunities() {
   active.forEach(o => {
     const s1 = new Date(o.date + 'T00:00:00');
     s1.setDate(s1.getDate() - 1);
-    const s1Str = s1.toISOString().split('T')[0];
+    const s1Str = localISODate(s1);
     const rs    = String(o.reelSize);
     if (!s1Map[s1Str])     s1Map[s1Str]     = {};
     if (!s1Map[s1Str][rs]) s1Map[s1Str][rs] = [];
@@ -410,7 +410,7 @@ function getMergeOpportunities() {
     const rs      = String(o.reelSize);
     const myS1    = new Date(o.date + 'T00:00:00');
     myS1.setDate(myS1.getDate() - 1);
-    const myS1Str = myS1.toISOString().split('T')[0];
+    const myS1Str = localISODate(myS1);
 
     // Look for an EARLIER Stage-1 run with same reel that has capacity
     Object.entries(s1Map).forEach(([s1Str, reelMap]) => {
@@ -423,7 +423,7 @@ function getMergeOpportunities() {
 
       const earlierDeliv = new Date(s1Str + 'T00:00:00');
       earlierDeliv.setDate(earlierDeliv.getDate() + 1);
-      const earlierStr   = earlierDeliv.toISOString().split('T')[0];
+      const earlierStr   = localISODate(earlierDeliv);
       const daysSaved    = Math.round((new Date(o.date) - earlierDeliv) / 86400000);
       if (daysSaved <= 0) return;
 
@@ -466,7 +466,7 @@ function renderProductionPlan() {
   // Next available dispatch date banner (always shown)
   const tomorrow       = new Date(today);
   tomorrow.setDate(today.getDate() + 1);
-  const tomorrowStr2   = tomorrow.toISOString().split('T')[0];
+  const tomorrowStr2   = localISODate(tomorrow);
   const nextSlot       = getNextAvailableDispatchDate(tomorrowStr2);
   const nextSlotLabel  = nextSlot
     ? new Date(nextSlot.date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
@@ -531,7 +531,7 @@ function renderProductionPlan() {
     // Stage 1 = day before delivery
     const prev = new Date(delivDate);
     prev.setDate(prev.getDate() - 1);
-    const prevStr = prev.toISOString().split('T')[0];
+    const prevStr = localISODate(prev);
     ensureDay(prevStr);
     dayMap[prevStr].stage1.push(o);
   });

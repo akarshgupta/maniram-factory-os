@@ -256,6 +256,12 @@
 <div id="toast"></div>
 
 <script>
+  // YYYY-MM-DD in local (India) time — toISOString() is UTC and gives the
+  // previous day before 5:30 AM IST.
+  function localISODate(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
   // ── Config ──
   const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxCrZW5upLG7YWixwxaLq1y13opChsJdkcz-4sn2h9LwyuKSgW3mVFgb9KoDdq8lQP6/exec';
   const ORDERS_SHEET_ID = '1JVWfffLht7X_mGOyQb0QK1cB3vx68TTM1yx9pGZbb30';
@@ -265,7 +271,7 @@
 
   // ── Init ──
   (function init() {
-    const today = new Date().toISOString().split('T')[0];
+    const today = localISODate(new Date());
     ['dw-date','pl-date','rs-date'].forEach(id => {
       document.getElementById(id).value = today;
     });

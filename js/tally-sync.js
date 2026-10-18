@@ -158,7 +158,7 @@ function _isoDate(str) {
   const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
   const d = new Date(str);
-  if (!isNaN(d)) return d.toISOString().slice(0, 10);
+  if (!isNaN(d)) return localISODate(d);
   return '';
 }
 
@@ -171,7 +171,7 @@ function _tallyDate(str) {
 
 function _tallyCfg() {
   const saved = (() => { try { return JSON.parse(localStorage.getItem(LS_TALLY_CFG) || '{}'); } catch { return {}; } })();
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = localISODate(new Date());
   const cfg = {
     company:  (document.getElementById('tally-company')?.value         ?? saved.company  ?? '').trim(),
     sales:    (document.getElementById('tally-sales-ledger')?.value     ?? saved.sales    ?? 'Sales').trim()    || 'Sales',
@@ -187,7 +187,7 @@ function _tallyCfg() {
 function initTallyExportCfg() {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(LS_TALLY_CFG) || '{}'); } catch {}
-  const todayIso     = new Date().toISOString().slice(0, 10);
+  const todayIso     = localISODate(new Date());
   const firstOfMonth = todayIso.slice(0, 7) + '-01';
   const set = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
   set('tally-company',          saved.company);
@@ -320,7 +320,7 @@ function exportTallyXML(kind) {
   }
 
   const xml   = _tallyEnvelope(messages, cfg.company);
-  const stamp = (cfg.fromDate || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
+  const stamp = (cfg.fromDate || localISODate(new Date())).replace(/-/g, '');
   const name  = kind === 'both'     ? `tally-vouchers-${stamp}.xml`
               : kind === 'sales'    ? `tally-sales-${stamp}.xml`
               :                       `tally-purchases-${stamp}.xml`;

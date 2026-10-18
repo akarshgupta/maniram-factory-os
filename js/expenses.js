@@ -225,7 +225,7 @@ function generateExpenseId() {
 // ── Filters ──
 function _expMonth()  { return document.getElementById('exp-filter-month')?.value    || _thisMonth(); }
 function _expCatFlt() { return document.getElementById('exp-filter-cat')?.value       || ''; }
-function _thisMonth() { return new Date().toISOString().slice(0, 7); } // YYYY-MM
+function _thisMonth() { return localISODate(new Date()).slice(0, 7); } // YYYY-MM
 
 function expensesInMonth(ym) {
   return expenseList.filter(e => (e.date || '').slice(0, 7) === ym);
@@ -487,6 +487,6 @@ function renderExpensesPage() {
   // Default the form date to today when adding a fresh entry
   if (!editing) {
     const d = document.getElementById('exp-date');
-    if (d && !d.value) d.value = new Date().toISOString().slice(0, 10);
+    if (d && !d.value) d.value = localISODate(new Date());
   }
 }
