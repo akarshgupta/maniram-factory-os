@@ -596,7 +596,7 @@ function _svLinkRow(o) {
       <div style="font-weight:700;font-size:14px;font-family:monospace">${o.size || '—'} <span style="font-family:inherit;color:var(--muted);font-weight:600">· ${o.status || '—'}</span> <span style="font-family:inherit;color:#16A34A;font-weight:700">· ${(o.qty || 0).toLocaleString('en-IN')} pcs</span></div>
       <div style="font-weight:700;font-size:13px;color:var(--navy)">Ordered ${o.orderDate ? formatDate(o.orderDate) : '—'} · ${o.rate ? '₹' + o.rate + '/pc' : 'no rate on file'}${_svPendingNote(o)}</div>
       ${o.date ? `<div style="font-size:11px;color:var(--muted)">Delivery due ${formatDate(o.date)}</div>` : ''}
-      <div style="font-size:11px;color:var(--muted)">${o.customer} · ${o.id}${o.product ? ' · ' + o.product : ''}</div>
+      <div style="font-size:11px;color:var(--muted)">${o.customer} · ${o.id}${o.product ? ' · ' + o.product : ''}${o.colour ? ' · ' + (typeof colourDot === 'function' ? colourDot(o.colour) : '') + o.colour : ''}${o.ply ? ' · ' + o.ply + ' ply' : ''}</div>
     </div>`;
 }
 
@@ -1272,7 +1272,7 @@ function svAddPartyChanged() {
         const left = Math.max(0, (parseInt(o.qty) || 0) - (typeof getDispatchedQty === 'function' ? getDispatchedQty(o.id) : 0));
         return `<div data-oid="${o.id}" onclick="svAddPickOrder('${o.id}')" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;margin-bottom:5px;cursor:pointer">
           <div style="font-weight:700;font-size:13px"><span style="font-family:monospace;color:var(--navy)">${o.id}</span> · ${o.product || '—'} <span style="font-weight:600;color:#16A34A">· ${left.toLocaleString('en-IN')} left</span></div>
-          <div style="font-size:11px;color:var(--muted)">${o.size || ''} · ordered ${o.orderDate ? formatDate(o.orderDate) : '—'} · ₹${o.rate || 0}/pc</div></div>`;
+          <div style="font-size:11px;color:var(--muted)">${o.size || ''}${o.colour ? ' · ' + (typeof colourDot === 'function' ? colourDot(o.colour) : '') + o.colour : ''}${o.ply ? ' · ' + o.ply + ' ply' : ''} · ordered ${o.orderDate ? formatDate(o.orderDate) : '—'} · ₹${o.rate || 0}/pc</div></div>`;
       }).join('');
 }
 
