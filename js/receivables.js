@@ -21,42 +21,50 @@ function generatePaymentId() {
 }
 
 // ── Data Helpers ──
+// One key per party however it's spelled ("S S D" = "SSD", "M/S X" = "X")
+function _rcvKey(n) { return String(n || '').toLowerCase().replace(/^m\/s\.?\s*/, '').replace(/[^a-z0-9]/g, ''); }
+
 function getCustomerSummaries() {
-  // Billed = Delivered + Dispatched orders with rate > 0
-  const billedOrders = orders.filter(o =>
-    ['Delivered', 'Dispatched'].includes(o.status) && parseFloat(o.rate) > 0 && o.qty
-  );
-  // Active (in-pipeline) orders with rate > 0
+  // Billed = what was actually invoiced (invoice totals), not order values —
+  // an order can be closed without ever being billed, or billed in parts.
+  // Cash Customer sales are paid on the spot, so they're left out.
+  const invs = (typeof invoiceList !== 'undefined' ? invoiceList : [])
+    .filter(iv => iv.party && _rcvKey(iv.party) !== 'cashcustomer' && (+iv.total || 0) > 0);
+  // Active (in-pipeline) orders with rate > 0 — shown as "pending", never as dues
   const activeOrders = orders.filter(o =>
     !['Delivered', 'Dispatched', 'Cancelled'].includes(o.status) && parseFloat(o.rate) > 0 && o.qty
   );
 
-  const allCustomers = [...new Set([
-    ...billedOrders.map(o => o.customer),
-    ...activeOrders.map(o => o.customer),
-  ])].filter(Boolean).sort();
+  const groups = {};
+  const grp = name => {
+    const k = _rcvKey(name);
+    if (!k) return null;
+    if (!groups[k]) {
+      const client = typeof _findClientForParty === 'function' ? _findClientForParty(name) : null;
+      groups[k] = { customer: client && _rcvKey(client.name) === k ? client.name : name.trim(), invs: [], active: [], pays: [] };
+    }
+    return groups[k];
+  };
+  invs.forEach(iv => grp(iv.party).invs.push(iv));
+  activeOrders.forEach(o => { const g = grp(o.customer); if (g) g.active.push(o); });
+  payments.forEach(p => { const g = groups[_rcvKey(p.customer)]; if (g) g.pays.push(p); });
 
-  return allCustomers.map(customer => {
-    const cBilled  = billedOrders.filter(o => o.customer === customer);
-    const cActive  = activeOrders.filter(o => o.customer === customer);
-    const cPayments = payments.filter(p => p.customer === customer);
-
-    const totalBilled  = cBilled.reduce((s, o) => s + (o.qty||0) * (o.rate||0), 0);
-    const totalPending = cActive.reduce((s, o) => s + (o.qty||0) * (o.rate||0), 0);
-    const totalPaid    = cPayments.reduce((s, p) => s + (p.amount||0), 0);
-    const outstanding  = totalBilled - totalPaid;
-
+  return Object.values(groups).map(g => {
+    const totalBilled  = g.invs.reduce((s, iv) => s + (+iv.total || 0), 0);
+    const totalPending = g.active.reduce((s, o) => s + (o.qty||0) * (o.rate||0), 0);
+    const totalPaid    = g.pays.reduce((s, p) => s + (p.amount||0), 0);
     return {
-      customer,
+      customer:          g.customer,
       totalBilled,
       totalPaid,
-      outstanding,
+      outstanding:       totalBilled - totalPaid,
       totalPending,
-      billedOrderCount:  cBilled.length,
-      activeOrderCount:  cActive.length,
-      paymentHistory:    [...cPayments].sort((a, b) => b.date.localeCompare(a.date)),
+      invoiceCount:      g.invs.length,
+      activeOrderCount:  g.active.length,
+      paymentHistory:    [...g.pays].sort((a, b) => b.date.localeCompare(a.date)),
     };
-  }).filter(s => s.totalBilled > 0 || s.totalPending > 0);
+  }).filter(s => s.totalBilled > 0 || s.totalPending > 0)
+    .sort((a, b) => b.outstanding - a.outstanding || a.customer.localeCompare(b.customer));
 }
 
 // ── Render Page ──
@@ -68,7 +76,7 @@ function renderReceivables() {
   el.innerHTML = '';
 
   if (!summaries.length) {
-    el.innerHTML = `<div class="empty-state">No billed orders yet.<br>Orders marked as Delivered or Dispatched will appear here.</div>`;
+    el.innerHTML = `<div class="empty-state">No invoices yet.<br>Every invoice you make appears here as money due until a payment is recorded.</div>`;
     return;
   }
 
@@ -90,7 +98,7 @@ function renderReceivables() {
     <div class="stat-card info">
       <div class="stat-label">Total Billed</div>
       <div class="stat-value" style="font-size:20px">₹${fmt0(totalBilled)}</div>
-      <div class="stat-sub">Delivered + Dispatched orders</div>
+      <div class="stat-sub">All invoices (excl. cash sales)</div>
     </div>
     <div class="stat-card good">
       <div class="stat-label">Total Collected</div>
@@ -121,7 +129,7 @@ function renderReceivables() {
         <div style="flex:1;min-width:160px">
           <div style="font-size:15px;font-weight:700;color:var(--navy)">${s.customer}</div>
           <div style="font-size:11px;color:var(--muted);margin-top:2px">
-            ${s.billedOrderCount} delivered order${s.billedOrderCount!==1?'s':''}
+            ${s.invoiceCount} invoice${s.invoiceCount!==1?'s':''}
             ${s.activeOrderCount ? ' · ' + s.activeOrderCount + ' active (₹' + fmt0(s.totalPending) + ' pending)' : ''}
           </div>
         </div>
@@ -163,7 +171,7 @@ function renderReceivables() {
 // ── Record Payment Modal ──
 function openRecordPayment(customer) {
   recordingPaymentFor = customer;
-  const s = getCustomerSummaries().find(x => x.customer === customer);
+  const s = getCustomerSummaries().find(x => _rcvKey(x.customer) === _rcvKey(customer));
   document.getElementById('pay-modal-customer').textContent   = customer;
   document.getElementById('pay-modal-outstanding').textContent = s ? '₹' + Math.round(s.outstanding).toLocaleString('en-IN') : '₹0';
   document.getElementById('pay-amount').value = '';
@@ -235,16 +243,16 @@ function _payRemindedNote(c)  {
 
 function _payRemBills(customer) {
   if (typeof invoiceList === 'undefined') return [];
-  const k = customer.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const k = _rcvKey(customer);
   return invoiceList
-    .filter(iv => (iv.party || '').toLowerCase().replace(/[^a-z0-9]/g, '') === k && iv.total > 0)
+    .filter(iv => _rcvKey(iv.party) === k && iv.total > 0)
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
     .slice(0, 5);
 }
 
 function openPaymentReminder(customer) {
   _payRemFor = customer;
-  const s = getCustomerSummaries().find(x => x.customer === customer);
+  const s = getCustomerSummaries().find(x => _rcvKey(x.customer) === _rcvKey(customer));
   const client = typeof _findClientForParty === 'function' ? _findClientForParty(customer) : null;
   const raw = (client?.phone || '').replace(/\D/g, '');
   const phone = raw.length > 10 && raw.startsWith('91') ? raw.slice(2) : raw;
