@@ -181,6 +181,41 @@ function _svFifo(cands, reason) {
   return q ? { order: q[0], reason: reason + ' — oldest order first', queue: q } : { order: null, reason: 'ambiguous' };
 }
 
+// Same box size, however it's written ("20×14×28" = "20*14*28")
+function _svSameSize(a, b) {
+  const ka = typeof _dimsKey === 'function' ? _dimsKey(a) : '', kb = typeof _dimsKey === 'function' ? _dimsKey(b) : '';
+  return ka && kb ? ka === kb : _svFuzzyEq(a, b);
+}
+
+// Every still-open order for the same item as `o` (same party, product and
+// size) that already existed on the dispatch date, oldest first — so a
+// dispatch picked against any one of them uses up the oldest first.
+function _svSameItemQueue(o, eDate) {
+  if (!o || typeof orders === 'undefined') return [o];
+  const finished = typeof FINISHED_STATUSES !== 'undefined' ? FINISHED_STATUSES : ['Delivered', 'Dispatched', 'Cancelled'];
+  // Strict: exact product name, same size AND colour — "Jalpari" is not
+  // "Supreme Jalpari", and a Blue box is not the Red one
+  const n = v => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const group = orders.filter(x => x.id === o.id || (!finished.includes(x.status) &&
+    _svFuzzyEq(x.customer, o.customer) && n(x.product) === n(o.product) && n(x.colour) === n(o.colour) &&
+    (!o.size && !x.size || _svSameSize(x.size, o.size)) && _svOrderExistedBy(x, eDate)));
+  return _svOldestFirstQueue(group) || [o];
+}
+
+// Split a dispatch's pieces down a queue: each order takes what it still
+// needs, the last one takes whatever is left. Returns [{ o, take }].
+function _svFifoPlan(pcs, queue) {
+  let left = pcs;
+  const plan = [];
+  queue.forEach((qo, i) => {
+    if (left <= 0) return;
+    const remaining = Math.max(0, (parseInt(qo.qty) || 0) - (typeof getDispatchedQty === 'function' ? getDispatchedQty(qo.id) : 0));
+    const take = i === queue.length - 1 ? left : Math.min(left, remaining);
+    if (take > 0) { plan.push({ o: qo, take }); left -= take; }
+  });
+  return plan;
+}
+
 function _svMatchOrderByProduct(e) {
   if (typeof orders === 'undefined' || typeof FINISHED_STATUSES === 'undefined') return { order: null, reason: 'none' };
   const eDate = _svNormDate(e.date); // YYYY-MM-DD
@@ -309,7 +344,12 @@ function _svAutoCreateChallans() {
       // didn't exist yet — e.g. a late-logged historical dispatch where
       // the dropdown only offered orders created since. Falls through to
       // product/party matching below instead of forcing a bad link.
-      if (byId && _svOrderExistedBy(byId, _svNormDate(e.date))) { o = byId; matchedBy = 'Order ID'; }
+      if (byId && _svOrderExistedBy(byId, _svNormDate(e.date))) {
+        o = byId; matchedBy = 'Order ID';
+        // An older open order for the same item is used up first
+        const q = FINISHED_STATUSES.includes(byId.status) ? null : _svSameItemQueue(byId, _svNormDate(e.date));
+        if (q && q.length > 1) queue = q;
+      }
     }
     if (!o) {
       const m = _svMatchOrderByProduct(e);
@@ -325,14 +365,8 @@ function _svAutoCreateChallans() {
     // Same item on several open orders: use up the oldest first (its qty
     // and rate); anything beyond what it still needs goes to the next
     // order, and the newest order takes whatever is left over.
-    let left = e.pcs;
-    queue.forEach((qo, i) => {
-      if (left <= 0) return;
-      const remaining = Math.max(0, (parseInt(qo.qty) || 0) - (typeof getDispatchedQty === 'function' ? getDispatchedQty(qo.id) : 0));
-      const take = i === queue.length - 1 ? left : Math.min(left, remaining);
-      if (take <= 0) return;
-      _svCreateChallanFor(e, qo, 'oldest order first', take);
-      left -= take;
+    _svFifoPlan(e.pcs, queue).forEach(({ o: qo, take }) => {
+      _svCreateChallanFor(e, qo, `${matchedBy} — oldest order first`, take);
       created++;
     });
   });
@@ -581,11 +615,27 @@ function createOrderFromDispatch() {
 
 // "· 1,630 sent · 3,370 left" for an order that's partly dispatched — so the
 // right order is obvious when the same item is on more than one order.
-function _svPendingNote(o) {
+// One order card: product name first, then size/colour/ply, qty as it is,
+// and the rate (big) + order date on the right — what you need to tell
+// two orders for the same box apart at a glance.
+function _svOrderCardHtml(o) {
   const sent = typeof getDispatchedQty === 'function' ? getDispatchedQty(o.id) : 0;
-  if (!sent) return '';
-  const left = Math.max(0, (parseInt(o.qty) || 0) - sent);
-  return ` <span style="font-weight:600;color:var(--muted)">· ${sent.toLocaleString('en-IN')} sent · ${left.toLocaleString('en-IN')} left</span>`;
+  const qty  = parseInt(o.qty) || 0;
+  const left = Math.max(0, qty - sent);
+  const spec = [o.size, o.colour ? (typeof colourDot === 'function' ? colourDot(o.colour) : '') + o.colour : '', o.ply ? o.ply + ' ply' : ''].filter(Boolean).join(' · ');
+  return `<div style="display:flex;gap:12px;align-items:flex-start;justify-content:space-between">
+      <div style="min-width:0;flex:1">
+        <div style="font-weight:800;font-size:15px;color:var(--navy);line-height:1.25">${o.product || o.size || '—'}</div>
+        <div style="font-size:12px;color:var(--text,#334155);margin-top:1px">${spec || '—'}</div>
+        <div style="font-size:12px;margin-top:3px"><strong>${qty.toLocaleString('en-IN')} pcs</strong>${sent ? ` <span style="color:var(--muted)">· ${sent.toLocaleString('en-IN')} sent ·</span> <strong style="color:#16A34A">${left.toLocaleString('en-IN')} left</strong>` : ''} <span style="color:var(--muted)">· ${o.status || '—'}</span></div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">${o.customer} · <span style="font-family:monospace">${o.id}</span>${o.date ? ' · delivery due ' + formatDate(o.date) : ''}</div>
+      </div>
+      <div style="text-align:right;flex:none">
+        <div style="font-size:18px;font-weight:800;color:var(--navy);font-family:monospace">${o.rate ? '₹' + o.rate : '—'}<span style="font-size:11px;font-weight:600;color:var(--muted)">/pc</span></div>
+        <div style="font-size:12px;font-weight:700;color:var(--navy);margin-top:2px">${o.orderDate ? formatDate(o.orderDate) : 'no order date'}</div>
+        <div style="font-size:10px;color:var(--muted)">ordered</div>
+      </div>
+    </div>`;
 }
 
 function _svLinkRow(o) {
@@ -593,10 +643,7 @@ function _svLinkRow(o) {
     <div onclick="linkDispatchToOrder('${o.id}')"
       style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border)"
       onmouseover="this.style.background='var(--hover-bg,#f5f7fa)'" onmouseout="this.style.background=''">
-      <div style="font-weight:700;font-size:14px;font-family:monospace">${o.size || '—'} <span style="font-family:inherit;color:var(--muted);font-weight:600">· ${o.status || '—'}</span> <span style="font-family:inherit;color:#16A34A;font-weight:700">· ${(o.qty || 0).toLocaleString('en-IN')} pcs</span></div>
-      <div style="font-weight:700;font-size:13px;color:var(--navy)">Ordered ${o.orderDate ? formatDate(o.orderDate) : '—'} · ${o.rate ? '₹' + o.rate + '/pc' : 'no rate on file'}${_svPendingNote(o)}</div>
-      ${o.date ? `<div style="font-size:11px;color:var(--muted)">Delivery due ${formatDate(o.date)}</div>` : ''}
-      <div style="font-size:11px;color:var(--muted)">${o.customer} · ${o.id}${o.product ? ' · ' + o.product : ''}${o.colour ? ' · ' + (typeof colourDot === 'function' ? colourDot(o.colour) : '') + o.colour : ''}${o.ply ? ' · ' + o.ply + ' ply' : ''}</div>
+      ${_svOrderCardHtml(o)}
     </div>`;
 }
 
@@ -628,7 +675,19 @@ function renderSvLinkResults(q) {
   const completedOrders = matched.filter(o => finished.includes(o.status)).slice(0, 40);
   if (!openOrders.length && !completedOrders.length) { el.innerHTML = '<div class="empty-state">No matching orders (or every match postdates this dispatch — it may need a new order instead).</div>'; return; }
 
-  let html = openOrders.map(_svLinkRow).join('');
+  // Orders for this dispatch's own product/size, oldest first, pinned on top
+  const sugg = entry && (entry.product || entry.size) ? (typeof orders !== 'undefined' ? orders : [])
+    .filter(o => !finished.includes(o.status) && _svOrderExistedBy(o, eDate))
+    .filter(o => (entry.product && _svFuzzyEq(o.product, entry.product)) ||
+                 (entry.size && _svSameSize(o.size, entry.size) && (!entry.party || _svFuzzyEq(o.customer, entry.party))))
+    .sort((a, b) => (a.orderDate || '').localeCompare(b.orderDate || '') || (a.id || '').localeCompare(b.id || '')) : [];
+  const head = t => `<div style="padding:8px 12px;background:var(--hover-bg,#f5f7fa);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px">${t}</div>`;
+  let html = '';
+  if (sugg.length) {
+    html += head(`Same product${entry.product ? ' (' + entry.product + ')' : ''} — oldest first, used up first`) + sugg.map(_svLinkRow).join('');
+    html += head('All matching orders');
+  }
+  html += openOrders.filter(o => !sugg.includes(o)).map(_svLinkRow).join('');
   if (completedOrders.length) {
     html += `<div style="padding:8px 12px;background:var(--hover-bg,#f5f7fa);border-top:2px solid var(--border);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px">Completed Orders</div>`;
     html += completedOrders.map(_svLinkRow).join('');
@@ -732,7 +791,14 @@ function linkDispatchToOrder(orderId) {
     if (typeof renderOrders === 'function') renderOrders();
     if (typeof renderInvoicingPage === 'function') renderInvoicingPage();
   } else {
-    _svCreateChallanFor(e, o, 'manual link');
+    const queue = FINISHED_STATUSES.includes(o.status) ? [o] : _svSameItemQueue(o, _svNormDate(e.date));
+    const plan  = _svFifoPlan(e.pcs, queue);
+    const simple = plan.length === 1 && plan[0].o.id === o.id;
+    if (!simple && plan.length && confirm(`Older orders for the same item are still open — use them up first?\n\n${plan.map(p => `${p.o.id} (ordered ${p.o.orderDate ? formatDate(p.o.orderDate) : '—'}, ₹${p.o.rate || 0}/pc): ${p.take.toLocaleString('en-IN')} pcs`).join('\n')}\n\nOK = oldest first as above · Cancel = put all ${e.pcs.toLocaleString('en-IN')} pcs on ${o.id}`)) {
+      plan.forEach(p => _svCreateChallanFor(e, p.o, 'manual link — oldest order first', p.take));
+    } else {
+      _svCreateChallanFor(e, o, 'manual link');
+    }
   }
   renderSupervisorLog(false);
 }
@@ -1269,10 +1335,7 @@ function svAddPartyChanged() {
     ? '<div style="font-size:12px;color:var(--muted)">No open orders for this party — the entry will be saved against the party and product only.</div>'
     : `<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Open orders — tap one to fill it in</div>` +
       open.map(o => {
-        const left = Math.max(0, (parseInt(o.qty) || 0) - (typeof getDispatchedQty === 'function' ? getDispatchedQty(o.id) : 0));
-        return `<div data-oid="${o.id}" onclick="svAddPickOrder('${o.id}')" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;margin-bottom:5px;cursor:pointer">
-          <div style="font-weight:700;font-size:13px"><span style="font-family:monospace;color:var(--navy)">${o.id}</span> · ${o.product || '—'} <span style="font-weight:600;color:#16A34A">· ${left.toLocaleString('en-IN')} left</span></div>
-          <div style="font-size:11px;color:var(--muted)">${o.size || ''}${o.colour ? ' · ' + (typeof colourDot === 'function' ? colourDot(o.colour) : '') + o.colour : ''}${o.ply ? ' · ' + o.ply + ' ply' : ''} · ordered ${o.orderDate ? formatDate(o.orderDate) : '—'} · ₹${o.rate || 0}/pc</div></div>`;
+        return `<div data-oid="${o.id}" onclick="svAddPickOrder('${o.id}')" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;margin-bottom:5px;cursor:pointer">${_svOrderCardHtml(o)}</div>`;
       }).join('');
 }
 
