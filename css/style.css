@@ -71,6 +71,12 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
    LAYOUT
    ══════════════════════════════════════════════════════════════ */
 .main { margin-left: var(--sidebar-w); flex: 1; min-height: 100vh; display: flex; flex-direction: column; }
+/* body is a flex row, and a flex item never shrinks below its content's
+   width by default — so one wide row (a 2-column form, a toolbar) made the
+   whole page wider than a phone screen. min-width:0 lets it shrink and
+   wrap instead. #app-shell wraps .main on index.html; staff.html has .main
+   directly under body. */
+#app-shell, .main { min-width: 0; }
 .topbar { background: var(--white); border-bottom: 1px solid var(--border); padding: 0 28px; height: 56px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
 .topbar-title { font-size: 16px; font-weight: 600; color: var(--navy); letter-spacing: -0.2px; }
 .topbar-date { font-size: 12px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }

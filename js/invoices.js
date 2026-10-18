@@ -69,7 +69,7 @@ function _buildInvoiceFromChallan(c) {
   return {
     id:        generateInvoiceId(),
     party:     (c.customer || '').trim() || 'Cash Customer',
-    date:      c.date || (typeof todayStr !== 'undefined' ? todayStr : new Date().toISOString().slice(0, 10)),
+    date:      c.date || (typeof todayStr !== 'undefined' ? todayStr : localISODate(new Date())),
     orderId:   (c.customer || '').trim() ? (c.orderId || null) : null,
     items:     [{ desc, qty, rate, amount, orderId: (c.customer || '').trim() ? (c.orderId || null) : null, challanDc: c.dcNum }],
     subtotal:  amount,
@@ -192,7 +192,7 @@ function openCreateInvoiceForm(orderId) {
   if (partyEl) partyEl.value = '';
 
   const dateEl = document.getElementById('ci-date');
-  if (dateEl) dateEl.value = new Date().toISOString().slice(0, 10);
+  if (dateEl) dateEl.value = localISODate(new Date());
 
   // Party autocomplete datalist
   const dl = document.getElementById('ci-party-list');
@@ -493,7 +493,7 @@ function recalcInvoiceTotals() {
 
 function _buildInvoiceRecord() {
   let party     = (document.getElementById('ci-party')?.value || '').trim();
-  const dateVal = document.getElementById('ci-date')?.value || new Date().toISOString().slice(0, 10);
+  const dateVal = document.getElementById('ci-date')?.value || localISODate(new Date());
 
   // No party = a cash sale: billed to "Cash Customer", never linked to an order
   const isCash = !party || /^cash( customer)?$/i.test(party);
@@ -763,7 +763,7 @@ function editInvoice(invId) {
   const partyEl = document.getElementById('ci-party');
   if (partyEl) partyEl.value = inv.party || 'Cash Customer';
   const dateEl = document.getElementById('ci-date');
-  if (dateEl) dateEl.value = inv.date || new Date().toISOString().slice(0, 10);
+  if (dateEl) dateEl.value = inv.date || localISODate(new Date());
 
   const dl = document.getElementById('ci-party-list');
   if (dl && typeof CLIENTS !== 'undefined') dl.innerHTML = CLIENTS.map(c => `<option value="${c.name}">`).join('');

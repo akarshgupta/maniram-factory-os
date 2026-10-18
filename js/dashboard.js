@@ -161,7 +161,7 @@ function _renderWeekView(active) {
   for (let i = 0; i < 7; i++) {
     const d = new Date(todayStr + 'T00:00:00');
     d.setDate(d.getDate() + i);
-    days.push(d.toISOString().split('T')[0]);
+    days.push(localISODate(d));
   }
 
   const rangeEl = document.getElementById('week-range-label');

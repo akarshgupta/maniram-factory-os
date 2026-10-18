@@ -74,6 +74,7 @@ function doPost(e) {
     else if (action === 'saveProdPerf')      saveProdPerf(data);
     else if (action === 'savePurchase')      savePurchase(data);
     else if (action === 'updatePurchase')    updatePurchase(data);
+    else if (action === 'deletePurchase')    deletePurchase(data);
     else if (action === 'addReelStock')      addReelStock(data);
     else if (action === 'setReelGroupRate')  setReelGroupRate(data);
     else if (action === 'setReelLotRate')    setReelLotRate(data);
@@ -492,6 +493,19 @@ function updatePurchase(data) {
       sheet.getRange(i + 1, 1, 1, 14).setValues([_purchaseRow(data)]);
       return;
     }
+  }
+}
+
+// js/purchase.js deletes locally then re-fetches the Purchases tab ~2s
+// later — without this handler the row was never removed and reappeared.
+function deletePurchase(data) {
+  if (!data.id) return;
+  var ss    = SpreadsheetApp.openById(ORDERS_SHEET_ID);
+  var sheet = ss.getSheetByName('Purchases');
+  if (!sheet) return;
+  var rows = sheet.getDataRange().getValues();
+  for (var i = rows.length - 1; i >= 1; i--) {
+    if ((rows[i][0] || '').toString() === data.id.toString()) sheet.deleteRow(i + 1);
   }
 }
 

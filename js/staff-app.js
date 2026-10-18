@@ -59,6 +59,7 @@ function staffSetup() {
   }
   staffSetSession();
   staffHideAuth();
+  staffStartOrders();
 }
 
 function staffLogin() {
@@ -69,6 +70,7 @@ function staffLogin() {
   if (!stored) { staffShowAuthMode('setup'); return; }
   if (staffHash(pin) === stored) {
     staffSetSession(); staffHideAuth();
+    staffStartOrders();
   } else {
     staffShowErr('staff-login-err', 'Incorrect PIN. Please try again.');
     const el = document.getElementById('staff-pin'); if (el) { el.value = ''; el.focus(); }
@@ -89,7 +91,7 @@ function staffLogout() {
 
 let staffOrders = [];
 let staffStock  = [];
-const tmrwStr   = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+const tmrwStr   = localISODate(new Date(Date.now() + 86400000));
 
 function formatDate(d) {
   if (!d) return '—';
@@ -884,10 +886,16 @@ function staffInit() {
   document.getElementById('pe-date').value  = todayStr;
 
   checkStaffAuth();
-  if (staffIsLoggedIn()) {
-    staffFetchOrders();
-    setInterval(staffFetchOrders, 5 * 60 * 1000);
-  }
+  if (staffIsLoggedIn()) staffStartOrders();
+}
+
+// Load orders and keep them refreshed — on page load when already logged
+// in, and right after a PIN setup/login (orders otherwise stayed on
+// "Loading orders..." until the page was reloaded).
+let _staffOrdersTimer = null;
+function staffStartOrders() {
+  staffFetchOrders();
+  if (!_staffOrdersTimer) _staffOrdersTimer = setInterval(staffFetchOrders, 5 * 60 * 1000);
 }
 
 if (document.readyState === 'loading') {

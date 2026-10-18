@@ -4,6 +4,9 @@
 // ══════════════════════════════════════════════════════════════
 
 let purchases = [];
+// IDs deleted in this session — kept out of re-fetches so a row doesn't
+// flash back if the sheet read lands before Apps Script has removed it.
+const _deletedPurchaseIds = new Set();
 
 // ══════════════════════════════════════════════════════════════
 // SHEETS DATA LAYER
@@ -19,7 +22,7 @@ async function fetchPurchases() {
 
     const rows = (json.values || []).slice(1); // skip header
     purchases  = rows
-      .filter(r => r[0])
+      .filter(r => r[0] && !_deletedPurchaseIds.has(r[0]))
       .map(r => ({
         id:               r[0]  || '',
         supplier:         r[1]  || '',
@@ -208,6 +211,7 @@ function markPayment(id) {
 
 function deletePurchase(id) {
   if (!confirm(`Delete ${id}?`)) return;
+  _deletedPurchaseIds.add(id);
   purchases = purchases.filter(p => p.id !== id);
   renderPurchaseList();
   renderRateHistory();

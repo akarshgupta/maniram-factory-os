@@ -136,7 +136,7 @@ function calcAvgCycle(dates) {
 function predictNextDate(lastDate, avgCycle) {
   const d = new Date(lastDate);
   d.setDate(d.getDate() + avgCycle);
-  return d.toISOString().split('T')[0];
+  return localISODate(d);
 }
 
 function daysFromToday(dateStr) {
