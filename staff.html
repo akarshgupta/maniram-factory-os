@@ -153,6 +153,16 @@
             <span style="font-weight:700;font-family:monospace" id="de-selected-id"></span>
             <span style="color:var(--muted)" id="de-selected-desc"></span>
           </div>
+          <label style="display:flex;gap:8px;align-items:center;font-size:13px;margin:-4px 0 12px;cursor:pointer">
+            <input type="checkbox" id="de-noorder" onchange="toggleDeNoOrder()"> Order not in the list — type the product instead
+          </label>
+          <div id="de-free" style="display:none">
+            <div class="calc-grid">
+              <div class="form-group"><label class="form-label">Product name</label><input class="form-input" id="de-free-product" placeholder="e.g. Choti Lily"></div>
+              <div class="form-group"><label class="form-label">Size L×W×H</label><input class="form-input" id="de-free-size" placeholder="e.g. 20*14*28"></div>
+              <div class="form-group"><label class="form-label">Going to (optional)</label><input class="form-input" id="de-free-party" placeholder="Party name if known"></div>
+            </div>
+          </div>
 
           <div class="calc-grid">
             <div class="form-group">
@@ -168,6 +178,7 @@
               <input class="form-input" type="number" id="de-wtpc" placeholder="e.g. 650" step="0.1" min="0">
             </div>
           </div>
+          <div class="form-group"><label class="form-label">Notes (optional)</label><textarea class="form-input" id="de-notes" rows="2" placeholder="Vehicle no., driver, short delivery, anything the office should know"></textarea></div>
           <button class="btn-primary" style="width:100%;padding:12px;font-size:15px;margin-top:6px" onclick="saveDispatchEntry()">💾 Save Dispatch</button>
           <div id="de-msg" style="margin-top:8px;font-size:13px"></div>
         </div>

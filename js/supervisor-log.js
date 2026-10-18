@@ -63,8 +63,8 @@ async function fetchSupervisorLog() {
   };
   try {
     const [prod, disp] = await Promise.all([
-      get(SUPERVISOR_PROD_TAB, 'A1:P500'),
-      get(SUPERVISOR_DISP_TAB, 'A1:L500'),
+      get(SUPERVISOR_PROD_TAB, 'A1:P5000'),
+      get(SUPERVISOR_DISP_TAB, 'A1:L5000'),
     ]);
     // Sort by the entry's own Date field (not just submission order) — a late-
     // filed entry for an earlier date should still land in date order, newest

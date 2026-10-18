@@ -473,11 +473,20 @@ document.addEventListener('click', e => {
   }
 });
 
+function toggleDeNoOrder() {
+  const on = document.getElementById('de-noorder').checked;
+  document.getElementById('de-free').style.display = on ? 'block' : 'none';
+  if (on) { _deSelectedOrder = null; document.getElementById('de-order-selected').style.display = 'none'; }
+}
+
 function saveDispatchEntry() {
   const msg = document.getElementById('de-msg');
   msg.innerHTML = '';
+  const v = id => (document.getElementById(id)?.value || '').trim();
+  const free = document.getElementById('de-noorder')?.checked;
 
-  if (!_deSelectedOrder) { msg.innerHTML = '⚠️ Pick an order above first.'; return; }
+  if (!free && !_deSelectedOrder) { msg.innerHTML = '⚠️ Pick an order above first (or tick "Order not in the list").'; return; }
+  if (free && !v('de-free-product') && !v('de-free-size')) { msg.innerHTML = '⚠️ Type the product name or size.'; return; }
   const dateVal = document.getElementById('de-date').value;
   const pcs     = parseInt(document.getElementById('de-pcs').value)  || 0;
   const wtPc    = parseFloat(document.getElementById('de-wtpc').value) || 0;
@@ -486,10 +495,12 @@ function saveDispatchEntry() {
   if (wtPc <= 0) { msg.innerHTML = '⚠️ Enter the weight per piece.'; return; }
 
   const o = _deSelectedOrder;
-  const payload = {
-    date: _toMDY(dateVal), party: o.customer, pcs, size: o.size, wtPc,
-    product: o.product, orderId: o.id,
-  };
+  // Same columns as the office's Add Dispatch Entry — the office register
+  // reads this sheet, auto-makes a challan when the Order ID is set, and
+  // shows a 🔗 Link button for free-typed entries.
+  const payload = free
+    ? { date: _toMDY(dateVal), party: v('de-free-party'), pcs, size: v('de-free-size'), wtPc, product: v('de-free-product'), orderId: '', notes: v('de-notes') }
+    : { date: _toMDY(dateVal), party: o.customer, pcs, size: o.size, wtPc, product: o.product, orderId: o.id, notes: v('de-notes') };
 
   fetch(APPS_SCRIPT_URL, {
     method: 'POST', mode: 'no-cors',
@@ -497,12 +508,17 @@ function saveDispatchEntry() {
     body: JSON.stringify(Object.assign({ action: 'supervisorDispatchAppend' }, payload)),
   }).catch(() => {});
 
-  msg.innerHTML = `✅ Saved — ${pcs.toLocaleString('en-IN')} pcs of ${o.id} dispatched`;
-  document.getElementById('de-pcs').value  = '';
-  document.getElementById('de-wtpc').value = '';
+  msg.innerHTML = `✅ Saved — ${pcs.toLocaleString('en-IN')} pcs of ${free ? (payload.product || payload.size) : o.id} dispatched. The office sees it within a few minutes.`;
+  ['de-pcs', 'de-wtpc', 'de-notes', 'de-free-product', 'de-free-size', 'de-free-party'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('de-order-selected').style.display = 'none';
   _deSelectedOrder = null;
-  setTimeout(staffFetchDispatchLog, 3000);
+  [3000, 8000].forEach(ms => setTimeout(staffFetchDispatchLog, ms));
+}
+
+// "10/16/2026 14:03:05" → sortable number; the raw string sorts 9/30 after 10/1
+function _staffTsNum(ts) {
+  const m = String(ts || '').match(/(\d+)\/(\d+)\/(\d{4})(?:\s+(\d+):(\d+)(?::(\d+))?)?/);
+  return m ? new Date(+m[3], +m[1] - 1, +m[2], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)).getTime() : 0;
 }
 
 let staffDispatchLog = [];
@@ -510,15 +526,15 @@ let staffDispatchLog = [];
 async function staffFetchDispatchLog() {
   const syncEl = document.getElementById('de-sync');
   try {
-    const url  = `https://sheets.googleapis.com/v4/spreadsheets/${SUPERVISOR_SHEET_ID}/values/${encodeURIComponent(SUPERVISOR_DISP_TAB + '!A2:H500')}?key=${API_KEY}`;
+    const url  = `https://sheets.googleapis.com/v4/spreadsheets/${SUPERVISOR_SHEET_ID}/values/${encodeURIComponent(SUPERVISOR_DISP_TAB + '!A2:I2000')}?key=${API_KEY}`;
     const res  = await fetch(url);
     const json = await res.json();
     // A json.error here almost always just means no entry has ever been saved yet.
     staffDispatchLog = json.error ? [] : (json.values || []).filter(r => r[0]).map(r => ({
       ts: r[0] || '', date: r[1] || '', pcs: parseInt(r[3]) || 0, size: r[4] || '',
       wtPc: parseFloat(r[5]) || 0, product: r[6] || '',
-      orderId: (r[7] || '').toString().split('—')[0].trim(),
-    })).sort((a, b) => (b.ts || '').localeCompare(a.ts || ''));
+      orderId: (r[7] || '').toString().split('—')[0].trim(), notes: r[8] || '',
+    })).sort((a, b) => _staffTsNum(b.ts) - _staffTsNum(a.ts));
     if (syncEl) syncEl.innerHTML = '<div class="sync-dot ok"></div><span>Updated just now</span>';
   } catch (e) {
     if (syncEl) syncEl.innerHTML = `<div class="sync-dot error"></div><span>Fetch failed: ${e.message}</span>`;
@@ -536,6 +552,7 @@ function renderDispatchLog() {
         <div>
           <div style="font-size:13px;font-weight:700;color:var(--navy);font-family:monospace">${e.orderId || '—'}</div>
           <div style="font-size:11px;color:var(--muted)">${formatDate(e.date)}${e.product ? ' · ' + e.product : ''}${e.size ? ' · ' + e.size : ''}</div>
+          ${e.notes ? `<div style="font-size:11px;color:#B45309">📝 ${String(e.notes).replace(/</g, '&lt;')}</div>` : ''}
         </div>
         <div style="font-size:12px;font-weight:600">${e.pcs.toLocaleString('en-IN')} pcs${e.wtPc ? ` · ${e.wtPc} gm/pc` : ''}</div>
       </div>
@@ -581,14 +598,14 @@ let staffProductionLog = [];
 async function staffFetchProductionLog() {
   const syncEl = document.getElementById('pe-sync');
   try {
-    const url  = `https://sheets.googleapis.com/v4/spreadsheets/${SUPERVISOR_SHEET_ID}/values/${encodeURIComponent(SUPERVISOR_PROD_TAB + '!A2:J500')}?key=${API_KEY}`;
+    const url  = `https://sheets.googleapis.com/v4/spreadsheets/${SUPERVISOR_SHEET_ID}/values/${encodeURIComponent(SUPERVISOR_PROD_TAB + '!A2:J2000')}?key=${API_KEY}`;
     const res  = await fetch(url);
     const json = await res.json();
     staffProductionLog = json.error ? [] : (json.values || []).filter(r => r[0]).map(r => ({
       ts: r[0] || '', date: r[1] || '',
       r1w: r[2] || '', r1g: r[3] || '', r2w: r[4] || '', r2g: r[5] || '',
       cutSize: r[6] || '', plyPcs: r[7] || '', sheets: r[8] || '', rolls: r[9] || '',
-    })).sort((a, b) => (b.ts || '').localeCompare(a.ts || ''));
+    })).sort((a, b) => _staffTsNum(b.ts) - _staffTsNum(a.ts));
     if (syncEl) syncEl.innerHTML = '<div class="sync-dot ok"></div><span>Updated just now</span>';
   } catch (e) {
     if (syncEl) syncEl.innerHTML = `<div class="sync-dot error"></div><span>Fetch failed: ${e.message}</span>`;
