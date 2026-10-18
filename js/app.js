@@ -181,3 +181,23 @@ if (document.readyState === 'loading') {
 } else {
   init();
 }
+
+// Whatever popup opened last sits on top — e.g. 🚚 History opened from
+// Data Checks, then an invoice opened from that History, each stack above
+// the one before instead of hiding behind it (they all shared one z-index,
+// so the one later in the page won regardless of which opened last).
+(function stackOverlaysByOpenOrder() {
+  let top = 1200;
+  const isOverlay = el => el.nodeType === 1 && (el.classList.contains('popup-overlay') || /-overlay$/.test(el.id || ''));
+  const shown = new WeakSet();
+  const check = el => {
+    if (!isOverlay(el)) return;
+    const visible = el.style.display && el.style.display !== 'none';
+    if (visible && !shown.has(el)) { shown.add(el); el.style.zIndex = String(++top); }
+    else if (!visible) shown.delete(el);
+  };
+  new MutationObserver(muts => muts.forEach(m => {
+    if (m.type === 'attributes') check(m.target);
+    else m.addedNodes.forEach(check);
+  })).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['style'], childList: true });
+})();

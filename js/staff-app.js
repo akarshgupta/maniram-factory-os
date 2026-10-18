@@ -447,7 +447,7 @@ function onDeOrderInput() {
   _deFiltered.slice(0, 30).forEach(o => {
     const item = document.createElement('div');
     item.className = 'autocomplete-item';
-    item.innerHTML = `<strong style="font-family:monospace">${o.id}</strong> — ${o.product} · ${o.size}`;
+    item.innerHTML = `<strong style="font-family:monospace">${o.id}</strong> — ${o.product} · ${o.size}${o.colour ? ' · ' + o.colour : ''}`;
     item.onmousedown = () => selectDeOrder(o.id);
     dd.appendChild(item);
   });
@@ -461,7 +461,7 @@ function selectDeOrder(orderId) {
   _deSelectedOrder = o;
   document.getElementById('de-order-search').value = '';
   document.getElementById('de-selected-id').textContent   = o.id;
-  document.getElementById('de-selected-desc').textContent = ` — ${o.product} · ${o.size} · ${o.ply}ply`;
+  document.getElementById('de-selected-desc').textContent = ` — ${o.product} · ${o.size} · ${o.ply}ply${o.colour ? ' · ' + o.colour : ''}`;
   document.getElementById('de-order-selected').style.display = 'block';
 }
 
