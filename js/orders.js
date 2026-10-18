@@ -37,6 +37,7 @@ function onOrderSearch() {
   if (activeOrderTab === 'all')     renderOrders();
   if (activeOrderTab === 'history') renderOrderHistory();
   if (activeOrderTab === 'grouped') renderGroupedOrders();
+  if (activeOrderTab === 'challans' && typeof renderChallansTab === 'function') renderChallansTab();
 }
 
 // ── Helpers ──
@@ -563,7 +564,7 @@ function switchOrderTab(tab, e) {
   if (tab === 'history')    renderOrderHistory();
   // Show/hide search bar only for filterable tabs
   const searchBar = document.getElementById('order-search-bar');
-  if (searchBar) searchBar.style.display = ['all','history','grouped'].includes(tab) ? 'flex' : 'none';
+  if (searchBar) searchBar.style.display = ['all','history','grouped','challans'].includes(tab) ? 'flex' : 'none';
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -945,6 +946,9 @@ function reopenOrder(orderId) {
   if (typeof updateDashboardOrders === 'function') updateDashboardOrders();
 }
 
+// "20×14×28" and "20*14*28" compare equal
+function _normDimsSafe(v) { return String(v || '').toLowerCase().replace(/[×x*\s]/g, ''); }
+
 // ── Render Order History (completed orders) ──
 function renderOrderHistory() {
   const el = document.getElementById('history-orders-list');
@@ -971,9 +975,10 @@ function renderOrderHistory() {
     row.onclick = () => openInvoice(o.id);
     row.innerHTML = `
       <div style="font-family:monospace;font-size:11px;color:var(--muted)">${o.id}</div>
-      <div>
+      <div style="min-width:0">
         <div style="font-weight:600;font-size:13px">${o.customer}</div>
-        <div style="font-size:11px;color:var(--muted)">${o.product || '—'}</div>
+        <div style="font-size:13px;font-weight:700;color:var(--navy);white-space:normal">${o.product || o.size || '—'}${o.size && o.product && !_normDimsSafe(o.product).includes(_normDimsSafe(o.size)) ? ` <span style="font-weight:500;color:var(--muted)">· ${o.size}</span>` : ''}</div>
+        <div style="font-size:12px;margin-top:2px">Ordered <strong>${o.orderDate ? formatDate(o.orderDate) : '—'}</strong> · <strong>${(parseInt(o.qty) || 0).toLocaleString('en-IN')} pcs</strong> · <strong style="color:var(--navy)">${o.rate ? '₹' + o.rate + '/pc' : 'no rate'}</strong></div>
       </div>
       <div style="font-size:12px;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${o.size || ''}">${o.size || '—'}</div>
       <div style="font-size:12px">${colourDot(o.colour)}${o.colour || '—'}</div>

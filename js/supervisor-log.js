@@ -1245,7 +1245,41 @@ function _svToMDY(iso) {
   return m ? `${+m[2]}/${+m[3]}/${m[1]}` : '';
 }
 
+// Products already added to this vehicle's entry (Add another product)
+let _svaItems = [];
+
+function _svaCurrentItem() {
+  const v = id => (document.getElementById(id) || {}).value || '';
+  return { product: v('sva-product').trim(), size: v('sva-size').trim(), pcs: parseInt(v('sva-pcs')) || 0,
+           wtPc: parseFloat(v('sva-wt')) || '', orderId: v('sva-order') };
+}
+
+function _svaRenderItems() {
+  const el = document.getElementById('sva-items');
+  if (!el) return;
+  el.innerHTML = !_svaItems.length ? '' :
+    `<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">In this vehicle — ${_svaItems.length} product${_svaItems.length > 1 ? 's' : ''} added</div>` +
+    _svaItems.map((it, i) => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:4px;font-size:12px;background:#F0FDF4">
+      <div><strong>${it.product || it.size || '—'}</strong>${it.size && it.product ? ' · ' + it.size : ''} · <strong>${it.pcs.toLocaleString('en-IN')} pcs</strong>${it.orderId ? ` · <span style="font-family:monospace">${it.orderId}</span>` : ''}</div>
+      <button class="btn-sm" style="color:var(--danger)" onclick="_svaItems.splice(${i},1);_svaRenderItems()" title="Remove">✕</button></div>`).join('') +
+    `<div style="font-size:11px;color:var(--muted);margin:2px 0 10px">Fill the fields above for the next product, or just Save.</div>`;
+}
+
+function svAddItem() {
+  const msg = document.getElementById('sv-add-msg');
+  const it = _svaCurrentItem();
+  if (!it.product && !it.size) { msg.innerHTML = '⚠️ Enter the product (or size) first.'; return; }
+  if (it.pcs <= 0) { msg.innerHTML = '⚠️ Enter the pieces for this product first.'; return; }
+  msg.innerHTML = '';
+  _svaItems.push(it);
+  ['sva-product', 'sva-size', 'sva-pcs', 'sva-wt', 'sva-order'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  document.querySelectorAll('#sva-orders [data-oid]').forEach(el => { el.style.borderColor = 'var(--border)'; el.style.background = ''; });
+  _svaRenderItems();
+  document.getElementById('sva-product')?.focus();
+}
+
 function openSvAddEntry() {
+  _svaItems = []; _svaLastParty = null;
   let ov = document.getElementById('sv-add-overlay');
   if (!ov) {
     ov = document.createElement('div');
@@ -1276,6 +1310,8 @@ function openSvAddEntry() {
         <div class="form-group">${lbl('Size L×W×H')}<input ${inp} id="sva-size" placeholder="17*14*26"></div>
         <div class="form-group">${lbl('Weight / piece (gm)')}<input ${inp} type="number" id="sva-wt" step="0.1"></div>
       </div>
+      <button class="btn-secondary" style="width:100%;margin:-2px 0 10px;font-size:12px" onclick="svAddItem()" title="Several products in the same vehicle — add this one to the list and enter the next">➕ Add another product (same vehicle)</button>
+      <div id="sva-items"></div>
       <div class="form-group">${lbl('Notes (optional)')}<textarea ${inp} id="sva-notes" rows="2" placeholder="Vehicle no., driver, short delivery, anything to remember"></textarea></div>`;
   } else {
     body = `
@@ -1321,8 +1357,13 @@ function _svPartyProducts(party) {
   return [...set].sort();
 }
 
+let _svaLastParty = null;
 function svAddPartyChanged() {
   const party = document.getElementById('sva-party').value.trim();
+  // input + change both call this; re-rendering for the same party on blur
+  // would wipe the card the user just tapped (the tap is what blurred it)
+  if (party === _svaLastParty) return;
+  _svaLastParty = party;
   const dl = document.getElementById('sva-products');
   const prod = document.getElementById('sva-product');
   const box = document.getElementById('sva-orders');
@@ -1370,13 +1411,30 @@ function saveSvAddEntry() {
   const v = id => (document.getElementById(id) || {}).value || '';
   let payload, action;
   if (_svTab === 'dispatch') {
-    const date = _svToMDY(v('sva-date')), pcs = parseInt(v('sva-pcs')) || 0;
+    const date = _svToMDY(v('sva-date'));
     if (!date) { msg.innerHTML = '⚠️ Pick a date.'; return; }
-    if (!v('sva-party').trim() && !v('sva-product').trim()) { msg.innerHTML = '⚠️ Enter a party or a product.'; return; }
-    if (pcs <= 0) { msg.innerHTML = '⚠️ Enter the pieces dispatched.'; return; }
-    action  = 'supervisorDispatchAppend';
-    payload = { date, party: v('sva-party').trim(), pcs, size: v('sva-size').trim(), wtPc: parseFloat(v('sva-wt')) || '',
-                product: v('sva-product').trim(), orderId: v('sva-order'), notes: v('sva-notes').trim() };
+    const cur = _svaCurrentItem();
+    const items = _svaItems.concat(cur.pcs > 0 || cur.product || cur.size ? [cur] : []);
+    if (!items.length) { msg.innerHTML = '⚠️ Enter the pieces dispatched.'; return; }
+    if (items.some(it => it.pcs <= 0)) { msg.innerHTML = '⚠️ Enter the pieces dispatched.'; return; }
+    if (!v('sva-party').trim() && items.some(it => !it.product)) { msg.innerHTML = '⚠️ Enter a party or a product.'; return; }
+    const notes = v('sva-notes').trim();
+    const shared = items.length > 1 ? `Same vehicle as ${items.length - 1} other product${items.length > 2 ? 's' : ''}` : '';
+    // One sheet row per product. Rows are sent ~2 s apart because the sheet
+    // stamps each with its own time to the second, and that stamp is what
+    // keeps every row's auto-challan separate.
+    const post = it => fetch(APPS_SCRIPT_URL, {
+      method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'supervisorDispatchAppend', date, party: v('sva-party').trim(), pcs: it.pcs, size: it.size, wtPc: it.wtPc,
+        product: it.product, orderId: it.orderId, notes: [notes, shared].filter(Boolean).join(' · ') }),
+    }).catch(() => {});
+    items.forEach((it, i) => i === 0 ? post(it) : setTimeout(() => post(it), i * 2200));
+    _svaItems = [];
+    closeSvAddEntry();
+    const wait = (items.length - 1) * 2200;
+    [3000, 8000, 15000].forEach(ms => setTimeout(() => fetchSupervisorLog(), ms + wait));
+    alert(`✅ ${items.length > 1 ? items.length + ' products saved' : 'Entry saved'} — ${items.length > 1 ? 'they appear' : 'it appears'} in the register in a few seconds.${items.length > 1 ? ' Keep this page open until then.' : ''}`);
+    return;
   } else {
     const date = _svToMDY(v('svp-date'));
     if (!date) { msg.innerHTML = '⚠️ Pick a date.'; return; }

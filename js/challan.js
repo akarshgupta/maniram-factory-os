@@ -570,7 +570,15 @@ function renderChallansTab() {
     const curMonth = todayStr.slice(0, 7);
     _chMonthFilter = allMonths.includes(curMonth) ? curMonth : (allMonths[0] || 'all');
   }
-  const filtered = _chMonthFilter === 'all' ? challanList : challanList.filter(c => _chMonthKey(c.date) === _chMonthFilter);
+  // A search looks through every month — you're hunting for one challan
+  const q  = typeof orderSearchQuery !== 'undefined' ? orderSearchQuery : '';
+  const qs = q.replace(/[\s.,()*×x-]/g, '');
+  const hit = c => {
+    const t = [c.dcNum, c.customer, c.product, c.size, c.orderId, c.colour, c.note, c.vehicle].filter(Boolean).join(' ').toLowerCase();
+    return t.includes(q) || (!!qs && t.replace(/[\s.,()*×x-]/g, '').includes(qs));
+  };
+  const filtered = q ? challanList.filter(hit)
+    : _chMonthFilter === 'all' ? challanList : challanList.filter(c => _chMonthKey(c.date) === _chMonthFilter);
 
   const totalQty = filtered.reduce((s, c) => s + (c.qty || 0), 0);
   const totalAmt = filtered.reduce((s, c) => s + (c.qty || 0) * (c.rate || 0), 0);
@@ -627,11 +635,11 @@ function renderChallansTab() {
       return n ? `<button class="btn-secondary" style="font-size:12px;color:var(--danger)" onclick="removeDuplicateChallans()" title="${d.challans.length} challan(s), ${d.invoices.length} invoice(s)">🧹 Remove ${n} duplicate${n > 1 ? 's' : ''}</button>` : '';
     })()}</div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
-      <div class="stat-card"><div class="stat-value">${filtered.length}</div><div class="stat-label">Challans Issued${_chMonthFilter !== 'all' ? ' — ' + _chMonthLabel(_chMonthFilter) : ''}</div></div>
+      <div class="stat-card"><div class="stat-value">${filtered.length}</div><div class="stat-label">Challans${q ? ` matching "${q.replace(/</g, '&lt;')}" (all months)` : ` Issued${_chMonthFilter !== 'all' ? ' — ' + _chMonthLabel(_chMonthFilter) : ''}`}</div></div>
       <div class="stat-card"><div class="stat-value">${fmt0(totalQty)}</div><div class="stat-label">Total Boxes Dispatched</div></div>
       ${totalAmt > 0 ? `<div class="stat-card"><div class="stat-value">₹${fmt0(totalAmt)}</div><div class="stat-label">Total Value Dispatched</div></div>` : '<div class="stat-card"><div class="stat-value">—</div><div class="stat-label">No rates recorded</div></div>'}
     </div>
-    ${!filtered.length ? `<div class="empty-state">No challans in ${_chMonthFilter === 'all' ? 'range' : _chMonthLabel(_chMonthFilter)}.</div>` : `
+    ${!filtered.length ? `<div class="empty-state">${q ? `No challans matching "${q.replace(/</g, '&lt;')}".` : `No challans in ${_chMonthFilter === 'all' ? 'range' : _chMonthLabel(_chMonthFilter)}.`}</div>` : `
     <div class="orders-table">
       <div class="table-header" style="grid-template-columns:110px 90px 1fr 1fr 90px 80px 100px">
         <div>DC No.</div><div>Date</div><div>Customer</div><div>Product</div><div>Order ID</div><div style="text-align:right">Qty</div><div>Actions</div>
