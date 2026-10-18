@@ -615,11 +615,27 @@ function createOrderFromDispatch() {
 
 // "· 1,630 sent · 3,370 left" for an order that's partly dispatched — so the
 // right order is obvious when the same item is on more than one order.
-function _svPendingNote(o) {
+// One order card: product name first, then size/colour/ply, qty as it is,
+// and the rate (big) + order date on the right — what you need to tell
+// two orders for the same box apart at a glance.
+function _svOrderCardHtml(o) {
   const sent = typeof getDispatchedQty === 'function' ? getDispatchedQty(o.id) : 0;
-  if (!sent) return '';
-  const left = Math.max(0, (parseInt(o.qty) || 0) - sent);
-  return ` <span style="font-weight:600;color:var(--muted)">· ${sent.toLocaleString('en-IN')} sent · ${left.toLocaleString('en-IN')} left</span>`;
+  const qty  = parseInt(o.qty) || 0;
+  const left = Math.max(0, qty - sent);
+  const spec = [o.size, o.colour ? (typeof colourDot === 'function' ? colourDot(o.colour) : '') + o.colour : '', o.ply ? o.ply + ' ply' : ''].filter(Boolean).join(' · ');
+  return `<div style="display:flex;gap:12px;align-items:flex-start;justify-content:space-between">
+      <div style="min-width:0;flex:1">
+        <div style="font-weight:800;font-size:15px;color:var(--navy);line-height:1.25">${o.product || o.size || '—'}</div>
+        <div style="font-size:12px;color:var(--text,#334155);margin-top:1px">${spec || '—'}</div>
+        <div style="font-size:12px;margin-top:3px"><strong>${qty.toLocaleString('en-IN')} pcs</strong>${sent ? ` <span style="color:var(--muted)">· ${sent.toLocaleString('en-IN')} sent ·</span> <strong style="color:#16A34A">${left.toLocaleString('en-IN')} left</strong>` : ''} <span style="color:var(--muted)">· ${o.status || '—'}</span></div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">${o.customer} · <span style="font-family:monospace">${o.id}</span>${o.date ? ' · delivery due ' + formatDate(o.date) : ''}</div>
+      </div>
+      <div style="text-align:right;flex:none">
+        <div style="font-size:18px;font-weight:800;color:var(--navy);font-family:monospace">${o.rate ? '₹' + o.rate : '—'}<span style="font-size:11px;font-weight:600;color:var(--muted)">/pc</span></div>
+        <div style="font-size:12px;font-weight:700;color:var(--navy);margin-top:2px">${o.orderDate ? formatDate(o.orderDate) : 'no order date'}</div>
+        <div style="font-size:10px;color:var(--muted)">ordered</div>
+      </div>
+    </div>`;
 }
 
 function _svLinkRow(o) {
@@ -627,10 +643,7 @@ function _svLinkRow(o) {
     <div onclick="linkDispatchToOrder('${o.id}')"
       style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border)"
       onmouseover="this.style.background='var(--hover-bg,#f5f7fa)'" onmouseout="this.style.background=''">
-      <div style="font-weight:700;font-size:14px;font-family:monospace">${o.size || '—'} <span style="font-family:inherit;color:var(--muted);font-weight:600">· ${o.status || '—'}</span> <span style="font-family:inherit;color:#16A34A;font-weight:700">· ${(o.qty || 0).toLocaleString('en-IN')} pcs</span></div>
-      <div style="font-weight:700;font-size:13px;color:var(--navy)">Ordered ${o.orderDate ? formatDate(o.orderDate) : '—'} · ${o.rate ? '₹' + o.rate + '/pc' : 'no rate on file'}${_svPendingNote(o)}</div>
-      ${o.date ? `<div style="font-size:11px;color:var(--muted)">Delivery due ${formatDate(o.date)}</div>` : ''}
-      <div style="font-size:11px;color:var(--muted)">${o.customer} · ${o.id}${o.product ? ' · ' + o.product : ''}${o.colour ? ' · ' + (typeof colourDot === 'function' ? colourDot(o.colour) : '') + o.colour : ''}${o.ply ? ' · ' + o.ply + ' ply' : ''}</div>
+      ${_svOrderCardHtml(o)}
     </div>`;
 }
 
@@ -1322,10 +1335,7 @@ function svAddPartyChanged() {
     ? '<div style="font-size:12px;color:var(--muted)">No open orders for this party — the entry will be saved against the party and product only.</div>'
     : `<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Open orders — tap one to fill it in</div>` +
       open.map(o => {
-        const left = Math.max(0, (parseInt(o.qty) || 0) - (typeof getDispatchedQty === 'function' ? getDispatchedQty(o.id) : 0));
-        return `<div data-oid="${o.id}" onclick="svAddPickOrder('${o.id}')" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;margin-bottom:5px;cursor:pointer">
-          <div style="font-weight:700;font-size:13px"><span style="font-family:monospace;color:var(--navy)">${o.id}</span> · ${o.product || '—'} <span style="font-weight:600;color:#16A34A">· ${left.toLocaleString('en-IN')} left</span></div>
-          <div style="font-size:11px;color:var(--muted)">${o.size || ''}${o.colour ? ' · ' + (typeof colourDot === 'function' ? colourDot(o.colour) : '') + o.colour : ''}${o.ply ? ' · ' + o.ply + ' ply' : ''} · ordered ${o.orderDate ? formatDate(o.orderDate) : '—'} · ₹${o.rate || 0}/pc</div></div>`;
+        return `<div data-oid="${o.id}" onclick="svAddPickOrder('${o.id}')" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;margin-bottom:5px;cursor:pointer">${_svOrderCardHtml(o)}</div>`;
       }).join('');
 }
 
