@@ -37,6 +37,7 @@ function onOrderSearch() {
   if (activeOrderTab === 'all')     renderOrders();
   if (activeOrderTab === 'history') renderOrderHistory();
   if (activeOrderTab === 'grouped') renderGroupedOrders();
+  if (activeOrderTab === 'challans' && typeof renderChallansTab === 'function') renderChallansTab();
 }
 
 // ── Helpers ──
@@ -563,7 +564,7 @@ function switchOrderTab(tab, e) {
   if (tab === 'history')    renderOrderHistory();
   // Show/hide search bar only for filterable tabs
   const searchBar = document.getElementById('order-search-bar');
-  if (searchBar) searchBar.style.display = ['all','history','grouped'].includes(tab) ? 'flex' : 'none';
+  if (searchBar) searchBar.style.display = ['all','history','grouped','challans'].includes(tab) ? 'flex' : 'none';
 }
 
 // ══════════════════════════════════════════════════════════════
