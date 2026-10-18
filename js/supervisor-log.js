@@ -181,6 +181,41 @@ function _svFifo(cands, reason) {
   return q ? { order: q[0], reason: reason + ' — oldest order first', queue: q } : { order: null, reason: 'ambiguous' };
 }
 
+// Same box size, however it's written ("20×14×28" = "20*14*28")
+function _svSameSize(a, b) {
+  const ka = typeof _dimsKey === 'function' ? _dimsKey(a) : '', kb = typeof _dimsKey === 'function' ? _dimsKey(b) : '';
+  return ka && kb ? ka === kb : _svFuzzyEq(a, b);
+}
+
+// Every still-open order for the same item as `o` (same party, product and
+// size) that already existed on the dispatch date, oldest first — so a
+// dispatch picked against any one of them uses up the oldest first.
+function _svSameItemQueue(o, eDate) {
+  if (!o || typeof orders === 'undefined') return [o];
+  const finished = typeof FINISHED_STATUSES !== 'undefined' ? FINISHED_STATUSES : ['Delivered', 'Dispatched', 'Cancelled'];
+  // Strict: exact product name, same size AND colour — "Jalpari" is not
+  // "Supreme Jalpari", and a Blue box is not the Red one
+  const n = v => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const group = orders.filter(x => x.id === o.id || (!finished.includes(x.status) &&
+    _svFuzzyEq(x.customer, o.customer) && n(x.product) === n(o.product) && n(x.colour) === n(o.colour) &&
+    (!o.size && !x.size || _svSameSize(x.size, o.size)) && _svOrderExistedBy(x, eDate)));
+  return _svOldestFirstQueue(group) || [o];
+}
+
+// Split a dispatch's pieces down a queue: each order takes what it still
+// needs, the last one takes whatever is left. Returns [{ o, take }].
+function _svFifoPlan(pcs, queue) {
+  let left = pcs;
+  const plan = [];
+  queue.forEach((qo, i) => {
+    if (left <= 0) return;
+    const remaining = Math.max(0, (parseInt(qo.qty) || 0) - (typeof getDispatchedQty === 'function' ? getDispatchedQty(qo.id) : 0));
+    const take = i === queue.length - 1 ? left : Math.min(left, remaining);
+    if (take > 0) { plan.push({ o: qo, take }); left -= take; }
+  });
+  return plan;
+}
+
 function _svMatchOrderByProduct(e) {
   if (typeof orders === 'undefined' || typeof FINISHED_STATUSES === 'undefined') return { order: null, reason: 'none' };
   const eDate = _svNormDate(e.date); // YYYY-MM-DD
@@ -309,7 +344,12 @@ function _svAutoCreateChallans() {
       // didn't exist yet — e.g. a late-logged historical dispatch where
       // the dropdown only offered orders created since. Falls through to
       // product/party matching below instead of forcing a bad link.
-      if (byId && _svOrderExistedBy(byId, _svNormDate(e.date))) { o = byId; matchedBy = 'Order ID'; }
+      if (byId && _svOrderExistedBy(byId, _svNormDate(e.date))) {
+        o = byId; matchedBy = 'Order ID';
+        // An older open order for the same item is used up first
+        const q = FINISHED_STATUSES.includes(byId.status) ? null : _svSameItemQueue(byId, _svNormDate(e.date));
+        if (q && q.length > 1) queue = q;
+      }
     }
     if (!o) {
       const m = _svMatchOrderByProduct(e);
@@ -325,14 +365,8 @@ function _svAutoCreateChallans() {
     // Same item on several open orders: use up the oldest first (its qty
     // and rate); anything beyond what it still needs goes to the next
     // order, and the newest order takes whatever is left over.
-    let left = e.pcs;
-    queue.forEach((qo, i) => {
-      if (left <= 0) return;
-      const remaining = Math.max(0, (parseInt(qo.qty) || 0) - (typeof getDispatchedQty === 'function' ? getDispatchedQty(qo.id) : 0));
-      const take = i === queue.length - 1 ? left : Math.min(left, remaining);
-      if (take <= 0) return;
-      _svCreateChallanFor(e, qo, 'oldest order first', take);
-      left -= take;
+    _svFifoPlan(e.pcs, queue).forEach(({ o: qo, take }) => {
+      _svCreateChallanFor(e, qo, `${matchedBy} — oldest order first`, take);
       created++;
     });
   });
@@ -628,7 +662,19 @@ function renderSvLinkResults(q) {
   const completedOrders = matched.filter(o => finished.includes(o.status)).slice(0, 40);
   if (!openOrders.length && !completedOrders.length) { el.innerHTML = '<div class="empty-state">No matching orders (or every match postdates this dispatch — it may need a new order instead).</div>'; return; }
 
-  let html = openOrders.map(_svLinkRow).join('');
+  // Orders for this dispatch's own product/size, oldest first, pinned on top
+  const sugg = entry && (entry.product || entry.size) ? (typeof orders !== 'undefined' ? orders : [])
+    .filter(o => !finished.includes(o.status) && _svOrderExistedBy(o, eDate))
+    .filter(o => (entry.product && _svFuzzyEq(o.product, entry.product)) ||
+                 (entry.size && _svSameSize(o.size, entry.size) && (!entry.party || _svFuzzyEq(o.customer, entry.party))))
+    .sort((a, b) => (a.orderDate || '').localeCompare(b.orderDate || '') || (a.id || '').localeCompare(b.id || '')) : [];
+  const head = t => `<div style="padding:8px 12px;background:var(--hover-bg,#f5f7fa);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px">${t}</div>`;
+  let html = '';
+  if (sugg.length) {
+    html += head(`Same product${entry.product ? ' (' + entry.product + ')' : ''} — oldest first, used up first`) + sugg.map(_svLinkRow).join('');
+    html += head('All matching orders');
+  }
+  html += openOrders.filter(o => !sugg.includes(o)).map(_svLinkRow).join('');
   if (completedOrders.length) {
     html += `<div style="padding:8px 12px;background:var(--hover-bg,#f5f7fa);border-top:2px solid var(--border);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px">Completed Orders</div>`;
     html += completedOrders.map(_svLinkRow).join('');
@@ -732,7 +778,14 @@ function linkDispatchToOrder(orderId) {
     if (typeof renderOrders === 'function') renderOrders();
     if (typeof renderInvoicingPage === 'function') renderInvoicingPage();
   } else {
-    _svCreateChallanFor(e, o, 'manual link');
+    const queue = FINISHED_STATUSES.includes(o.status) ? [o] : _svSameItemQueue(o, _svNormDate(e.date));
+    const plan  = _svFifoPlan(e.pcs, queue);
+    const simple = plan.length === 1 && plan[0].o.id === o.id;
+    if (!simple && plan.length && confirm(`Older orders for the same item are still open — use them up first?\n\n${plan.map(p => `${p.o.id} (ordered ${p.o.orderDate ? formatDate(p.o.orderDate) : '—'}, ₹${p.o.rate || 0}/pc): ${p.take.toLocaleString('en-IN')} pcs`).join('\n')}\n\nOK = oldest first as above · Cancel = put all ${e.pcs.toLocaleString('en-IN')} pcs on ${o.id}`)) {
+      plan.forEach(p => _svCreateChallanFor(e, p.o, 'manual link — oldest order first', p.take));
+    } else {
+      _svCreateChallanFor(e, o, 'manual link');
+    }
   }
   renderSupervisorLog(false);
 }
