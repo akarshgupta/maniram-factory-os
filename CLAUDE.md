@@ -49,6 +49,8 @@ The "Order ID" question is a **Dropdown**, not free text — Google Forms has no
 
 **Process costing:** the Staff Portal's ⚗️ Process Log tab (`js/staff-app.js`) is where the supervisor logs a process batch (Gum by default; any process) as two numbers — raw material used (kg) and approximate output produced — written via the `processLogAppend` action to the auto-created `ProcessLog` tab in the Orders spreadsheet. The office-side ⚗️ Process Costing page (`js/process-costing.js`) reads that tab and multiplies raw material kg by a ₹/kg rate the owner sets per process; like Job Costing's paper/conversion rates, that rate is a sticky localStorage assumption only, never written to a sheet, so it has to be re-entered per browser/device. This is separate from the "Gum / Stitching / Consumables" Expenses category (`js/expenses.js`), which tracks total cash spent, not per-batch unit cost.
 
+**Data Checks and the Assistant:** `js/health-check.js` runs integrity checks in the browser (🩺 Checks) and its 🔧 Fix panel repairs orders/challans/invoices; each `fix*` function takes a `silent` flag and returns what it did. `js/ai-agent.js` (🤖 Assistant) is a Claude tool-use chat that calls those same functions: it loads the official `@anthropic-ai/sdk` from jsDelivr's `+esm` build (pinned version) and uses the owner's own API key stored in localStorage only (`dangerouslyAllowBrowser`). Read tools run freely; every write tool waits for an Approve click in the chat.
+
 **Service worker (`sw.js`):** bump the `CACHE` version string on every release that changes shell files, and add any new HTML/JS/asset to the SHELL list. Install tolerates missing files, but a stale cache version means clients keep old code.
 
 ## Domain math
