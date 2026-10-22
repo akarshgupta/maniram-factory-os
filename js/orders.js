@@ -898,6 +898,14 @@ function markOrderComplete(orderId) {
   _finalizeOrderDelivered(o);
 }
 
+// Deleting a sheet row moves every row below it up by one — keep the
+// app's row numbers in step, or the next edit of a later order would
+// overwrite the row above it.
+function _shiftRowsAfterDelete(row) {
+  if (!row || row === 9999) return;
+  orders.forEach(o => { if (o.rowIndex && o.rowIndex !== 9999 && o.rowIndex > row) o.rowIndex--; });
+}
+
 // ── Delete order (app + sheet) ──
 function removeOrder(orderId) {
   const o = orders.find(x => x.id === orderId);
@@ -907,6 +915,7 @@ function removeOrder(orderId) {
   const delNo = parseInt((orderId.match(/MIORD(\d+)/i) || [])[1]) || 0;
   try { if (delNo > (parseInt(localStorage.getItem(LS_MAX_ORDER_NO)) || 0)) localStorage.setItem(LS_MAX_ORDER_NO, String(delNo)); } catch (e) {}
   orders = orders.filter(x => x.id !== orderId);
+  _shiftRowsAfterDelete(o.rowIndex);
   pendingOrderIds.delete(orderId);
   try {
     fetch(APPS_SCRIPT_URL, {
