@@ -257,16 +257,20 @@ function _hMoveChallanQty(dcNum, toId, qty) {
   return part.dcNum;
 }
 
-function fixMoveExcess(fromId, toId) {
+// `silent` (the in-app assistant, which asks for approval itself) skips the
+// confirm and the panel refresh, and every fix returns what it did.
+function fixMoveExcess(fromId, toId, silent) {
   const o = orders.find(x => x.id === fromId), to = orders.find(x => x.id === toId);
-  if (!o || !to) return;
+  if (!o || !to) return 'Order not found.';
   let excess = _hSent(fromId) - (parseInt(o.qty) || 0);
-  if (excess <= 0) return;
-  if (!confirm(`Move the extra ${excess.toLocaleString('en-IN')} pcs from ${o.id} to ${to.id} (${to.product || to.size}, ₹${to.rate || 0}/pc)?\n\nThe newest challans move first; one may be split in two.`)) return;
+  if (excess <= 0) return `${fromId} has no extra pieces.`;
+  const total = excess;
+  if (!silent && !confirm(`Move the extra ${excess.toLocaleString('en-IN')} pcs from ${o.id} to ${to.id} (${to.product || to.size}, ₹${to.rate || 0}/pc)?\n\nThe newest challans move first; one may be split in two.`)) return;
   challanList.filter(c => c.orderId === fromId).sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || '').localeCompare(a.createdAt || ''))
     .forEach(c => { if (excess <= 0) return; const take = Math.min(excess, c.qty || 0); _hMoveChallanQty(c.dcNum, toId, take); excess -= take; });
   _hAfterChange(fromId, toId);
-  openOrderFixer(fromId);
+  if (!silent) openOrderFixer(fromId);
+  return `Moved ${total} pcs from ${fromId} to ${toId}.`;
 }
 
 function fixMoveChallan(dcNum) {
@@ -280,34 +284,39 @@ function fixMoveChallan(dcNum) {
   openOrderFixer(fromId || sel.value);
 }
 
-function fixSetQty(id, q) {
+function fixSetQty(id, q, silent) {
   const o = orders.find(x => x.id === id);
-  if (!o || !confirm(`Change ${o.id}'s ordered quantity from ${(+o.qty).toLocaleString('en-IN')} to ${q.toLocaleString('en-IN')} pcs?`)) return;
+  if (!o) return 'Order not found.';
+  if (!silent && !confirm(`Change ${o.id}'s ordered quantity from ${(+o.qty).toLocaleString('en-IN')} to ${q.toLocaleString('en-IN')} pcs?`)) return;
   const prev = o.qty; o.qty = q;
   if (typeof logOrderEvent === 'function') logOrderEvent(id, 'Edited', `Qty ${prev} → ${q} (extra boxes accepted, Data Checks)`);
   if (typeof _pushOrderUpdate === 'function') _pushOrderUpdate(o);
   _hAfterChange(id);
-  openOrderFixer(id);
+  if (!silent) openOrderFixer(id);
+  return `${id} quantity changed from ${prev} to ${q}.`;
 }
 
-function fixCloseShort(id) {
+function fixCloseShort(id, silent) {
   const o = orders.find(x => x.id === id);
-  if (!o) return;
+  if (!o) return 'Order not found.';
   const s = _hSent(id), q = parseInt(o.qty) || 0;
   const note = `Closed short — ${s} of ${q} sent`;
   o.remarks = [o.remarks, note].filter(Boolean).join(' · ');
   if (typeof logOrderEvent === 'function') logOrderEvent(id, 'Closed Short', note + ' (Data Checks)');
   if (typeof _pushOrderUpdate === 'function') _pushOrderUpdate(o);
   _hAfterChange();
-  closeOrderFixer(); runHealthCheck(); openHealthCheck();
+  if (!silent) { closeOrderFixer(); runHealthCheck(); openHealthCheck(); }
+  return `${id} kept closed and marked short (${s} of ${q} sent).`;
 }
 
-function fixRemoveInvoiceLine(invId, idx) {
+function fixRemoveInvoiceLine(invId, idx, silent) {
   const iv = invoiceList.find(i => i.id === invId);
   const it = iv && iv.items[idx];
-  if (!it || !confirm(`Remove ${it.qty} pcs @ ₹${it.rate} (${it.desc}) from ${invId}?${iv.items.length === 1 ? '\n\nIt is the only line, so the whole invoice is deleted.' : ''}\n\nYou can restore it from Recently Deleted.`)) return;
+  if (!it) return 'Invoice line not found.';
+  if (!silent && !confirm(`Remove ${it.qty} pcs @ ₹${it.rate} (${it.desc}) from ${invId}?${iv.items.length === 1 ? '\n\nIt is the only line, so the whole invoice is deleted.' : ''}\n\nYou can restore it from Recently Deleted.`)) return;
   const oid = it.orderId || iv.orderId;
-  if (iv.items.length === 1) { if (typeof _deleteInvoiceCore === 'function') _deleteInvoiceCore(invId); }
+  const whole = iv.items.length === 1;
+  if (whole) { if (typeof _deleteInvoiceCore === 'function') _deleteInvoiceCore(invId); }
   else {
     if (typeof trashRecord === 'function') trashRecord('invoiceLine', it, { invoiceId: iv.id });
     iv.items.splice(idx, 1); _hRecalcInvoice(iv);
@@ -315,29 +324,34 @@ function fixRemoveInvoiceLine(invId, idx) {
   }
   if (oid && typeof logOrderEvent === 'function') logOrderEvent(oid, 'Invoice Line Removed', `${invId} · ${it.qty} pcs @ ₹${it.rate} (Data Checks)`);
   _hAfterChange();
-  openOrderFixer(oid);
+  if (!silent) openOrderFixer(oid);
+  return `Removed ${it.qty} pcs @ ₹${it.rate} from ${invId}${whole ? ' (it was the only line, so the invoice was deleted)' : ''}.`;
 }
 
 // Same order ID on two rows: delete the copy if identical, else give it a new number
-function fixDuplicateId(id) {
+function fixDuplicateId(id, silent) {
   const rows = orders.filter(o => o.id === id).sort((a, b) => (a.rowIndex || 0) - (b.rowIndex || 0));
-  if (rows.length < 2) return;
+  if (rows.length < 2) return `${id} is only on one row.`;
+  let did;
   const dup = rows[rows.length - 1];
   const f = o => ['customer', 'product', 'size', 'ply', 'colour', 'weight', 'qty', 'rate', 'date', 'orderDate'].map(k => String(o[k] || '')).join('|');
   if (f(rows[0]) === f(dup)) {
-    if (!confirm(`Both ${id} rows are identical. Delete the extra one (sheet row ${dup.rowIndex})?`)) return;
+    if (!silent && !confirm(`Both ${id} rows are identical. Delete the extra one (sheet row ${dup.rowIndex})?`)) return;
+    did = `Deleted the extra identical ${id} row (sheet row ${dup.rowIndex}).`;
     orders.splice(orders.indexOf(dup), 1);
     if (typeof _shiftRowsAfterDelete === 'function') _shiftRowsAfterDelete(dup.rowIndex);
     fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'deleteOrder', id }) }).catch(() => {});
   } else {
     const newId = typeof generateOrderId === 'function' ? generateOrderId() : '';
-    if (!newId || !confirm(`The two ${id} rows are different orders. Give the later one (${dup.product || dup.size}, sheet row ${dup.rowIndex}) the new number ${newId}?\n\nChallans and invoices stay on ${id}.`)) return;
+    if (!newId || (!silent && !confirm(`The two ${id} rows are different orders. Give the later one (${dup.product || dup.size}, sheet row ${dup.rowIndex}) the new number ${newId}?\n\nChallans and invoices stay on ${id}.`))) return;
+    did = `The later ${id} row (${dup.product || dup.size}) is now ${newId}.`;
     dup.id = newId;
     if (typeof _pushOrderUpdate === 'function') _pushOrderUpdate(dup);
     if (typeof logOrderEvent === 'function') logOrderEvent(newId, 'Renumbered', `Was a second ${id} row (Data Checks)`);
   }
   _hAfterChange();
-  runHealthCheck(); openHealthCheck();
+  if (!silent) { runHealthCheck(); openHealthCheck(); }
+  return did;
 }
 
 function _hOrderOpt(x) {

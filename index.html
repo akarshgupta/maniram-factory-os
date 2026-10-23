@@ -126,6 +126,7 @@
     <div class="topbar-title" id="page-title">Dashboard</div>
     <div class="topbar-date" id="topbar-date"></div>
     <div style="display:flex;gap:8px;align-items:center;margin-left:auto">
+      <button id="ai-btn" onclick="openAiAgent()" style="background:var(--white);border:1px solid var(--border);color:var(--navy);font-weight:600;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer" title="Ask the AI assistant to look into or fix something">🤖 Assistant</button>
       <button id="health-btn" onclick="runHealthCheck();openHealthCheck()" style="background:var(--white);border:1px solid var(--border);color:var(--navy);font-weight:600;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer" title="Data checks">🩺 Checks</button>
       <button onclick="logout()" style="background:none;border:1px solid rgba(255,255,255,0.3);color:#fff;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;opacity:0.8" title="Logout">⏻ Logout</button>
     </div>
@@ -1847,6 +1848,7 @@
 <script src="js/ledger.js"></script>
 <script src="js/daily-report.js"></script>
 <script src="js/health-check.js"></script>
+<script src="js/ai-agent.js"></script>
 <script src="js/app.js"></script>
 
 </body>
