@@ -892,20 +892,33 @@ function renderProcessLog() {
 // ══════════════════════════════════════════════════════════════
 
 function staffInit() {
-  document.getElementById('staff-topbar-date').textContent =
-    new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
-
-  document.getElementById('dd-start').value = todayStr;
-  document.getElementById('pl-date').value  = todayStr;
-  document.getElementById('de-date').value  = todayStr;
-  document.getElementById('pe-date').value  = todayStr;
+  // Each step on its own: one missing element (e.g. a page and script from
+  // different releases still in the browser cache) must never stop the
+  // orders from loading — that left the portal stuck on "Loading orders...".
+  const step = (fn) => { try { fn(); } catch (e) { console.error('staffInit:', e); } };
+  step(() => {
+    document.getElementById('staff-topbar-date').textContent =
+      new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  });
+  ['dd-start', 'pl-date', 'de-date', 'pe-date'].forEach(id => step(() => { document.getElementById(id).value = todayStr; }));
 
   checkStaffAuth();
   if (staffIsLoggedIn()) {
     staffFetchOrders();
     setInterval(staffFetchOrders, 5 * 60 * 1000);
+    // Still loading after 20 s → say so instead of spinning forever
+    setTimeout(() => {
+      const el = document.getElementById('staff-orders-sync');
+      if (el && /Loading/.test(el.textContent)) el.innerHTML = '<div class="sync-dot error"></div><span>Orders are taking too long — check the internet connection, then press Ctrl+Shift+R to reload.</span>';
+    }, 20000);
   }
 }
+
+// Show a script error in the orders bar instead of failing silently
+window.addEventListener('error', e => {
+  const el = document.getElementById('staff-orders-sync');
+  if (el && /Loading/.test(el.textContent)) el.innerHTML = `<div class="sync-dot error"></div><span>Something went wrong (${String(e.message || '').replace(/</g, '&lt;')}) — press Ctrl+Shift+R to reload.</span>`;
+});
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', staffInit);
