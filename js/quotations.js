@@ -68,36 +68,7 @@ function generateQTId() {
 // RATE CALCULATOR LOGIC
 // ══════════════════════════════════════════════════════════════
 
-function calcBoxWeight(L, W, H, layers, withMargin) {
-  // Sheet dimensions
-  const plyCount = layers.length;
-  const singleL  = (L + W) * 2 + 2;
-  // Pasting machine rule (machine width 82"):
-  //   5/7/9-ply: single-piece limit 76" — beyond that box is made in
-  //   TWO PARTS, stitching margin 2" applied twice → +4 instead of +2.
-  //   3-ply: single-piece up to 80" (special cases run up to 82").
-  const limit    = plyCount >= 5 ? 76 : 82;
-  const twoPart  = singleL > limit;
-  const special  = plyCount < 5 && singleL > 80 && singleL <= 82; // 3-ply special zone
-  const sheetL   = twoPart ? (L + W) * 2 + 4 : singleL;
-  const sheetW = withMargin ? (W + H + 0.5) : (W + H);
-  const areaSqm = (sheetL * sheetW) / 1550;
-
-  // Layer weights: flat=liner, flute=medium (factor 1.5)
-  // 5-ply: L1(flat), F1(flute), L2(flat), F2(flute), L3(flat)
-  // 3-ply: L1(flat), F1(flute), L2(flat)
-  let totalWeight = 0;
-  const layerWeights = [];
-
-  layers.forEach((gsm, i) => {
-    const isFlute = (i % 2 === 1); // index 1,3 = flute
-    const w = isFlute ? gsm * areaSqm * 1.5 : gsm * areaSqm;
-    layerWeights.push({ gsm, type: isFlute ? 'Flute' : 'Liner', weight: w });
-    totalWeight += w;
-  });
-
-  return { sheetL, sheetW, areaSqm, layerWeights, totalWeight, totalKg: totalWeight / 1000, twoPart, special };
-}
+// calcBoxWeight() lives in config.js — shared with the staff portal's Box Weight tab
 
 function runRateCalculator() {
   // Inputs (convert mm→inches if needed)

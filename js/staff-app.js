@@ -750,53 +750,79 @@ function calcDelivery() {
 // ══════════════════════════════════════════════════════════════
 
 // Layers per ply type: 3ply = 3 layers, 5ply = 5, 7ply = 7
+// Same maths as the office Rate Calculator: calcBoxWeight() in config.js
+// (inches, (L+W)×2+2 sheet length with the two-part rule, liners at GSM,
+// flutes at GSM × 1.5). No paper rate or price here — rates stay office-only.
+let _wtUnit = 'inch';
+
+function setWtUnit(u) {
+  _wtUnit = u;
+  [['inch', 'wt-unit-inch'], ['mm', 'wt-unit-mm']].forEach(([k, id]) => {
+    const b = document.getElementById(id);
+    b.style.background = k === u ? 'var(--blue)' : 'transparent';
+    b.style.color = k === u ? '#fff' : 'var(--muted)';
+  });
+  document.querySelectorAll('.wt-unit').forEach(el => { el.textContent = u; });
+  calcWeight();
+}
+
+function renderWtLayers() {
+  const box = document.getElementById('wt-layers');
+  if (!box) return;
+  const ply = parseInt(document.getElementById('wt-ply').value) || 5;
+  const prev = [...box.querySelectorAll('input')].map(i => i.value);
+  box.innerHTML = Array.from({ length: ply }, (_, i) => `
+    <div class="form-group"><label class="form-label" style="display:block">Layer ${i + 1} — ${i % 2 ? 'Flute' : 'Liner'} GSM</label>
+      <input class="form-input" type="number" id="wt-gsm-${i + 1}" value="${prev[i] || ''}" placeholder="e.g. 100" step="10" oninput="calcWeight()"></div>`).join('');
+}
+
+function fillWtGsm() {
+  const g = document.getElementById('wt-gsm-all').value;
+  if (!g) return;
+  document.querySelectorAll('#wt-layers input').forEach(i => { i.value = g; });
+  calcWeight();
+}
+
 function calcWeight() {
-  const L   = parseFloat(document.getElementById('wt-l').value);
-  const W   = parseFloat(document.getElementById('wt-w').value);
-  const H   = parseFloat(document.getElementById('wt-h').value);
-  const ply = parseInt(document.getElementById('wt-ply').value) || 3;
-  const gsm = parseFloat(document.getElementById('wt-gsm').value) || 120;
-  const qty = parseInt(document.getElementById('wt-qty').value) || 0;
   const res = document.getElementById('wt-result');
+  if (!res) return;
+  const conv = v => _wtUnit === 'mm' ? v / 25.4 : v;
+  const num = id => parseFloat(document.getElementById(id)?.value) || 0;
+  const L = conv(num('wt-l')), W = conv(num('wt-w')), H = conv(num('wt-h'));
+  const reel = num('wt-reel') ? conv(num('wt-reel')) : 0;
+  const ply = parseInt(document.getElementById('wt-ply').value) || 5;
+  const layers = Array.from({ length: ply }, (_, i) => num(`wt-gsm-${i + 1}`));
+  const qty = parseInt(document.getElementById('wt-qty').value) || 0;
 
   if (!L || !W || !H) { res.style.display = 'none'; return; }
-
-  // Sheet area for a box: 2*(L*W + L*H + W*H) in cm², converted to m²
-  // A corrugated sheet is formed by: top liner + flutes + bottom liner
-  // For 3ply: 2 liners + 1 fluted medium (flute adds ~30% length)
-  // Simplified industry formula: total area = (2*(L+W) + 4cm joins) * (W+H) * ply_factor
-  // Using RSC (Regular Slotted Container) blank area:
-  //   blank width  = 2*(L + W) + join allowance (3cm)
-  //   blank height = H + W + join allowance (2cm)
-  const blankW  = 2 * (L + W) + 3;   // cm
-  const blankH  = H + W + 2;          // cm
-  const areaCm2 = blankW * blankH;    // cm²
-  const areaM2  = areaCm2 / 10000;    // m²
-
-  // Layers: 3ply=3, 5ply=5, 7ply=7; fluted layers add ~30% area for the wave
-  const fluteLayers = Math.floor(ply / 2);   // 3ply→1, 5ply→2, 7ply→3
-  const linerLayers = ply - fluteLayers;      // 3ply→2, 5ply→3, 7ply→4
-  const totalArea   = areaM2 * (linerLayers + fluteLayers * 1.30);
-
-  const weightG  = totalArea * gsm;         // grams
-  const weightKg = weightG / 1000;
-
-  document.getElementById('wt-per-box').textContent = weightG >= 1000
-    ? weightKg.toFixed(2) + ' kg'
-    : Math.round(weightG) + ' gm';
   res.style.display = 'block';
+  if (layers.some(g => !g)) { res.innerHTML = '<div class="calc-result"><div class="calc-result-label">Enter the GSM of every layer</div></div>'; return; }
 
-  if (qty > 0) {
-    const batchKg = weightKg * qty;
-    document.getElementById('wt-batch').textContent = batchKg >= 1000
-      ? (batchKg / 1000).toFixed(2) + ' tonne'
-      : batchKg.toFixed(1) + ' kg';
-    document.getElementById('wt-note').textContent =
-      `${qty.toLocaleString('en-IN')} boxes × ${weightG >= 1000 ? weightKg.toFixed(2) + ' kg' : Math.round(weightG) + ' gm'} each`;
-    document.getElementById('wt-batch-block').style.display = 'block';
-  } else {
-    document.getElementById('wt-batch-block').style.display = 'none';
-  }
+  const r = calcBoxWeight(L, W, H, layers, document.getElementById('wt-margin').checked);
+  const f = n => +n.toFixed(2);
+  const kg = r.totalWeight / 1000;
+  const fmtW = g => g.toLocaleString('en-IN', { maximumFractionDigits: 1 }) + ' gm' + (g >= 1000 ? ` (${(g / 1000).toFixed(2)} kg)` : '');
+  const reelOk = reel ? Math.abs(reel - r.sheetW) < 0.6 : null;
+
+  res.innerHTML = `
+    ${r.twoPart ? `<div style="padding:8px 12px;border-radius:8px;background:#FFF7E6;border:1px solid #F5C06B;font-size:12px;margin-bottom:10px">✂️ <strong>Two-part box</strong> — sheet length is over the single-piece limit, so it is made in 2 pieces (Sheet L = (L+W)×2+4).</div>`
+      : r.special ? `<div style="padding:8px 12px;border-radius:8px;background:#FFF7E6;border:1px solid #F5C06B;font-size:12px;margin-bottom:10px">⚠️ <strong>Tight</strong> — 3-ply sheet ${f(r.sheetL)}" is above 80" (machine max 82").</div>` : ''}
+    <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:10px">
+      <div><div style="font-size:11px;color:var(--muted)">Sheet size (W × L)</div><div style="font-size:16px;font-weight:700">${f(r.sheetW)}" × ${f(r.sheetL)}"</div></div>
+      <div><div style="font-size:11px;color:var(--muted)">Area</div><div style="font-size:16px;font-weight:700">${r.areaSqm.toFixed(4)} sqm</div></div>
+    </div>
+    ${r.layerWeights.map((l, i) => `<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--border)">
+      <span style="color:var(--muted)">Layer ${i + 1} — ${l.type} (${l.gsm} GSM${l.type === 'Flute' ? ' ×1.5' : ''})</span><strong>${l.weight.toFixed(1)} gm</strong></div>`).join('')}
+    <div class="calc-result" style="margin-top:10px">
+      <div class="calc-result-label">Weight per Box</div>
+      <div class="calc-result-value">${fmtW(r.totalWeight)}</div>
+    </div>
+    ${qty > 0 ? `<div class="calc-result" style="margin-top:10px">
+      <div class="calc-result-label">Total for ${qty.toLocaleString('en-IN')} boxes</div>
+      <div class="calc-result-value">${kg * qty >= 1000 ? (kg * qty / 1000).toFixed(2) + ' tonne' : (kg * qty).toFixed(1) + ' kg'}</div>
+    </div>` : ''}
+    ${reel ? `<div style="margin-top:10px;padding:8px 12px;border-radius:8px;font-size:12px;background:${reelOk ? '#F0FDF4' : '#FEF2F2'};border:1px solid ${reelOk ? '#86EFAC' : '#FECACA'}">
+      ${reelOk ? '✅ Reel size matches' : '⚠️ Reel size does not match'} — sheet width ${f(r.sheetW)}", reel ${f(reel)}"${reelOk ? '' : ` (off by ${Math.abs(reel - r.sheetW).toFixed(1)}")`}</div>` : ''}`;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -901,6 +927,7 @@ function staffInit() {
       new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
   });
   ['dd-start', 'pl-date', 'de-date', 'pe-date'].forEach(id => step(() => { document.getElementById(id).value = todayStr; }));
+  step(renderWtLayers);
 
   checkStaffAuth();
   if (staffIsLoggedIn()) {
