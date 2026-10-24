@@ -1336,7 +1336,7 @@ function staffInit() {
   // orders from loading — that left the portal stuck on "Loading orders...".
   const step = (fn) => { try { fn(); } catch (e) { console.error('staffInit:', e); } };
   step(() => {
-    document.getElementById('staff-topbar-date').textContent =
+    document.getElementById('staff-topbar-date').textContent = '📅 ' +
       new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
   });
   ['dd-start', 'pl-date', 'de-date', 'pe-date'].forEach(id => step(() => { document.getElementById(id).value = todayStr; }));
