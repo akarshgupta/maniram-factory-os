@@ -476,6 +476,8 @@ function onDeParty(force) {
   // input + change both fire; re-drawing for the same party on blur would
   // swallow the tap on an order card that caused the blur
   if (!force && party === _deLastParty) return;
+  // Products already added were for the previous party — start the vehicle over
+  if (!force && _deItems.length && _deKey(party) !== _deKey(_deLastParty)) { _deItems = []; _deRenderItems(); }
   _deLastParty = party;
   const box = document.getElementById('de-orders');
   _deSelectedOrder = null; _deSetMode('');
@@ -511,51 +513,107 @@ function _deNextOrderId() {
   return 'MIORD' + String(max + 1).padStart(3, '0');
 }
 
+// Products already added to this vehicle (➕ Add another product)
+let _deItems = [];
+
+// The product currently filled in, or an error message
+function _deCurrentItem() {
+  const v = id => (document.getElementById(id)?.value || '').trim();
+  const pcs = parseInt(v('de-pcs')) || 0, wtPc = parseFloat(v('de-wtpc')) || 0;
+  if (!_deMode) return 'Tap an order, or choose one of the two options under it.';
+  if (pcs <= 0)  return 'Enter pieces dispatched.';
+  if (wtPc <= 0) return 'Enter the weight per piece.';
+  if (_deMode === 'order') {
+    if (!_deSelectedOrder) return 'Tap an order.';
+    const o = _deSelectedOrder;
+    return { mode: 'order', o, pcs, wtPc, label: `${o.product || o.size} (${o.id})` };
+  }
+  if (_deMode === 'new') {
+    const product = v('de-n-product'), size = v('de-n-size'), qty = parseInt(v('de-n-qty')) || 0;
+    if (!product && !size) return 'Enter the new order\'s product or size.';
+    if (qty <= 0) return 'Enter the quantity ordered.';
+    return { mode: 'new', n: { product, size, colour: v('de-n-colour'), ply: v('de-n-ply'), qty }, pcs, wtPc, label: `${product || size} (new order)` };
+  }
+  const product = v('de-free-product'), size = v('de-free-size');
+  if (!product && !size) return 'Type the product name or size.';
+  return { mode: 'free', f: { product, size }, pcs, wtPc, label: `${product || size} (no order)` };
+}
+
+function _deClearItemFields() {
+  ['de-pcs', 'de-wtpc', 'de-free-product', 'de-free-size', 'de-n-product', 'de-n-size', 'de-n-colour', 'de-n-qty'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  _deSelectedOrder = null; _deSetMode('');
+}
+
+function _deRenderItems() {
+  const el = document.getElementById('de-items');
+  if (!el) return;
+  el.innerHTML = !_deItems.length ? '' :
+    `<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:5px">In this vehicle — ${_deItems.length} product${_deItems.length > 1 ? 's' : ''} added</div>` +
+    _deItems.map((it, i) => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:5px;font-size:13px;background:#F0FDF4">
+      <div><strong>${it.label}</strong> · ${it.pcs.toLocaleString('en-IN')} pcs · ${it.wtPc} gm/pc</div>
+      <button class="btn-secondary" style="font-size:12px;padding:3px 9px;color:var(--danger)" onclick="_deItems.splice(${i},1);_deRenderItems()" title="Remove">✕</button></div>`).join('') +
+    `<div style="font-size:11px;color:var(--muted);margin:2px 0 10px">Pick the next product above, or just Save.</div>`;
+}
+
+function addDeItem() {
+  const msg = document.getElementById('de-msg');
+  if (!(document.getElementById('de-party')?.value || '').trim()) { msg.innerHTML = '⚠️ Pick the party first.'; return; }
+  const it = _deCurrentItem();
+  if (typeof it === 'string') { msg.innerHTML = '⚠️ ' + it; return; }
+  msg.innerHTML = '';
+  _deItems.push(it);
+  _deClearItemFields();
+  _deRenderItems();
+}
+
 function saveDispatchEntry() {
   const msg = document.getElementById('de-msg');
   msg.innerHTML = '';
   const v = id => (document.getElementById(id)?.value || '').trim();
   const party = v('de-party');
   if (!party) { msg.innerHTML = '⚠️ Pick the party first.'; return; }
-  if (!_deMode) { msg.innerHTML = '⚠️ Tap an order, or choose one of the two options under it.'; return; }
   const dateVal = document.getElementById('de-date').value;
-  const pcs     = parseInt(v('de-pcs')) || 0;
-  const wtPc    = parseFloat(v('de-wtpc')) || 0;
-  if (!dateVal)  { msg.innerHTML = '⚠️ Pick a date.'; return; }
-  if (pcs <= 0)  { msg.innerHTML = '⚠️ Enter pieces dispatched.'; return; }
-  if (wtPc <= 0) { msg.innerHTML = '⚠️ Enter the weight per piece.'; return; }
+  if (!dateVal) { msg.innerHTML = '⚠️ Pick a date.'; return; }
+
+  // Everything added to the vehicle, plus whatever is filled in right now
+  const cur = _deCurrentItem();
+  const curFilled = _deMode || v('de-pcs') || v('de-wtpc');
+  if (typeof cur === 'string' && (curFilled || !_deItems.length)) { msg.innerHTML = '⚠️ ' + cur; return; }
+  const items = _deItems.concat(typeof cur === 'string' ? [] : [cur]);
 
   const post = body => fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {});
-  let o = _deSelectedOrder, label;
+  const d = new Date(), today = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+  const notes = v('de-notes');
+  const shared = items.length > 1 ? `Same vehicle as ${items.length - 1} other product${items.length > 2 ? 's' : ''}` : '';
 
-  if (_deMode === 'new') {
-    const product = v('de-n-product'), size = v('de-n-size'), qty = parseInt(v('de-n-qty')) || 0;
-    if (!product && !size) { msg.innerHTML = '⚠️ Enter the new order\'s product or size.'; return; }
-    if (qty <= 0) { msg.innerHTML = '⚠️ Enter the quantity ordered.'; return; }
-    const d = new Date(), dd = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
-    o = { id: _deNextOrderId(), customer: party, product, size, ply: v('de-n-ply'), colour: v('de-n-colour'), qty, status: 'New', priority: 'Normal', orderDate: todayStr };
-    // Same row shape as the office's new-order form; rate left blank on purpose
-    post({ id: o.id, customer: o.customer, product, size, ply: o.ply, colour: o.colour, weight: wtPc || '', qty, rate: '', twoPart: false,
-           date: '', orderDate: dd, status: 'New', priority: 'Normal', reelSize: '', reservedKg: 0, remarks: 'Added from the staff portal — rate not set' });
-    staffOrders.push(o);
-    label = `new order ${o.id}`;
-  } else if (_deMode === 'order') {
-    if (!o) { msg.innerHTML = '⚠️ Tap an order.'; return; }
-    label = o.id;
-  }
+  // One sheet row per product, ~2 s apart: the sheet stamps each row with its
+  // time to the second, and that stamp keeps every row's challan separate.
+  // A new order's row is sent first, so the office finds it when the dispatch arrives.
+  items.forEach((it, i) => {
+    let o = it.o;
+    if (it.mode === 'new') {
+      o = { id: _deNextOrderId(), customer: party, ...it.n, status: 'New', priority: 'Normal', orderDate: todayStr };
+      staffOrders.push(o);
+      post({ id: o.id, customer: party, product: o.product, size: o.size, ply: o.ply, colour: o.colour, weight: it.wtPc || '', qty: o.qty, rate: '', twoPart: false,
+             date: '', orderDate: today, status: 'New', priority: 'Normal', reelSize: '', reservedKg: 0, remarks: 'Added from the staff portal — rate not set' });
+      it.label = `${o.product || o.size} (new order ${o.id})`;
+    }
+    const payload = it.mode === 'free'
+      ? { date: _toMDY(dateVal), party, pcs: it.pcs, size: it.f.size, wtPc: it.wtPc, product: it.f.product, orderId: '' }
+      : { date: _toMDY(dateVal), party: o.customer, pcs: it.pcs, size: o.size, wtPc: it.wtPc, product: o.product, orderId: o.id };
+    payload.notes = [notes, shared].filter(Boolean).join(' · ');
+    setTimeout(() => post(Object.assign({ action: 'supervisorDispatchAppend' }, payload)), i * 2200 + (it.mode === 'new' ? 1200 : 0));
+  });
 
-  const payload = _deMode === 'free'
-    ? { date: _toMDY(dateVal), party, pcs, size: v('de-free-size'), wtPc, product: v('de-free-product'), orderId: '', notes: v('de-notes') }
-    : { date: _toMDY(dateVal), party: o.customer, pcs, size: o.size, wtPc, product: o.product, orderId: o.id, notes: v('de-notes') };
-  if (_deMode === 'free' && !payload.product && !payload.size) { msg.innerHTML = '⚠️ Type the product name or size.'; return; }
-  // A new order's row goes first, so the office finds it when the dispatch arrives
-  setTimeout(() => post(Object.assign({ action: 'supervisorDispatchAppend' }, payload)), _deMode === 'new' ? 1500 : 0);
-
-  msg.innerHTML = `✅ Saved — ${pcs.toLocaleString('en-IN')} pcs for ${_deMode === 'free' ? party + ' (no order)' : label}. The office sees it within a few minutes.`;
-  ['de-pcs', 'de-wtpc', 'de-notes', 'de-free-product', 'de-free-size', 'de-n-product', 'de-n-size', 'de-n-colour', 'de-n-qty'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  msg.innerHTML = `✅ Saved — ${items.map(it => `${it.pcs.toLocaleString('en-IN')} pcs ${it.label}`).join(', ')}. The office sees ${items.length > 1 ? 'them' : 'it'} within a few minutes.${items.length > 1 ? ' Keep this page open for a few seconds.' : ''}`;
+  _deItems = [];
+  _deRenderItems();
+  _deClearItemFields();
+  const el = document.getElementById('de-notes'); if (el) el.value = '';
   _deFillPartyList();
   onDeParty(true);
-  [3000, 8000].forEach(ms => setTimeout(() => { staffFetchDispatchLog(); }, ms));
+  const wait = (items.length - 1) * 2200;
+  [3000, 8000].forEach(ms => setTimeout(() => { staffFetchDispatchLog(); }, ms + wait));
 }
 
 // "10/16/2026 14:03:05" → sortable number; the raw string sorts 9/30 after 10/1

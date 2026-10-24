@@ -175,6 +175,8 @@
             <div class="form-group"><label class="form-label" style="display:block">Pieces dispatched</label><input class="form-input" type="number" id="de-pcs" placeholder="e.g. 1000" min="1"></div>
             <div class="form-group"><label class="form-label" style="display:block">Weight per piece (gm)</label><input class="form-input" type="number" id="de-wtpc" placeholder="e.g. 650" step="0.1" min="0"></div>
           </div>
+          <button class="btn-secondary" style="width:100%;margin:-2px 0 10px;font-size:13px" onclick="addDeItem()" title="Several products in the same vehicle — add this one to the list and pick the next">➕ Add another product (same vehicle)</button>
+          <div id="de-items"></div>
           <div class="form-group"><label class="form-label" style="display:block">Notes (optional)</label><textarea class="form-input" id="de-notes" rows="2" placeholder="Vehicle no., driver, short delivery, anything the office should know"></textarea></div>
           <button class="btn-primary" style="width:100%;padding:12px;font-size:15px;margin-top:6px" onclick="saveDispatchEntry()">💾 Save Dispatch</button>
           <div id="de-msg" style="margin-top:8px;font-size:13px"></div>
