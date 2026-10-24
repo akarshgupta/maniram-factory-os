@@ -238,3 +238,37 @@ function calcBoxWeight(L, W, H, layers, withMargin) {
 
   return { sheetL, sheetW, areaSqm, layerWeights, totalWeight, totalKg: totalWeight / 1000, twoPart, special };
 }
+
+// ── Vehicles — shared by the office 🚛 Vehicles page and the staff portal's
+// dispatch form. Stored in the Orders spreadsheet's "Vehicles" tab (created by
+// Code.gs on the first saveVehicle); cached in localStorage for offline use.
+const LS_VEHICLES = 'mi_vehicles_v1';
+function vehicleKey(v) { return String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+function loadCachedVehicles() { try { return JSON.parse(localStorage.getItem(LS_VEHICLES) || '[]'); } catch { return []; } }
+async function fetchVehicleList() {
+  try {
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent('Vehicles!A1:G500')}?key=${API_KEY}&_=${Date.now()}`;
+    const json = await (await fetch(url)).json();
+    if (json.error) return loadCachedVehicles();   // tab not created yet
+    const list = (json.values || []).slice(1).filter(r => r[0]).map(r => ({
+      number: String(r[0]).toUpperCase().trim(), type: r[1] || '', owner: r[2] || '', ownerPhone: r[3] || '',
+      driver: r[4] || '', driverPhone: r[5] || '', added: r[6] || '',
+    }));
+    // Keep vehicles added on this device that the sheet hasn't caught up with yet
+    const keys = new Set(list.map(v => vehicleKey(v.number)));
+    loadCachedVehicles().filter(v => v._pending && !keys.has(vehicleKey(v.number))).forEach(v => list.push(v));
+    list.sort((a, b) => a.number.localeCompare(b.number));
+    try { localStorage.setItem(LS_VEHICLES, JSON.stringify(list)); } catch (e) {}
+    return list;
+  } catch (e) { return loadCachedVehicles(); }
+}
+function saveVehicleRecord(v) {
+  const list = loadCachedVehicles().filter(x => vehicleKey(x.number) !== vehicleKey(v.number));
+  list.push({ ...v, number: String(v.number).toUpperCase().trim(), _pending: true });
+  list.sort((a, b) => a.number.localeCompare(b.number));
+  try { localStorage.setItem(LS_VEHICLES, JSON.stringify(list)); } catch (e) {}
+  fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'saveVehicle', ...v }) }).catch(() => {});
+  return list;
+}
+function vehicleLabel(v) { return [v.number, v.type, v.driver || v.owner].filter(Boolean).join(' · '); }
