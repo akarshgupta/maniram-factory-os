@@ -763,6 +763,7 @@ function renderOrders() {
         <div style="min-width:0;flex:1">
           <div style="font-weight:600;font-size:13px">${o.customer}${o.priority === 'Urgent' ? '<span class="priority-urgent">URG</span>' : ''}</div>
           <div style="font-size:11px;color:var(--muted)">${o.product || '—'}${o.orderDate ? ' · <span style="color:var(--muted);font-size:10px">Ordered: ' + _fmtOrderDate(o.orderDate) + '</span>' : ''}</div>
+          ${_noRateBadge(o)}
           ${stockBadgeHtml(o)}
           ${dispBar}
           ${nearlyDoneBanner}
@@ -955,6 +956,14 @@ function reopenOrder(orderId) {
   if (typeof updateDashboardOrders === 'function') updateDashboardOrders();
 }
 
+// Orders with no rate (e.g. added by the supervisor from the staff portal)
+// can't be invoiced until a rate is set — flag them wherever they're listed.
+function _noRateBadge(o) {
+  if (parseFloat(o.rate) > 0) return '';
+  const staff = /staff portal/i.test(o.remarks || '');
+  return `<div onclick="event.stopPropagation();openEditModal('${o.id}')" title="Click to set the rate" style="display:inline-block;margin-top:3px;padding:1px 8px;border-radius:10px;background:#FEF3C7;border:1px solid #F59E0B;color:#92400E;font-size:10px;font-weight:700;cursor:pointer">⚠ No rate set${staff ? ' · added by staff' : ''} — set rate</div>`;
+}
+
 // "20×14×28" and "20*14*28" compare equal
 function _normDimsSafe(v) { return String(v || '').toLowerCase().replace(/[×x*\s]/g, ''); }
 
@@ -1085,6 +1094,7 @@ function renderGroupedOrders() {
         <div style="font-family:monospace;font-size:11px;color:var(--muted)">${o.id}</div>
         <div>
           <div style="font-weight:600;font-size:12px">${o.product || '—'}</div>
+          ${_noRateBadge(o)}
           ${stockBadgeHtml(o)}
           ${dispBar}
         </div>

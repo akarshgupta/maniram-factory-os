@@ -137,12 +137,11 @@ async function staffFetchOrders() {
       date:     header.findIndex(h => h.includes('delivery')),
       status:   header.findIndex(h => h === 'status'),
       priority: header.findIndex(h => h.includes('priority')),
+      orderDate: header.findIndex(h => h === 'orderdate' || h.includes('order date')),
     };
 
-    // `customer` is kept in memory only to fill in the Dispatch/Production
-    // Entry payloads (the sheet row format requires it, same as a Google
-    // Form submission would) — it is never rendered anywhere in this portal.
-    // `rate` is intentionally never parsed; nothing here needs it.
+    // Party names are shown in the Dispatch Entry party picker (the owner
+    // asked for it); `rate` is intentionally never parsed — rates stay office-only.
     // Filter on Customer, not Order ID, matching fetchOrders() in js/orders.js
     // — guards against stray non-order rows (e.g. a misfiled purchase row)
     // and split continuation rows that carry specs but no ID/customer.
@@ -157,7 +156,9 @@ async function staffFetchOrders() {
       delivery: col.date     >= 0 ? _staffParseSheetDate(r[col.date] || '') : '',
       status:   col.status   >= 0 ? (r[col.status]   || 'New') : 'New',
       priority: col.priority >= 0 ? (r[col.priority] || 'Normal') : 'Normal',
+      orderDate: col.orderDate >= 0 ? _staffParseSheetDate(r[col.orderDate] || '') : '',
     }));
+    _deFillPartyList();
 
     if (syncEl) syncEl.innerHTML = '<div class="sync-dot ok"></div><span>Updated just now</span>';
     renderStaffOrders();
@@ -432,87 +433,129 @@ function _toMDY(iso) {
 }
 
 // ── Dispatch Entry ──
-let _deFiltered      = [];
+// Party first (dropdown of every party on the Orders sheet), then that
+// party's pending orders, oldest first. If the order isn't there: add a new
+// order (saved to the Orders sheet with no rate — the office sets it), or
+// log the dispatch against the party without an order (the office links it).
+// Rates are never shown here.
+let _deMode = '';          // 'order' | 'new' | 'free'
 let _deSelectedOrder = null;
+const _deKey = n => String(n || '').toLowerCase().replace(/^m\/s\.?\s*/, '').replace(/[^a-z0-9]/g, '');
+const _deDone = ['Delivered', 'Dispatched', 'Cancelled'];
 
-function onDeOrderInput() {
-  const val = (document.getElementById('de-order-search')?.value || '').trim().toLowerCase();
-  const dd  = document.getElementById('de-order-dropdown');
-  const open = staffOrders.filter(o => !['Delivered','Dispatched','Cancelled'].includes(o.status));
-  _deFiltered = !val ? open : open.filter(o =>
-    o.id.toLowerCase().includes(val) || o.product.toLowerCase().includes(val) || o.size.toLowerCase().includes(val)
-  );
-  if (!_deFiltered.length) { dd.style.display = 'none'; return; }
-  dd.innerHTML = '';
-  _deFiltered.slice(0, 30).forEach(o => {
-    const item = document.createElement('div');
-    item.className = 'autocomplete-item';
-    item.innerHTML = `<strong style="font-family:monospace">${o.id}</strong> — ${o.product} · ${o.size}${o.colour ? ' · ' + o.colour : ''}`;
-    item.onmousedown = () => selectDeOrder(o.id);
-    dd.appendChild(item);
+function _deParties() {
+  const seen = {};
+  staffOrders.forEach(o => { const k = _deKey(o.customer); if (k && !seen[k]) seen[k] = o.customer.trim(); });
+  return Object.values(seen).sort((a, b) => a.localeCompare(b));
+}
+
+function _deFillPartyList() {
+  const dl = document.getElementById('de-party-list');
+  if (dl) dl.innerHTML = _deParties().map(p => `<option value="${p.replace(/"/g, '&quot;')}">`).join('');
+}
+
+// Pieces already logged against an order from this portal / the register
+function _deLogged(id) {
+  return (typeof staffDispatchLog !== 'undefined' ? staffDispatchLog : []).filter(e => e.orderId === id).reduce((s, e) => s + (e.pcs || 0), 0);
+}
+
+function _deSetMode(mode) {
+  _deMode = mode;
+  document.getElementById('de-new').style.display  = mode === 'new'  ? 'block' : 'none';
+  document.getElementById('de-free').style.display = mode === 'free' ? 'block' : 'none';
+  document.querySelectorAll('#de-orders [data-oid], #de-orders [data-mode]').forEach(el => {
+    const on = (mode === 'order' && _deSelectedOrder && el.dataset.oid === _deSelectedOrder.id) || el.dataset.mode === mode;
+    el.style.borderColor = on ? 'var(--blue)' : 'var(--border)';
+    el.style.background  = on ? '#EFF6FF' : '';
   });
-  dd.style.display = 'block';
+}
+
+let _deLastParty = null;
+function onDeParty(force) {
+  const party = (document.getElementById('de-party')?.value || '').trim();
+  // input + change both fire; re-drawing for the same party on blur would
+  // swallow the tap on an order card that caused the blur
+  if (!force && party === _deLastParty) return;
+  _deLastParty = party;
+  const box = document.getElementById('de-orders');
+  _deSelectedOrder = null; _deSetMode('');
+  if (!party) { box.innerHTML = ''; return; }
+  const known = _deParties().some(p => _deKey(p) === _deKey(party));
+  const open = staffOrders.filter(o => _deKey(o.customer) === _deKey(party) && !_deDone.includes(o.status))
+    .sort((a, b) => (a.orderDate || '').localeCompare(b.orderDate || '') || a.id.localeCompare(b.id));
+  const card = o => {
+    const logged = _deLogged(o.id);
+    return `<div data-oid="${o.id}" onclick="selectDeOrder('${o.id}')" style="padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;margin-bottom:6px;cursor:pointer">
+      <div style="font-weight:800;font-size:14px;color:var(--navy)">${o.product || o.size || '—'}</div>
+      <div style="font-size:12px">${[o.size, o.colour, o.ply ? o.ply + ' ply' : ''].filter(Boolean).join(' · ')}</div>
+      <div style="font-size:12px;margin-top:2px"><strong>${(o.qty || 0).toLocaleString('en-IN')} pcs</strong>${logged ? ` · ${logged.toLocaleString('en-IN')} logged so far` : ''}
+        <span style="color:var(--muted)"> · ${o.id}${o.orderDate ? ' · ordered ' + formatDate(o.orderDate) : ''}</span></div></div>`;
+  };
+  const opt = (mode, label) => `<div data-mode="${mode}" onclick="_deSetMode('${mode}')" style="padding:9px 11px;border:1.5px dashed var(--border);border-radius:9px;margin-bottom:6px;cursor:pointer;font-size:13px;font-weight:700;color:var(--navy)">${label}</div>`;
+  box.innerHTML =
+    (open.length ? `<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:5px">Pending orders — oldest first, tap one</div>${open.map(card).join('')}`
+      : `<div style="font-size:12px;color:var(--muted);margin-bottom:6px">${known ? 'No pending orders for this party.' : 'New party — not on any order yet.'}</div>`) +
+    `<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin:8px 0 5px">Order not in the list?</div>` +
+    opt('new', '➕ Add a new order for this party') +
+    opt('free', '📦 Dispatch for this party without an order');
 }
 
 function selectDeOrder(orderId) {
-  const o = staffOrders.find(x => x.id === orderId);
-  document.getElementById('de-order-dropdown').style.display = 'none';
-  if (!o) return;
-  _deSelectedOrder = o;
-  document.getElementById('de-order-search').value = '';
-  document.getElementById('de-selected-id').textContent   = o.id;
-  document.getElementById('de-selected-desc').textContent = ` — ${o.product} · ${o.size} · ${o.ply}ply${o.colour ? ' · ' + o.colour : ''}`;
-  document.getElementById('de-order-selected').style.display = 'block';
+  _deSelectedOrder = staffOrders.find(x => x.id === orderId) || null;
+  _deSetMode(_deSelectedOrder ? 'order' : '');
 }
 
-document.addEventListener('click', e => {
-  const grp = document.getElementById('de-order-search')?.closest('.form-group');
-  if (grp && !grp.contains(e.target)) {
-    const dd = document.getElementById('de-order-dropdown');
-    if (dd) dd.style.display = 'none';
-  }
-});
-
-function toggleDeNoOrder() {
-  const on = document.getElementById('de-noorder').checked;
-  document.getElementById('de-free').style.display = on ? 'block' : 'none';
-  if (on) { _deSelectedOrder = null; document.getElementById('de-order-selected').style.display = 'none'; }
+function _deNextOrderId() {
+  let max = 0;
+  staffOrders.forEach(o => { const m = String(o.id || '').match(/MIORD(\d+)/i); if (m) max = Math.max(max, +m[1]); });
+  return 'MIORD' + String(max + 1).padStart(3, '0');
 }
 
 function saveDispatchEntry() {
   const msg = document.getElementById('de-msg');
   msg.innerHTML = '';
   const v = id => (document.getElementById(id)?.value || '').trim();
-  const free = document.getElementById('de-noorder')?.checked;
-
-  if (!free && !_deSelectedOrder) { msg.innerHTML = '⚠️ Pick an order above first (or tick "Order not in the list").'; return; }
-  if (free && !v('de-free-product') && !v('de-free-size')) { msg.innerHTML = '⚠️ Type the product name or size.'; return; }
+  const party = v('de-party');
+  if (!party) { msg.innerHTML = '⚠️ Pick the party first.'; return; }
+  if (!_deMode) { msg.innerHTML = '⚠️ Tap an order, or choose one of the two options under it.'; return; }
   const dateVal = document.getElementById('de-date').value;
-  const pcs     = parseInt(document.getElementById('de-pcs').value)  || 0;
-  const wtPc    = parseFloat(document.getElementById('de-wtpc').value) || 0;
+  const pcs     = parseInt(v('de-pcs')) || 0;
+  const wtPc    = parseFloat(v('de-wtpc')) || 0;
   if (!dateVal)  { msg.innerHTML = '⚠️ Pick a date.'; return; }
   if (pcs <= 0)  { msg.innerHTML = '⚠️ Enter pieces dispatched.'; return; }
   if (wtPc <= 0) { msg.innerHTML = '⚠️ Enter the weight per piece.'; return; }
 
-  const o = _deSelectedOrder;
-  // Same columns as the office's Add Dispatch Entry — the office register
-  // reads this sheet, auto-makes a challan when the Order ID is set, and
-  // shows a 🔗 Link button for free-typed entries.
-  const payload = free
-    ? { date: _toMDY(dateVal), party: v('de-free-party'), pcs, size: v('de-free-size'), wtPc, product: v('de-free-product'), orderId: '', notes: v('de-notes') }
+  const post = body => fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {});
+  let o = _deSelectedOrder, label;
+
+  if (_deMode === 'new') {
+    const product = v('de-n-product'), size = v('de-n-size'), qty = parseInt(v('de-n-qty')) || 0;
+    if (!product && !size) { msg.innerHTML = '⚠️ Enter the new order\'s product or size.'; return; }
+    if (qty <= 0) { msg.innerHTML = '⚠️ Enter the quantity ordered.'; return; }
+    const d = new Date(), dd = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+    o = { id: _deNextOrderId(), customer: party, product, size, ply: v('de-n-ply'), colour: v('de-n-colour'), qty, status: 'New', priority: 'Normal', orderDate: todayStr };
+    // Same row shape as the office's new-order form; rate left blank on purpose
+    post({ id: o.id, customer: o.customer, product, size, ply: o.ply, colour: o.colour, weight: wtPc || '', qty, rate: '', twoPart: false,
+           date: '', orderDate: dd, status: 'New', priority: 'Normal', reelSize: '', reservedKg: 0, remarks: 'Added from the staff portal — rate not set' });
+    staffOrders.push(o);
+    label = `new order ${o.id}`;
+  } else if (_deMode === 'order') {
+    if (!o) { msg.innerHTML = '⚠️ Tap an order.'; return; }
+    label = o.id;
+  }
+
+  const payload = _deMode === 'free'
+    ? { date: _toMDY(dateVal), party, pcs, size: v('de-free-size'), wtPc, product: v('de-free-product'), orderId: '', notes: v('de-notes') }
     : { date: _toMDY(dateVal), party: o.customer, pcs, size: o.size, wtPc, product: o.product, orderId: o.id, notes: v('de-notes') };
+  if (_deMode === 'free' && !payload.product && !payload.size) { msg.innerHTML = '⚠️ Type the product name or size.'; return; }
+  // A new order's row goes first, so the office finds it when the dispatch arrives
+  setTimeout(() => post(Object.assign({ action: 'supervisorDispatchAppend' }, payload)), _deMode === 'new' ? 1500 : 0);
 
-  fetch(APPS_SCRIPT_URL, {
-    method: 'POST', mode: 'no-cors',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(Object.assign({ action: 'supervisorDispatchAppend' }, payload)),
-  }).catch(() => {});
-
-  msg.innerHTML = `✅ Saved — ${pcs.toLocaleString('en-IN')} pcs of ${free ? (payload.product || payload.size) : o.id} dispatched. The office sees it within a few minutes.`;
-  ['de-pcs', 'de-wtpc', 'de-notes', 'de-free-product', 'de-free-size', 'de-free-party'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-  document.getElementById('de-order-selected').style.display = 'none';
-  _deSelectedOrder = null;
-  [3000, 8000].forEach(ms => setTimeout(staffFetchDispatchLog, ms));
+  msg.innerHTML = `✅ Saved — ${pcs.toLocaleString('en-IN')} pcs for ${_deMode === 'free' ? party + ' (no order)' : label}. The office sees it within a few minutes.`;
+  ['de-pcs', 'de-wtpc', 'de-notes', 'de-free-product', 'de-free-size', 'de-n-product', 'de-n-size', 'de-n-colour', 'de-n-qty'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  _deFillPartyList();
+  onDeParty(true);
+  [3000, 8000].forEach(ms => setTimeout(() => { staffFetchDispatchLog(); }, ms));
 }
 
 // "10/16/2026 14:03:05" → sortable number; the raw string sorts 9/30 after 10/1
