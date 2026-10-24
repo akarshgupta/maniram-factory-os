@@ -165,6 +165,8 @@ async function staffFetchOrders() {
     if (syncEl) syncEl.innerHTML = '<div class="sync-dot ok"></div><span>Updated just now</span>';
     renderStaffOrders();
     updateTodayBanner();
+    // The dispatched bars need the dispatch register
+    if (!staffDispatchLog.length) staffFetchDispatchLog();
   } catch(e) {
     if (syncEl) syncEl.innerHTML = `<div class="sync-dot error"></div><span>Fetch failed: ${e.message}</span>`;
   }
@@ -245,10 +247,10 @@ async function staffFetchStock() {
 // TABS
 // ══════════════════════════════════════════════════════════════
 
-const STAFF_TABS = ['orders','dispatchentry','productionentry','stock','delivery','weight','process'];
+const STAFF_TABS = ['orders','dispatchentry','productionentry','stock','delivery','weight','process','vehicles'];
 const STAFF_TAB_TITLES = {
   orders: '📦 Orders', dispatchentry: '🚚 Dispatch Entry', productionentry: '🏭 Production Entry',
-  stock: '🧻 Reel Stock', delivery: '📅 Delivery Date', weight: '⚖️ Box Weight', process: '⚗️ Process Log',
+  stock: '🧻 Reel Stock', delivery: '📅 Delivery Date', weight: '⚖️ Box Weight', process: '⚗️ Process Log', vehicles: '🚛 Vehicles',
 };
 
 function showStaffTab(id, btn) {
@@ -266,6 +268,11 @@ function showStaffTab(id, btn) {
   if (id === 'process'         && !staffProcessLog.length)  staffFetchProcessLog();
   if (id === 'dispatchentry'   && !staffDispatchLog.length)  staffFetchDispatchLog();
   if (id === 'productionentry' && !staffProductionLog.length) staffFetchProductionLog();
+  if (id === 'vehicles') {
+    renderVehiclesPage();
+    loadVehicles();
+    if (!staffDispatchLog.length) staffFetchDispatchLog().then(renderVehiclesPage);
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -353,7 +360,7 @@ function renderStaffOrders() {
       <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:14px 16px;background:${urgency}">
         <div style="flex:1;min-width:160px">
           <div style="font-size:13px;font-weight:700;color:var(--navy);font-family:monospace">${o.id}</div>
-          <div style="font-size:12px;color:var(--muted)">${o.product} · ${o.size} · ${o.ply}ply</div>
+          <div style="font-size:12px;color:var(--muted)">${o.customer ? o.customer + ' · ' : ''}${o.product} · ${o.size} · ${o.ply}ply${o.colour ? ' · ' + o.colour : ''}</div>
         </div>
         <div style="text-align:center;min-width:70px">
           <div style="font-size:16px;font-weight:800;color:var(--navy)">${o.qty.toLocaleString('en-IN')}</div>
@@ -370,9 +377,38 @@ function renderStaffOrders() {
           ${staffOrdersView === 'pending' ? `<button class="status-btn" style="background:var(--primary);color:#fff" onclick="openStaffStatus('${o.id.replace(/'/g,"\\'")}')">✏️ Update</button>` : ''}
         </div>
       </div>
+      ${_staffOrderProgressHtml(o)}
     `;
     list.appendChild(row);
   });
+}
+
+// Dispatched / pending bar and order age — same idea as the office Orders
+// page. Dispatched = pieces logged against this order ID in the dispatch
+// register (the office splits a dispatch across same-item orders oldest
+// first, so its own figure can differ slightly).
+function _staffOrderProgressHtml(o) {
+  const qty  = o.qty || 0;
+  const sent = typeof _deLogged === 'function' ? _deLogged(o.id) : 0;
+  const pend = Math.max(0, qty - sent);
+  const pct  = qty ? Math.min(100, Math.round(sent / qty * 100)) : 0;
+  let age = '';
+  if (o.orderDate) {
+    const days = Math.max(0, Math.round((new Date(todayStr + 'T00:00:00') - new Date(o.orderDate + 'T00:00:00')) / 86400000));
+    const c = days > 30 ? 'var(--danger)' : days > 14 ? '#B45309' : 'var(--navy)';
+    age = `<div style="text-align:right;white-space:nowrap"><div style="font-size:12px;font-weight:700;color:var(--navy)">Ordered ${formatDate(o.orderDate)}</div>
+      <div style="font-size:12px;font-weight:800;color:${c}">${days === 0 ? 'today' : days === 1 ? '1 day ago' : days + ' days ago'}</div></div>`;
+  }
+  return `<div style="display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:10px 16px;border-top:1px solid var(--border)">
+    <div style="flex:1 1 220px;min-width:0">
+      <div style="height:9px;border-radius:5px;background:#FDE68A;overflow:hidden"><div style="height:100%;width:${pct}%;background:#16A34A"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;margin-top:4px;gap:8px">
+        <span style="color:#15803D;font-weight:700">🚚 ${sent.toLocaleString('en-IN')} dispatched</span>
+        <span style="color:#B45309;font-weight:700">${pend.toLocaleString('en-IN')} pending · ${pct}%</span>
+      </div>
+    </div>
+    ${age}
+  </div>`;
 }
 
 // ── Status update modal ──
@@ -547,6 +583,8 @@ function _deFillVehicles(selectNumber) {
   if (keep && keep !== '__new') sel.value = keep;
 }
 async function loadDeVehicles() { _deVehicles = await fetchVehicleList(); _deFillVehicles(); }
+// The 🚛 Vehicles tab (vehicles.js) saves through saveVehicleRecord too — refresh the picker from the same cache
+function _deRefreshVehiclePicker() { _deVehicles = loadCachedVehicles(); _deFillVehicles(); }
 function onDeVehicle() {
   document.getElementById('de-v-new').style.display = document.getElementById('de-vehicle').value === '__new' ? 'block' : 'none';
 }
@@ -686,33 +724,75 @@ async function staffFetchDispatchLog() {
     const json = await res.json();
     // A json.error here almost always just means no entry has ever been saved yet.
     staffDispatchLog = json.error ? [] : (json.values || []).filter(r => r[0]).map(r => ({
-      ts: r[0] || '', date: r[1] || '', pcs: parseInt(r[3]) || 0, size: r[4] || '',
+      ts: r[0] || '', date: r[1] || '', party: r[2] || '', pcs: parseInt(r[3]) || 0, size: r[4] || '',
       wtPc: parseFloat(r[5]) || 0, product: r[6] || '',
-      orderId: (r[7] || '').toString().split('—')[0].trim(), notes: r[8] || '', vehicle: r[9] || '',
+      orderId: (r[7] || '').toString().split('—')[0].trim(), notes: r[8] || '', vehicle: r[9] || '', tripId: r[10] || '',
     })).sort((a, b) => _staffTsNum(b.ts) - _staffTsNum(a.ts));
     if (syncEl) syncEl.innerHTML = '<div class="sync-dot ok"></div><span>Updated just now</span>';
   } catch (e) {
     if (syncEl) syncEl.innerHTML = `<div class="sync-dot error"></div><span>Fetch failed: ${e.message}</span>`;
   }
   renderDispatchLog();
+  if (typeof renderStaffOrders === 'function' && staffOrders.length) renderStaffOrders();
 }
 
+// Form dates come as M/D/YYYY (sometimes D/M/YYYY by hand) — compare as YYYY-MM-DD
+function _deDayKey(raw) {
+  const m = String(raw || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) { let mo = +m[1], d = +m[2]; if (mo > 12) [mo, d] = [d, mo]; return `${m[3]}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`; }
+  return /^\d{4}-\d{2}-\d{2}/.test(raw) ? String(raw).slice(0, 10) : '';
+}
+
+function shiftDeDay(n) {
+  const el = document.getElementById('de-day');
+  const d = new Date((el.value || todayStr) + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  el.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  renderDispatchLog();
+}
+
+// Every dispatch on the chosen day, one card per vehicle trip, with day totals
 function renderDispatchLog() {
   const list = document.getElementById('de-list');
   if (!list) return;
-  if (!staffDispatchLog.length) { list.innerHTML = '<div class="empty-state">No dispatch entries logged yet.</div>'; return; }
-  list.innerHTML = staffDispatchLog.slice(0, 20).map(e => `
-    <div class="card" style="margin-bottom:8px;padding:12px 16px">
-      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center">
-        <div>
-          <div style="font-size:13px;font-weight:700;color:var(--navy);font-family:monospace">${e.orderId || '—'}</div>
-          <div style="font-size:11px;color:var(--muted)">${formatDate(e.date)}${e.product ? ' · ' + e.product : ''}${e.size ? ' · ' + e.size : ''}</div>
-          ${e.vehicle ? `<div style="font-size:11px;color:var(--navy)">🚛 ${String(e.vehicle).replace(/</g, '&lt;')}</div>` : ''}
-          ${e.notes ? `<div style="font-size:11px;color:#B45309">📝 ${String(e.notes).replace(/</g, '&lt;')}</div>` : ''}
+  const dayEl = document.getElementById('de-day');
+  if (dayEl && !dayEl.value) dayEl.value = todayStr;
+  const day = dayEl ? dayEl.value : todayStr;
+  const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const gm = w => w > 0 && w < 20 ? w * 1000 : w;       // a weight typed in kg by mistake
+  const rows = staffDispatchLog.filter(e => _deDayKey(e.date) === day);
+  if (!rows.length) { list.innerHTML = `<div class="empty-state">No dispatches logged for ${formatDate(day)}.</div>`; return; }
+
+  const trips = {};
+  rows.forEach(e => { const k = e.tripId || (e.vehicle ? 'v:' + e.vehicle : 'none'); (trips[k] = trips[k] || []).push(e); });
+  const pcs = rows.reduce((s, e) => s + e.pcs, 0);
+  const kg  = rows.reduce((s, e) => s + e.pcs * gm(e.wtPc) / 1000, 0);
+  const parties = new Set(rows.map(e => (e.party || '').trim().toLowerCase()).filter(Boolean)).size;
+  const vehicles = new Set(rows.map(e => e.vehicle).filter(Boolean)).size;
+
+  list.innerHTML = `
+    <div class="card" style="margin-bottom:10px;padding:12px 16px;display:flex;gap:18px;flex-wrap:wrap;background:#EFF6FF">
+      <div><div style="font-size:11px;color:var(--muted)">Pieces</div><div style="font-size:18px;font-weight:800;color:var(--navy)">${pcs.toLocaleString('en-IN')}</div></div>
+      <div><div style="font-size:11px;color:var(--muted)">Weight</div><div style="font-size:18px;font-weight:800;color:var(--navy)">${Math.round(kg).toLocaleString('en-IN')} kg</div></div>
+      <div><div style="font-size:11px;color:var(--muted)">Lines</div><div style="font-size:18px;font-weight:800;color:var(--navy)">${rows.length}</div></div>
+      <div><div style="font-size:11px;color:var(--muted)">Parties</div><div style="font-size:18px;font-weight:800;color:var(--navy)">${parties}</div></div>
+      <div><div style="font-size:11px;color:var(--muted)">Vehicles</div><div style="font-size:18px;font-weight:800;color:var(--navy)">${vehicles}</div></div>
+    </div>` +
+    Object.values(trips).map(t => {
+      const v = t[0].vehicle;
+      const tp = t.reduce((s, e) => s + e.pcs, 0), tk = t.reduce((s, e) => s + e.pcs * gm(e.wtPc) / 1000, 0);
+      return `<div class="card" style="margin-bottom:8px;padding:12px 16px">
+        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+          <div style="font-size:13px;font-weight:800;color:var(--navy)">${v ? '🚛 ' + esc(v) : '🚛 No vehicle recorded'}</div>
+          <div style="font-size:12px;font-weight:700">${tp.toLocaleString('en-IN')} pcs · ${Math.round(tk).toLocaleString('en-IN')} kg</div>
         </div>
-        <div style="font-size:12px;font-weight:600">${e.pcs.toLocaleString('en-IN')} pcs${e.wtPc ? ` · ${e.wtPc} gm/pc` : ''}</div>
-      </div>
-    </div>`).join('');
+        ${t.map(e => `<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid var(--border);font-size:12px">
+          <div><strong>${esc(e.party || '—')}</strong> · ${esc(e.product || e.size || '—')}${e.orderId ? ` · <span style="font-family:monospace">${esc(e.orderId)}</span>` : ''}
+            ${e.notes ? `<div style="font-size:11px;color:#B45309">📝 ${esc(e.notes)}</div>` : ''}</div>
+          <div style="white-space:nowrap;font-weight:600">${e.pcs.toLocaleString('en-IN')} pcs${e.wtPc ? ` · ${gm(e.wtPc)} gm` : ''}</div>
+        </div>`).join('')}
+      </div>`;
+    }).join('');
 }
 
 // ── Production Entry ──

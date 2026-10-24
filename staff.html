@@ -8,7 +8,8 @@
 <style>
   /* ── Staff-specific overrides ── */
   .sidebar, .bottom-nav { display: none !important; }
-  .main { margin-left: 0 !important; padding-bottom: 0 !important; }
+  .main { margin-left: 0 !important; padding-bottom: 0 !important; min-width: 0; max-width: 100vw; }
+  .staff-tabs { max-width: 100%; }
   .topbar { background: #1A5C2A; }
 
   /* Staff tabs */
@@ -96,6 +97,7 @@
       <button class="staff-tab" onclick="showStaffTab('delivery',this)">📅 Delivery Date</button>
       <button class="staff-tab" onclick="showStaffTab('weight',this)">⚖️ Box Weight</button>
       <button class="staff-tab" onclick="showStaffTab('process',this)">⚗️ Process Log</button>
+      <button class="staff-tab" onclick="showStaffTab('vehicles',this)">🚛 Vehicles</button>
     </div>
 
     <!-- ══ ORDERS TAB ══ -->
@@ -201,7 +203,14 @@
         </div>
       </div>
 
-      <div style="max-width:560px;margin-top:16px">
+      <div style="max-width:600px;margin-top:16px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+          <div style="font-size:14px;font-weight:800;color:var(--navy)">📅 Dispatches on</div>
+          <button class="btn-secondary" style="padding:4px 10px" onclick="shiftDeDay(-1)" title="Previous day">◀</button>
+          <input class="form-input" type="date" id="de-day" style="width:auto" onchange="renderDispatchLog()">
+          <button class="btn-secondary" style="padding:4px 10px" onclick="shiftDeDay(1)" title="Next day">▶</button>
+          <button class="btn-secondary" style="padding:4px 10px;font-size:12px" onclick="document.getElementById('de-day').value=todayStr;renderDispatchLog()">Today</button>
+        </div>
         <div class="sync-bar" id="de-sync" style="margin-bottom:10px"><div class="sync-dot loading"></div><span>Loading recent entries...</span></div>
         <div id="de-list"></div>
       </div>
@@ -345,6 +354,10 @@
     </div>
 
     <!-- ══ PROCESS LOG TAB ══ -->
+    <div id="staff-tab-vehicles" style="display:none">
+      <div id="vehicles-root"><div class="empty-state">Loading…</div></div>
+    </div>
+
     <div id="staff-tab-process" style="display:none">
       <div class="card" style="max-width:560px">
         <div class="card-header"><div class="card-title">⚗️ Log a Process Batch</div></div>
@@ -428,6 +441,7 @@
 <!-- JS -->
 <script src="js/config.js"></script>
 <script src="js/staff-app.js"></script>
+<script src="js/vehicles.js"></script>
 
 </body>
 </html>
