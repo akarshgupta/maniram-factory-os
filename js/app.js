@@ -150,6 +150,10 @@ async function init() {
   // Supervisor log — after initChallans() so auto-created challans (see
   // _svAutoCreateChallans in supervisor-log.js) land on top of the loaded
   // list instead of being overwritten by it.
+  // A new or wiped computer restores challans/invoices from the backup
+  // first — otherwise the register would rebuild them and restoring later
+  // would count the same dispatches twice
+  if (typeof autoRestoreIfEmpty === 'function') await autoRestoreIfEmpty();
   if (typeof fetchSupervisorLog === 'function') fetchSupervisorLog();
   if (typeof loadVehicles === 'function') loadVehicles();
 
@@ -164,6 +168,8 @@ async function init() {
   // Undo orders wrongly closed as Delivered by an invoice save (old bug) — see invoices.js
   if (typeof reopenWronglyInvoiceClosedOrders === 'function') reopenWronglyInvoiceClosedOrders();
   if (typeof unlinkMislinkedOrderRecords === 'function') unlinkMislinkedOrderRecords();
+  // ☁️ Back up challans / invoices / payments / order history to the sheet
+  if (typeof initBackup === 'function') initBackup();
   // Data checker — again shortly after the supervisor register lands, then every 5 min
   if (typeof runHealthCheck === 'function') { runHealthCheck(); setTimeout(runHealthCheck, 15000); setInterval(runHealthCheck, 5 * 60 * 1000); }
   const lastPage = localStorage.getItem(LS_LAST_PAGE);

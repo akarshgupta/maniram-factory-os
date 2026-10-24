@@ -107,6 +107,7 @@ function doPost(e) {
     else if (action === 'supervisorProductionAppend') supervisorProductionAppend(data);
     else if (action === 'supervisorDispatchAppend')   supervisorDispatchAppend(data);
     else if (action === 'supervisorDispatchUpdate')   supervisorDispatchUpdate(data);
+    else if (action === 'backupRecords')              backupRecords(data);
     else if (action === 'saveVehicle')                saveVehicle(data);
     else if (action === 'deleteVehicle')              deleteVehicle(data);
     // ── Production Register (in-app machine-stage entries) ──
@@ -1224,6 +1225,47 @@ function supervisorDispatchUpdate(d) {
   if (d.product != null) sh.getRange(row, 7).setValue(d.product);
   if (d.notes != null)   sh.getRange(row, 9).setValue(d.notes);
   if (d.vehicle != null) sh.getRange(row, 10).setValue(d.vehicle);
+}
+
+// ══════════════════════════════════════════════════════════════
+// BACKUP  →  ORDERS_SHEET_ID / ChallansBackup, InvoicesBackup,
+// PaymentsBackup, OrderLogBackup (auto-created)
+// Challans, invoices, payments and the order log live in the office
+// browser's storage; js/backup.js sends every new or changed record here so
+// they survive a browser wipe and can be restored on any computer. One row
+// per record, upserted by Key; the full record is kept as JSON in "Record"
+// so it can be rebuilt exactly. Deletions only mark the row (Deleted=TRUE),
+// so nothing is ever lost from the backup.
+// ══════════════════════════════════════════════════════════════
+var BACKUP_TABS = { challans: 'ChallansBackup', invoices: 'InvoicesBackup', payments: 'PaymentsBackup', orderlog: 'OrderLogBackup' };
+var BACKUP_HEADERS = ['Key', 'Date', 'Party', 'Orders', 'Qty', 'Amount', 'Updated', 'Deleted', 'Record'];
+var BACKUP_MAX_BATCH = 500;
+
+function backupRecords(d) {
+  var tab = BACKUP_TABS[d && d.kind];   // only these four tabs can ever be written
+  if (!tab || !Array.isArray(d.records) || d.records.length > BACKUP_MAX_BATCH) return;
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    var ss = SpreadsheetApp.openById(ORDERS_SHEET_ID);
+    var sh = ss.getSheetByName(tab);
+    if (!sh) { sh = ss.insertSheet(tab); sh.appendRow(BACKUP_HEADERS); sh.setFrozenRows(1); }
+    var keys = sh.getDataRange().getValues().map(function (r) { return String(r[0]); });
+    var now = new Date().toISOString();
+    d.records.forEach(function (r) {
+      if (!r || typeof r !== 'object' || typeof r.key !== 'string' || !r.key || r.key.length > 120) return;
+      var at = keys.indexOf(r.key);                 // 0 = header row
+      if (r.deleted) {
+        if (at > 0) { sh.getRange(at + 1, 7, 1, 2).setValues([[now, 'TRUE']]); }
+        return;
+      }
+      var json = typeof r.json === 'string' ? r.json.slice(0, 45000) : '';
+      if (!json) return;
+      var row = [r.key, String(r.date || '').slice(0, 30), String(r.party || '').slice(0, 200), String(r.orders || '').slice(0, 300),
+                 Number(r.qty) || 0, Number(r.amount) || 0, now, '', json];
+      if (at > 0) sh.getRange(at + 1, 1, 1, row.length).setValues([row]);
+      else { sh.appendRow(row); keys.push(r.key); }
+    });
+  } finally { lock.releaseLock(); }
 }
 
 // ══════════════════════════════════════════════════════════════

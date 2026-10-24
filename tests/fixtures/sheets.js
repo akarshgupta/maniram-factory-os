@@ -34,10 +34,21 @@ const VEHICLES = [
   ['UP93XX0002', 'Passenger CNG', 'Owner ' + XSS, '', 'Driver Two', '', '21/10/2026'],
 ];
 
+// Backup tabs (made by Code.gs backupRecords) — used by the restore tests
+const BK_HEAD = ['Key', 'Date', 'Party', 'Orders', 'Qty', 'Amount', 'Updated', 'Deleted', 'Record'];
+const CHALLANS_BACKUP = [BK_HEAD,
+  ['DC-901/26', '2026-10-20', 'Test Traders', 'MIORD201', '500', '15000', '', '', JSON.stringify({ dcNum: 'DC-901/26', date: '2026-10-20', orderId: 'MIORD201', customer: 'Test Traders', product: 'Alpha Box', size: '20*14*28', qty: 500, rate: 30, svTs: '10/20/2026 10:00:00', createdAt: '2026-10-20T04:30:00Z' })],
+  ['DC-902/26', '2026-10-20', 'Evil Co', '', '5', '0', '', '', JSON.stringify({ dcNum: 'DC-902/26', date: '2026-10-20', customer: 'Evil Co ' + XSS, product: XSS, qty: 5, rate: 1 })],
+  ['DC-903/26', '2026-10-20', 'Test Traders', '', '1', '0', '', 'TRUE', JSON.stringify({ dcNum: 'DC-903/26', date: '2026-10-20', customer: 'Test Traders', qty: 1 })],
+];
+const INVOICES_BACKUP = [BK_HEAD,
+  ['INV901', '2026-10-20', 'Test Traders', 'MIORD201', '500', '15000', '', '', JSON.stringify({ id: 'INV901', date: '2026-10-20', party: 'Test Traders', orderId: 'MIORD201', total: 15000, items: [{ desc: 'Alpha Box', qty: 500, rate: 30, orderId: 'MIORD201', challanDc: 'DC-901/26' }] })],
+];
+
 // spreadsheetId → tab → rows. Anything else answers with an empty range.
 function sheetsFixture(cfg) {
   return {
-    [cfg.ORDERS_SHEET_ID]: { Orders: ORDERS, Vehicles: VEHICLES },
+    [cfg.ORDERS_SHEET_ID]: { Orders: ORDERS, Vehicles: VEHICLES, ChallansBackup: CHALLANS_BACKUP, InvoicesBackup: INVOICES_BACKUP },
     [cfg.SUPERVISOR_SHEET_ID]: { Dispatch: DISPATCH, Production: PRODUCTION },
   };
 }

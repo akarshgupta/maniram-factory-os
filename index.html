@@ -9,10 +9,10 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="css/style.css?v=169">
+<link rel="stylesheet" href="css/style.css?v=170">
 <!-- Auth script in head so app-shell is hidden before first paint -->
-<script src="js/config.js?v=169"></script>
-<script src="js/auth.js?v=169"></script>
+<script src="js/config.js?v=170"></script>
+<script src="js/auth.js?v=170"></script>
 </head>
 <body>
 
@@ -128,6 +128,7 @@
     <div class="topbar-date" id="topbar-date"></div>
     <div style="display:flex;gap:8px;align-items:center;margin-left:auto">
       <button id="ai-btn" onclick="openAiAgent()" style="background:var(--white);border:1px solid var(--border);color:var(--navy);font-weight:600;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer" title="Ask the AI assistant to look into or fix something">🤖 Assistant</button>
+      <button id="backup-btn" onclick="openBackupPanel();_bkVerify().then(openBackupPanel)" style="background:var(--white);border:1px solid var(--border);color:var(--navy);font-weight:600;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer" title="Backup of challans, invoices, payments and order history">☁️ Backup</button>
       <button id="health-btn" onclick="runHealthCheck();openHealthCheck()" style="background:var(--white);border:1px solid var(--border);color:var(--navy);font-weight:600;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer" title="Data checks">🩺 Checks</button>
       <button onclick="logout()" style="background:none;border:1px solid rgba(255,255,255,0.3);color:#fff;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;opacity:0.8" title="Logout">⏻ Logout</button>
     </div>
@@ -1822,40 +1823,41 @@
 
 <!-- JS MODULES — order matters -->
 <!-- config.js + auth.js already loaded in <head> -->
-<script src="js/clients.js?v=169"></script>
-<script src="js/leads.js?v=169"></script>
-<script src="js/purchase.js?v=169"></script>
-<script src="js/reels.js?v=169"></script>
-<script src="js/order-log.js?v=169"></script>
-<script src="js/orders.js?v=169"></script>
-<script src="js/quotations.js?v=169"></script>
-<script src="js/reminders.js?v=169"></script>
-<script src="js/calendar.js?v=169"></script>
-<script src="js/dashboard.js?v=169"></script>
-<script src="js/invoices.js?v=169"></script>
-<script src="js/expenses.js?v=169"></script>
-<script src="js/receivables.js?v=169"></script><script src="js/tally-sync.js?v=169"></script>
-<script src="js/dispatch.js?v=169"></script>
-<script src="js/dispatch-pdf.js?v=169"></script>
-<script src="js/date-picker.js?v=169"></script>
-<script src="js/prod-learning.js?v=169"></script>
-<script src="js/delivery-learning.js?v=169"></script>
-<script src="js/production-plan.js?v=169"></script>
-<script src="js/challan.js?v=169"></script>
-<script src="js/job-card.js?v=169"></script>
-<script src="js/deckle.js?v=169"></script>
-<script src="js/job-costing.js?v=169"></script>
-<script src="js/process-costing.js?v=169"></script>
-<script src="js/pipeline-board.js?v=169"></script>
-<script src="js/analytics.js?v=169"></script>
-<script src="js/registers.js?v=169"></script>
-<script src="js/supervisor-log.js?v=169"></script>
-<script src="js/vehicles.js?v=169"></script>
-<script src="js/ledger.js?v=169"></script>
-<script src="js/daily-report.js?v=169"></script>
-<script src="js/health-check.js?v=169"></script>
-<script src="js/ai-agent.js?v=169"></script>
-<script src="js/app.js?v=169"></script>
+<script src="js/clients.js?v=170"></script>
+<script src="js/leads.js?v=170"></script>
+<script src="js/purchase.js?v=170"></script>
+<script src="js/reels.js?v=170"></script>
+<script src="js/order-log.js?v=170"></script>
+<script src="js/orders.js?v=170"></script>
+<script src="js/quotations.js?v=170"></script>
+<script src="js/reminders.js?v=170"></script>
+<script src="js/calendar.js?v=170"></script>
+<script src="js/dashboard.js?v=170"></script>
+<script src="js/invoices.js?v=170"></script>
+<script src="js/expenses.js?v=170"></script>
+<script src="js/receivables.js?v=170"></script><script src="js/tally-sync.js?v=170"></script>
+<script src="js/dispatch.js?v=170"></script>
+<script src="js/dispatch-pdf.js?v=170"></script>
+<script src="js/date-picker.js?v=170"></script>
+<script src="js/prod-learning.js?v=170"></script>
+<script src="js/delivery-learning.js?v=170"></script>
+<script src="js/production-plan.js?v=170"></script>
+<script src="js/challan.js?v=170"></script>
+<script src="js/job-card.js?v=170"></script>
+<script src="js/deckle.js?v=170"></script>
+<script src="js/job-costing.js?v=170"></script>
+<script src="js/process-costing.js?v=170"></script>
+<script src="js/pipeline-board.js?v=170"></script>
+<script src="js/analytics.js?v=170"></script>
+<script src="js/registers.js?v=170"></script>
+<script src="js/supervisor-log.js?v=170"></script>
+<script src="js/vehicles.js?v=170"></script>
+<script src="js/ledger.js?v=170"></script>
+<script src="js/daily-report.js?v=170"></script>
+<script src="js/health-check.js?v=170"></script>
+<script src="js/backup.js?v=170"></script>
+<script src="js/ai-agent.js?v=170"></script>
+<script src="js/app.js?v=170"></script>
 
 </body>
 </html>
