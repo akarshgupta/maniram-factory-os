@@ -170,7 +170,7 @@ function openVehicleForm(number) {
     <div class="popup-title">🚛 ${v.owner || v.driver ? 'Edit' : 'Add'} Vehicle</div>
     <div class="form-grid" style="grid-template-columns:1fr 1fr">
       ${f('number', 'Vehicle number', v.number, `style="text-transform:uppercase" ${v.owner || v.driver ? 'readonly' : ''}`)}
-      ${f('type', 'Vehicle type', v.type, 'placeholder="e.g. Tata Ace"')}
+      ${f('type', 'Vehicle type', v.type, 'placeholder="e.g. Tata Ace" list="vf-types"')}<datalist id="vf-types">${VEHICLE_TYPES.map(t => `<option value="${t}">`).join('')}</datalist>
       ${f('owner', 'Owner name', v.owner)}
       ${f('ownerPhone', 'Owner phone', v.ownerPhone, 'type="tel"')}
       ${f('driver', 'Driver name', v.driver)}
