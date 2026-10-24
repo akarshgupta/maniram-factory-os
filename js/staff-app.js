@@ -254,7 +254,12 @@ const STAFF_TAB_TITLES = {
   stock: '🧻 Reel Stock', delivery: '📅 Delivery Date', weight: '⚖️ Box Weight', process: '⚗️ Process Log', vehicles: '🚛 Vehicles',
 };
 
+const LS_STAFF_TAB = 'mi_staff_last_tab_v1';
 function showStaffTab(id, btn) {
+  if (!STAFF_TABS.includes(id)) id = 'orders';
+  // Remember it, so a refresh comes back to this tab instead of Orders
+  try { localStorage.setItem(LS_STAFF_TAB, id); } catch (e) {}
+  if (!btn) btn = [...document.querySelectorAll('.staff-tabs > .staff-tab')].find(b => (b.getAttribute('onclick') || '').includes(`'${id}'`));
   STAFF_TABS.forEach(t => {
     document.getElementById('staff-tab-' + t).style.display = t === id ? 'block' : 'none';
   });
@@ -294,6 +299,14 @@ function updateTodayBanner() {
   const active = staffOrders.filter(o => !['Delivered','Dispatched','Cancelled'].includes(o.status));
   document.getElementById('staff-due-today').textContent    = active.filter(o => o.delivery === todayStr).length;
   document.getElementById('staff-due-tomorrow').textContent = active.filter(o => o.delivery === tmrwStr).length;
+  // What actually went out today, from the dispatch register
+  const today = (typeof staffDispatchLog !== 'undefined' ? staffDispatchLog : []).filter(e => _deDayKey(e.date) === todayStr);
+  const sentEl = document.getElementById('staff-sent-today');
+  if (sentEl) {
+    sentEl.textContent = today.reduce((s, e) => s + (e.pcs || 0), 0).toLocaleString('en-IN');
+    const parties = new Set(today.map(e => _deKey(e.party)).filter(Boolean)).size;
+    document.getElementById('staff-sent-today-sub').textContent = `pieces · ${today.length} line${today.length === 1 ? '' : 's'} · ${parties} part${parties === 1 ? 'y' : 'ies'}`;
+  }
 }
 
 // Pending = still active (New/In Production/Ready), always shown in full —
@@ -324,7 +337,8 @@ function renderStaffOrders() {
   let orders;
   if (staffOrdersView === 'dispatched') {
     orders = staffOrders.filter(o => ['Dispatched','Delivered'].includes(o.status));
-    if (month) orders = orders.filter(o => (o.delivery || '').slice(0, 7) === month);
+    // Month of the order's last dispatch — most orders carry no delivery date
+    if (month) orders = orders.filter(o => (_deLastDay(o.id) || o.delivery || o.orderDate || '').slice(0, 7) === month);
   } else {
     orders = staffOrders.filter(o => !['Delivered','Dispatched','Cancelled'].includes(o.status));
     if (filter) orders = orders.filter(o => o.status === filter);
@@ -534,8 +548,9 @@ function _deBuildLogged() {
   const log = typeof staffDispatchLog !== 'undefined' ? staffDispatchLog : [];
   const sig = staffOrders.length + ':' + log.length;
   if (_deLoggedMap && sig === _deLoggedSig) return _deLoggedMap;
-  const map = {}, ids = new Set(staffOrders.map(o => o.id));
-  log.forEach(e => { if (e.orderId && ids.has(e.orderId)) map[e.orderId] = (map[e.orderId] || 0) + (e.pcs || 0); });
+  const map = {}, last = {}, ids = new Set(staffOrders.map(o => o.id));
+  const seen = (id, e) => { const d = _deDayKey(e.date); if (d && (!last[id] || d > last[id])) last[id] = d; };
+  log.forEach(e => { if (e.orderId && ids.has(e.orderId)) { map[e.orderId] = (map[e.orderId] || 0) + (e.pcs || 0); seen(e.orderId, e); } });
   const pk = v => _deKey(v).slice(0, 4);   // "RP Prodect" still finds "RP Products"
   [...log].filter(e => !e.orderId || !ids.has(e.orderId)).sort((a, b) => _staffTsNum(a.ts) - _staffTsNum(b.ts)).forEach(e => {
     const p = _deNorm(e.product), d = _deDims(e.size || e.product);
@@ -550,13 +565,15 @@ function _deBuildLogged() {
       if (left <= 0) return;
       const room = Math.max(0, (o.qty || 0) - (map[o.id] || 0));
       const take = i === cands.length - 1 ? left : Math.min(left, room);
-      if (take > 0) { map[o.id] = (map[o.id] || 0) + take; left -= take; }
+      if (take > 0) { map[o.id] = (map[o.id] || 0) + take; left -= take; seen(o.id, e); }
     });
   });
-  _deLoggedMap = map; _deLoggedSig = sig;
+  _deLoggedMap = map; _deLastDayMap = last; _deLoggedSig = sig;
   return map;
 }
+let _deLastDayMap = {};
 function _deLogged(id) { return _deBuildLogged()[id] || 0; }
+function _deLastDay(id) { _deBuildLogged(); return _deLastDayMap[id] || ''; }
 
 function _deSetMode(mode) {
   _deMode = mode;
@@ -892,7 +909,7 @@ async function staffFetchDispatchLog() {
   }
   _deLoggedMap = null;
   renderDispatchLog();
-  if (typeof renderStaffOrders === 'function' && staffOrders.length) renderStaffOrders();
+  if (typeof renderStaffOrders === 'function' && staffOrders.length) { renderStaffOrders(); updateTodayBanner(); }
 }
 
 // Form dates come as M/D/YYYY (sometimes D/M/YYYY by hand) — compare as YYYY-MM-DD
@@ -1328,6 +1345,8 @@ function staffInit() {
 
   checkStaffAuth();
   if (staffIsLoggedIn()) {
+    // Reopen the tab that was open before the refresh
+    step(() => { const last = localStorage.getItem(LS_STAFF_TAB); if (last && last !== 'orders') showStaffTab(last); });
     staffFetchOrders();
     setInterval(staffFetchOrders, 5 * 60 * 1000);
     // Still loading after 20 s → say so instead of spinning forever

@@ -106,10 +106,11 @@
 
       <!-- Today's banner -->
       <div class="grid-2" style="margin-bottom:16px">
-        <div class="today-banner">
-          <div class="today-banner-title">🔴 Dispatch Today</div>
-          <div class="today-count" id="staff-due-today">—</div>
-          <div class="today-sub">orders due today</div>
+        <div class="today-banner" style="cursor:pointer" onclick="showStaffTab('dispatchentry')" title="See today's dispatches">
+          <div class="today-banner-title">🚚 Dispatched Today</div>
+          <div class="today-count" id="staff-sent-today">—</div>
+          <div class="today-sub" id="staff-sent-today-sub">pieces</div>
+          <div class="today-sub" style="margin-top:6px"><span id="staff-due-today">—</span> pending order(s) due today</div>
         </div>
         <div class="today-banner" style="background:linear-gradient(135deg,#B45309,#D97706)">
           <div class="today-banner-title">⚠️ Tomorrow's Plan</div>
