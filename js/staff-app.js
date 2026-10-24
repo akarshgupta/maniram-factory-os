@@ -686,9 +686,9 @@ async function staffFetchDispatchLog() {
     const json = await res.json();
     // A json.error here almost always just means no entry has ever been saved yet.
     staffDispatchLog = json.error ? [] : (json.values || []).filter(r => r[0]).map(r => ({
-      ts: r[0] || '', date: r[1] || '', pcs: parseInt(r[3]) || 0, size: r[4] || '',
+      ts: r[0] || '', date: r[1] || '', party: r[2] || '', pcs: parseInt(r[3]) || 0, size: r[4] || '',
       wtPc: parseFloat(r[5]) || 0, product: r[6] || '',
-      orderId: (r[7] || '').toString().split('—')[0].trim(), notes: r[8] || '', vehicle: r[9] || '',
+      orderId: (r[7] || '').toString().split('—')[0].trim(), notes: r[8] || '', vehicle: r[9] || '', tripId: r[10] || '',
     })).sort((a, b) => _staffTsNum(b.ts) - _staffTsNum(a.ts));
     if (syncEl) syncEl.innerHTML = '<div class="sync-dot ok"></div><span>Updated just now</span>';
   } catch (e) {
@@ -697,22 +697,63 @@ async function staffFetchDispatchLog() {
   renderDispatchLog();
 }
 
+// Form dates come as M/D/YYYY (sometimes D/M/YYYY by hand) — compare as YYYY-MM-DD
+function _deDayKey(raw) {
+  const m = String(raw || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) { let mo = +m[1], d = +m[2]; if (mo > 12) [mo, d] = [d, mo]; return `${m[3]}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`; }
+  return /^\d{4}-\d{2}-\d{2}/.test(raw) ? String(raw).slice(0, 10) : '';
+}
+
+function shiftDeDay(n) {
+  const el = document.getElementById('de-day');
+  const d = new Date((el.value || todayStr) + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  el.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  renderDispatchLog();
+}
+
+// Every dispatch on the chosen day, one card per vehicle trip, with day totals
 function renderDispatchLog() {
   const list = document.getElementById('de-list');
   if (!list) return;
-  if (!staffDispatchLog.length) { list.innerHTML = '<div class="empty-state">No dispatch entries logged yet.</div>'; return; }
-  list.innerHTML = staffDispatchLog.slice(0, 20).map(e => `
-    <div class="card" style="margin-bottom:8px;padding:12px 16px">
-      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center">
-        <div>
-          <div style="font-size:13px;font-weight:700;color:var(--navy);font-family:monospace">${e.orderId || '—'}</div>
-          <div style="font-size:11px;color:var(--muted)">${formatDate(e.date)}${e.product ? ' · ' + e.product : ''}${e.size ? ' · ' + e.size : ''}</div>
-          ${e.vehicle ? `<div style="font-size:11px;color:var(--navy)">🚛 ${String(e.vehicle).replace(/</g, '&lt;')}</div>` : ''}
-          ${e.notes ? `<div style="font-size:11px;color:#B45309">📝 ${String(e.notes).replace(/</g, '&lt;')}</div>` : ''}
+  const dayEl = document.getElementById('de-day');
+  if (dayEl && !dayEl.value) dayEl.value = todayStr;
+  const day = dayEl ? dayEl.value : todayStr;
+  const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const gm = w => w > 0 && w < 20 ? w * 1000 : w;       // a weight typed in kg by mistake
+  const rows = staffDispatchLog.filter(e => _deDayKey(e.date) === day);
+  if (!rows.length) { list.innerHTML = `<div class="empty-state">No dispatches logged for ${formatDate(day)}.</div>`; return; }
+
+  const trips = {};
+  rows.forEach(e => { const k = e.tripId || (e.vehicle ? 'v:' + e.vehicle : 'none'); (trips[k] = trips[k] || []).push(e); });
+  const pcs = rows.reduce((s, e) => s + e.pcs, 0);
+  const kg  = rows.reduce((s, e) => s + e.pcs * gm(e.wtPc) / 1000, 0);
+  const parties = new Set(rows.map(e => (e.party || '').trim().toLowerCase()).filter(Boolean)).size;
+  const vehicles = new Set(rows.map(e => e.vehicle).filter(Boolean)).size;
+
+  list.innerHTML = `
+    <div class="card" style="margin-bottom:10px;padding:12px 16px;display:flex;gap:18px;flex-wrap:wrap;background:#EFF6FF">
+      <div><div style="font-size:11px;color:var(--muted)">Pieces</div><div style="font-size:18px;font-weight:800;color:var(--navy)">${pcs.toLocaleString('en-IN')}</div></div>
+      <div><div style="font-size:11px;color:var(--muted)">Weight</div><div style="font-size:18px;font-weight:800;color:var(--navy)">${Math.round(kg).toLocaleString('en-IN')} kg</div></div>
+      <div><div style="font-size:11px;color:var(--muted)">Lines</div><div style="font-size:18px;font-weight:800;color:var(--navy)">${rows.length}</div></div>
+      <div><div style="font-size:11px;color:var(--muted)">Parties</div><div style="font-size:18px;font-weight:800;color:var(--navy)">${parties}</div></div>
+      <div><div style="font-size:11px;color:var(--muted)">Vehicles</div><div style="font-size:18px;font-weight:800;color:var(--navy)">${vehicles}</div></div>
+    </div>` +
+    Object.values(trips).map(t => {
+      const v = t[0].vehicle;
+      const tp = t.reduce((s, e) => s + e.pcs, 0), tk = t.reduce((s, e) => s + e.pcs * gm(e.wtPc) / 1000, 0);
+      return `<div class="card" style="margin-bottom:8px;padding:12px 16px">
+        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+          <div style="font-size:13px;font-weight:800;color:var(--navy)">${v ? '🚛 ' + esc(v) : '🚛 No vehicle recorded'}</div>
+          <div style="font-size:12px;font-weight:700">${tp.toLocaleString('en-IN')} pcs · ${Math.round(tk).toLocaleString('en-IN')} kg</div>
         </div>
-        <div style="font-size:12px;font-weight:600">${e.pcs.toLocaleString('en-IN')} pcs${e.wtPc ? ` · ${e.wtPc} gm/pc` : ''}</div>
-      </div>
-    </div>`).join('');
+        ${t.map(e => `<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid var(--border);font-size:12px">
+          <div><strong>${esc(e.party || '—')}</strong> · ${esc(e.product || e.size || '—')}${e.orderId ? ` · <span style="font-family:monospace">${esc(e.orderId)}</span>` : ''}
+            ${e.notes ? `<div style="font-size:11px;color:#B45309">📝 ${esc(e.notes)}</div>` : ''}</div>
+          <div style="white-space:nowrap;font-weight:600">${e.pcs.toLocaleString('en-IN')} pcs${e.wtPc ? ` · ${gm(e.wtPc)} gm` : ''}</div>
+        </div>`).join('')}
+      </div>`;
+    }).join('');
 }
 
 // ── Production Entry ──

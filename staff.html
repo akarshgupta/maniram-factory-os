@@ -201,7 +201,14 @@
         </div>
       </div>
 
-      <div style="max-width:560px;margin-top:16px">
+      <div style="max-width:600px;margin-top:16px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+          <div style="font-size:14px;font-weight:800;color:var(--navy)">📅 Dispatches on</div>
+          <button class="btn-secondary" style="padding:4px 10px" onclick="shiftDeDay(-1)" title="Previous day">◀</button>
+          <input class="form-input" type="date" id="de-day" style="width:auto" onchange="renderDispatchLog()">
+          <button class="btn-secondary" style="padding:4px 10px" onclick="shiftDeDay(1)" title="Next day">▶</button>
+          <button class="btn-secondary" style="padding:4px 10px;font-size:12px" onclick="document.getElementById('de-day').value=todayStr;renderDispatchLog()">Today</button>
+        </div>
         <div class="sync-bar" id="de-sync" style="margin-bottom:10px"><div class="sync-dot loading"></div><span>Loading recent entries...</span></div>
         <div id="de-list"></div>
       </div>
