@@ -161,6 +161,7 @@ async function staffFetchOrders() {
       weight:   col.weight   >= 0 ? (parseFloat(r[col.weight]) || 0) : 0,
     }));
     _deFillPartyList();
+    _deLoggedMap = null;
 
     if (syncEl) syncEl.innerHTML = '<div class="sync-dot ok"></div><span>Updated just now</span>';
     renderStaffOrders();
@@ -328,11 +329,39 @@ function renderStaffOrders() {
     orders = staffOrders.filter(o => !['Delivered','Dispatched','Cancelled'].includes(o.status));
     if (filter) orders = orders.filter(o => o.status === filter);
   }
+  // Party dropdown: every party with an order in this view, with its count
+  const partySel = document.getElementById('staff-party-filter');
+  let party = partySel?.value || '';
+  if (partySel) {
+    const counts = {};
+    orders.forEach(o => { const k = _deKey(o.customer); if (!k) return; (counts[k] = counts[k] || { name: o.customer.trim(), n: 0 }).n++; });
+    partySel.innerHTML = '<option value="">All parties</option>' + Object.entries(counts).sort((a, b) => a[1].name.localeCompare(b[1].name))
+      .map(([k, c]) => `<option value="${k}" ${k === party ? 'selected' : ''}>${c.name.replace(/</g, '&lt;')} (${c.n})</option>`).join('');
+    if (party && !counts[party]) party = '';   // that party has nothing in this view
+  }
+  if (party) orders = orders.filter(o => _deKey(o.customer) === party);
   if (query) orders = orders.filter(o =>
+    (o.customer || '').toLowerCase().includes(query) ||
     o.product.toLowerCase().includes(query) ||
     o.id.toLowerCase().includes(query)      ||
     o.size.toLowerCase().includes(query)
   );
+
+  // Totals for the chosen party
+  const sumEl = document.getElementById('staff-party-summary');
+  if (sumEl) {
+    if (party && orders.length) {
+      const q = orders.reduce((s, o) => s + (o.qty || 0), 0);
+      const d = orders.reduce((s, o) => s + Math.min(o.qty || 0, _deLogged(o.id)), 0);
+      sumEl.innerHTML = `<div class="card" style="margin-bottom:12px;padding:12px 16px;background:#EFF6FF;display:flex;gap:18px;flex-wrap:wrap;align-items:center">
+        <div style="font-size:15px;font-weight:800;color:var(--navy);flex:1;min-width:150px">${orders[0].customer.replace(/</g, '&lt;')}</div>
+        <div><div style="font-size:11px;color:var(--muted)">Orders</div><div style="font-size:17px;font-weight:800">${orders.length}</div></div>
+        <div><div style="font-size:11px;color:var(--muted)">Ordered</div><div style="font-size:17px;font-weight:800">${q.toLocaleString('en-IN')}</div></div>
+        <div><div style="font-size:11px;color:var(--muted)">Dispatched</div><div style="font-size:17px;font-weight:800;color:#15803D">${d.toLocaleString('en-IN')}</div></div>
+        <div><div style="font-size:11px;color:var(--muted)">Pending</div><div style="font-size:17px;font-weight:800;color:#B45309">${(q - d).toLocaleString('en-IN')}</div></div>
+      </div>`;
+    } else sumEl.innerHTML = '';
+  }
 
   // Sort: today first, then by delivery date
   orders.sort((a, b) => {
@@ -493,9 +522,41 @@ function _deFillPartyList() {
 }
 
 // Pieces already logged against an order from this portal / the register
-function _deLogged(id) {
-  return (typeof staffDispatchLog !== 'undefined' ? staffDispatchLog : []).filter(e => e.orderId === id).reduce((s, e) => s + (e.pcs || 0), 0);
+// Pieces dispatched against each order, rebuilt when orders or the register
+// change. Lines with an Order ID count for that order. Older lines without
+// one are matched the way the office does it: same party, same product (and
+// size), filling the oldest open order first — so the figure lines up with
+// the office Orders page.
+let _deLoggedMap = null, _deLoggedSig = '';
+const _deDims = v => { const m = String(v || '').match(/(\d+(?:\.\d+)?)\s*[*x×]\s*(\d+(?:\.\d+)?)\s*[*x×]\s*(\d+(?:\.\d+)?)/i); return m ? [m[1], m[2], m[3]].map(Number).sort((a, b) => a - b).join('x') : ''; };
+const _deNorm = v => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+function _deBuildLogged() {
+  const log = typeof staffDispatchLog !== 'undefined' ? staffDispatchLog : [];
+  const sig = staffOrders.length + ':' + log.length;
+  if (_deLoggedMap && sig === _deLoggedSig) return _deLoggedMap;
+  const map = {}, ids = new Set(staffOrders.map(o => o.id));
+  log.forEach(e => { if (e.orderId && ids.has(e.orderId)) map[e.orderId] = (map[e.orderId] || 0) + (e.pcs || 0); });
+  const pk = v => _deKey(v).slice(0, 4);   // "RP Prodect" still finds "RP Products"
+  [...log].filter(e => !e.orderId || !ids.has(e.orderId)).sort((a, b) => _staffTsNum(a.ts) - _staffTsNum(b.ts)).forEach(e => {
+    const p = _deNorm(e.product), d = _deDims(e.size || e.product);
+    if (!p && !d) return;
+    const cands = staffOrders.filter(o => pk(o.customer) && pk(o.customer) === pk(e.party) &&
+      (!p || (_deNorm(o.product) && (_deNorm(o.product).includes(p) || p.includes(_deNorm(o.product))))) &&
+      (!d || !_deDims(o.size) || _deDims(o.size) === d))
+      .sort((a, b) => (a.orderDate || '').localeCompare(b.orderDate || '') || a.id.localeCompare(b.id));
+    if (!cands.length) return;
+    let left = e.pcs || 0;
+    cands.forEach((o, i) => {
+      if (left <= 0) return;
+      const room = Math.max(0, (o.qty || 0) - (map[o.id] || 0));
+      const take = i === cands.length - 1 ? left : Math.min(left, room);
+      if (take > 0) { map[o.id] = (map[o.id] || 0) + take; left -= take; }
+    });
+  });
+  _deLoggedMap = map; _deLoggedSig = sig;
+  return map;
 }
+function _deLogged(id) { return _deBuildLogged()[id] || 0; }
 
 function _deSetMode(mode) {
   _deMode = mode;
@@ -538,6 +599,7 @@ function onDeParty(force) {
   _deLastParty = party;
   const box = document.getElementById('de-orders');
   _deSelectedOrder = null; _deSetMode('');
+  _deFillProducts(party);
   if (!party) { box.innerHTML = ''; return; }
   const known = _deParties().some(p => _deKey(p) === _deKey(party));
   const open = staffOrders.filter(o => _deKey(o.customer) === _deKey(party) && !_deDone.includes(o.status))
@@ -558,6 +620,34 @@ function onDeParty(force) {
     opt('new', '➕ Add a new order for this party') +
     opt('free', '📦 Dispatch for this party without an order') +
     `<a id="de-change" href="#" onclick="event.preventDefault();_deSelectedOrder=null;_deSetMode('')" style="display:none;font-size:12px;font-weight:700;margin:2px 0 6px">↺ Change order</a>`;
+}
+
+// Every product this party has ever ordered (any status), so a new order or
+// a no-order dispatch is picked from a list with size, colour and ply filled
+// in from the earlier order — instead of typed by hand and mis-spelt.
+let _deProducts = [];
+function _deFillProducts(party) {
+  const seen = {};
+  staffOrders.filter(o => _deKey(o.customer) === _deKey(party) && (o.product || o.size)).forEach(o => {
+    const k = [_deNorm(o.product), _deDims(o.size), _deNorm(o.colour), o.ply].join('|');
+    if (!seen[k]) seen[k] = { product: o.product || '', size: o.size || '', colour: o.colour || '', ply: String(o.ply || ''), weight: o.weight || 0 };
+  });
+  _deProducts = Object.values(seen).sort((a, b) => (a.product || a.size).localeCompare(b.product || b.size));
+  const opts = `<option value="">${_deProducts.length ? '— pick a product —' : 'No products on file for this party'}</option>` +
+    _deProducts.map((p, i) => `<option value="${i}">${[p.product, p.size, p.colour, p.ply ? p.ply + ' ply' : ''].filter(Boolean).join(' · ').replace(/</g, '&lt;')}</option>`).join('') +
+    '<option value="other">✏️ Other — type it below</option>';
+  ['de-n-pick', 'de-free-pick'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = opts; });
+}
+function pickDeProduct(which) {
+  const sel = document.getElementById(which === 'n' ? 'de-n-pick' : 'de-free-pick');
+  const p = _deProducts[+sel.value];
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+  if (which === 'n') {
+    set('de-n-product', p ? p.product : ''); set('de-n-size', p ? p.size : ''); set('de-n-colour', p ? p.colour : '');
+    if (p && p.ply) set('de-n-ply', p.ply);
+  } else { set('de-free-product', p ? p.product : ''); set('de-free-size', p ? p.size : ''); }
+  if (p && p.weight) document.getElementById('de-wt-hint').innerHTML = `Expected weight of this box: <strong>${p.weight} gm</strong> (from the earlier order).`;
+  (document.getElementById(which === 'n' ? (p ? 'de-n-qty' : 'de-n-product') : (p ? 'de-pcs' : 'de-free-product')) || {}).focus?.();
 }
 
 function selectDeOrder(orderId) {
@@ -732,6 +822,7 @@ async function staffFetchDispatchLog() {
   } catch (e) {
     if (syncEl) syncEl.innerHTML = `<div class="sync-dot error"></div><span>Fetch failed: ${e.message}</span>`;
   }
+  _deLoggedMap = null;
   renderDispatchLog();
   if (typeof renderStaffOrders === 'function' && staffOrders.length) renderStaffOrders();
 }
