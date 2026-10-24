@@ -4,18 +4,24 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Maniram Industries — Staff</title>
-<link rel="stylesheet" href="css/style.css?v=164">
+<link rel="stylesheet" href="css/style.css?v=166">
 <style>
   /* ── Staff-specific overrides ── */
   .sidebar, .bottom-nav { display: none !important; }
   .main { margin-left: 0 !important; padding-bottom: 0 !important; min-width: 0; max-width: 100vw; }
   .staff-tabs { max-width: 100%; }
-  .topbar { background: #1A5C2A; }
+  .topbar { background: #1A5C2A; gap: 12px; }
+  .topbar .topbar-title { color: #fff; font-size: 18px; font-weight: 800; }
+  .staff-date { margin-left: auto; background: #fff; color: #1A5C2A; font-weight: 800; font-size: 14px; padding: 6px 14px; border-radius: 20px; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
+  @media (max-width: 600px) { .staff-date { font-size: 12px; padding: 5px 10px; } .topbar .topbar-title { font-size: 15px; } }
 
   /* Staff tabs */
   .staff-tabs { display: flex; gap: 0; border-bottom: 2px solid var(--border); margin-bottom: 20px; overflow-x: auto; }
-  .staff-tab  { padding: 10px 20px; font-size: 13px; font-weight: 600; color: var(--muted); background: none; border: none; border-bottom: 3px solid transparent; cursor: pointer; white-space: nowrap; }
-  .staff-tab.active { color: var(--navy); border-bottom-color: var(--primary); }
+  .staff-tab  { padding: 10px 18px; font-size: 13px; font-weight: 700; color: #1F5135; background: none; border: none; border-bottom: 3px solid transparent; cursor: pointer; white-space: nowrap; border-radius: 8px 8px 0 0; }
+  .staff-tab:hover { background: #E8F5EC; }
+  .staff-tab.active { color: #fff; background: #1A5C2A; border-bottom-color: #F59E0B; }
+  /* The Pending / Dispatched switch reuses .staff-tab — keep it light */
+  #staff-view-pending.active, #staff-view-dispatched.active { color: #1A5C2A; background: #E8F5EC; border-bottom-color: #1A5C2A; }
 
   /* Order row status badge update */
   .status-btn { font-size: 11px; padding: 4px 10px; border-radius: 12px; border: none; cursor: pointer; font-weight: 600; }
@@ -81,8 +87,8 @@
 <div class="main">
   <div class="topbar">
     <div class="topbar-title" id="staff-page-title">Orders</div>
-    <div class="topbar-date" id="staff-topbar-date"></div>
-    <div style="margin-left:auto">
+    <div class="staff-date" id="staff-topbar-date"></div>
+    <div>
       <button onclick="staffLogout()" style="background:none;border:1px solid rgba(255,255,255,0.3);color:#fff;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;opacity:0.8">⏻ Logout</button>
     </div>
   </div>
@@ -199,7 +205,7 @@
 
           <div class="calc-grid">
             <div class="form-group"><label class="form-label" style="display:block">Pieces dispatched</label><input class="form-input" type="number" id="de-pcs" placeholder="e.g. 1000" min="1"></div>
-            <div class="form-group"><label class="form-label" style="display:block">Actual weight of a sample box (gm)</label><input class="form-input" type="number" id="de-wtpc" placeholder="Weigh one box" step="0.1" min="0" oninput="_deWeightHint()"></div>
+            <div class="form-group"><label class="form-label" style="display:block">Actual weight of a sample box (gm)</label><input class="form-input" type="number" id="de-wtpc" placeholder="Weigh one box" step="0.1" min="0" oninput="this.dataset.auto='';_deWeightHint()"></div>
           </div>
           <div id="de-wt-hint" style="margin:2px 0 12px;font-size:12px;line-height:1.4"></div>
           <button class="btn-secondary" style="width:100%;margin:-2px 0 10px;font-size:13px" onclick="addDeItem()" title="Several products in the same vehicle — add this one to the list and pick the next">➕ Add another product (same vehicle)</button>
@@ -446,9 +452,9 @@
 </div>
 
 <!-- JS -->
-<script src="js/config.js?v=164"></script>
-<script src="js/staff-app.js?v=164"></script>
-<script src="js/vehicles.js?v=164"></script>
+<script src="js/config.js?v=166"></script>
+<script src="js/staff-app.js?v=166"></script>
+<script src="js/vehicles.js?v=166"></script>
 
 </body>
 </html>
