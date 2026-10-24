@@ -276,3 +276,33 @@ function saveVehicleRecord(v) {
   return list;
 }
 function vehicleLabel(v) { return [v.number, v.type, v.driver || v.owner].filter(Boolean).join(' · '); }
+
+// ── Security: sheet text is never HTML ──
+// Text read from the Google Sheets is shown with innerHTML across the app,
+// and several people can type into those sheets (supervisor product names,
+// notes, party names). Without this, text like <img onerror=…> typed into a
+// sheet would run as code in the owner's browser. Angle brackets become the
+// look-alike ‹ › so the text still reads the same but can never form a tag.
+function cleanSheetText(v) {
+  return typeof v === 'string' ? v.replace(/</g, '‹').replace(/>/g, '›') : v;
+}
+function cleanSheetRows(rows) {
+  return Array.isArray(rows) ? rows.map(r => (Array.isArray(r) ? r.map(cleanSheetText) : cleanSheetText(r))) : rows;
+}
+// One choke point for every page: wrap fetch so each Sheets API "values"
+// reply is cleaned before any code reads it — including pages added later.
+(function cleanAllSheetReads() {
+  if (typeof window === 'undefined' || typeof window.fetch !== 'function' || window.__sheetFetchWrapped) return;
+  window.__sheetFetchWrapped = true;
+  const realFetch = window.fetch.bind(window);
+  window.fetch = async function (input, init) {
+    const res = await realFetch(input, init);
+    const url = typeof input === 'string' ? input : (input && input.url) || '';
+    if (!/sheets\.googleapis\.com\/v4\/spreadsheets\/[^/]+\/values\//.test(url) || typeof Response === 'undefined') return res;
+    let data;
+    try { data = await res.clone().json(); } catch (e) { return res; }
+    if (!data || !Array.isArray(data.values)) return res;
+    data.values = cleanSheetRows(data.values);
+    return new Response(JSON.stringify(data), { status: res.status, statusText: res.statusText, headers: { 'Content-Type': 'application/json' } });
+  };
+})();

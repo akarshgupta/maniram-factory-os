@@ -4,7 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Factory management SPA for Maniram Industries, a corrugated-box manufacturer in Jhansi. Vanilla JS — no framework, no bundler, no npm, no test suite. Deployed via GitHub Pages from `main` (squash-merge PRs to release). UI copy must be plain English — no Hindi/Hinglish in labels, messages, or placeholders (this was changed from an earlier Hinglish style; don't reintroduce it).
+Factory management SPA for Maniram Industries, a corrugated-box manufacturer in Jhansi. Vanilla JS — no framework, no bundler, no npm (the test suite uses only Node's built-in runner). Deployed via GitHub Pages from `main` (squash-merge PRs to release). UI copy must be plain English — no Hindi/Hinglish in labels, messages, or placeholders (this was changed from an earlier Hinglish style; don't reintroduce it).
+
+## Always: the quality gate (owner's standing instruction)
+
+Every change — feature, fix, refactor, UI tweak — follows `.claude/skills/quality-gate/SKILL.md`, without being asked:
+**TDD** (write the test first and see it fail), **unit tests** for the logic, **integration tests** for every flow touched in both portals, a **security pass** where you try to break in, and a **scope-of-improvement** list in the PR and the reply. Run `node tests/run.js` before every PR. While the repo is public, never commit a list of open vulnerabilities or attack steps to it — report findings to the owner directly (PR description is fine only for issues already fixed).
 
 ## Running locally
 
@@ -13,7 +18,7 @@ python3 -m http.server 8899        # serve from repo root, open /index.html
 node --check js/<file>.js          # only syntax gate available
 ```
 
-There is no automated test suite. Verification is done by driving headless Chromium (playwright-core + system Chromium) against the local server. To bypass the login overlay in automation, seed localStorage before page scripts run:
+Tests: `node tests/run.js` (unit + integration), `node tests/run.js unit` (no browser). See `tests/README.md`. Unit tests load the real `js/*.js` files into a Node `vm` context (`tests/unit/load.js`); integration tests (`tests/integration/harness.js`) drive real Chromium through both portals with every Sheets read answered from made-up fixtures (`tests/fixtures/sheets.js` — the repo is public, never put real data there) and every Apps Script write captured, never sent. For ad-hoc checks, to bypass the login overlay seed localStorage before page scripts run:
 
 ```js
 localStorage.setItem('mi_auth_session_v1', JSON.stringify({ ok: true, expires: Date.now() + 86400000 }));
@@ -29,6 +34,8 @@ Login is a single fixed user: `js/auth.js` checks `authHash(username + '::' + pa
 - `supervisor.html` — standalone supervisor entry page (largely superseded: the supervisor now enters data via a Google Form; the app reads its responses sheet)
 
 **No modules.** Every `js/*.js` file is a plain script sharing global scope, loaded in order by `<script>` tags at the bottom of `index.html`. `config.js` must load first (constants), `auth.js` before app scripts. New pages need: a `js/` file, a `<script>` tag, a nav item, a `#page-<id>` div, entries in `pageTitles` and `showPage()` in `js/app.js`, and an entry in the `sw.js` SHELL list.
+
+**Sheet text is never HTML:** `js/config.js` wraps `window.fetch` so every Sheets API `values` reply passes through `cleanSheetRows()` (angle brackets → ‹ ›) before any page code reads it — the app renders sheet text with `innerHTML` everywhere, and several people can type into the sheets. Don't bypass it; escape any other untrusted text at render time.
 
 **Data layer (the big picture):**
 - **Reads** go straight from the browser to the Google Sheets API v4 using the public `API_KEY` in `js/config.js`. Every sheet that the app reads must be shared "Anyone with link → Viewer".
