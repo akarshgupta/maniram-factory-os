@@ -12,19 +12,32 @@ let _vhMonth = null;
 
 async function loadVehicles() {
   vehicleList = await fetchVehicleList();
-  if (document.getElementById('page-vehicles')?.classList.contains('active')) renderVehiclesPage();
+  const open = document.getElementById('page-vehicles')?.classList.contains('active') || document.getElementById('staff-tab-vehicles')?.style.display === 'block';
+  if (open) renderVehiclesPage();
 }
 
 const _vhEsc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const _vhN = n => Math.round(n || 0).toLocaleString('en-IN');
 const _vhMonthLabel = m => { const [y, mo] = m.split('-'); return new Date(+y, +mo - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }); };
 
+// The dispatch register as each portal loads it — office: _svDisp
+// (supervisor-log.js), staff portal: staffDispatchLog (staff-app.js) —
+// with dates as YYYY-MM-DD and weights in grams.
+const _vhIsStaff = () => typeof _svDisp === 'undefined';
+function _vhSource() {
+  if (!_vhIsStaff()) return _svDisp.map(e => ({ ...e, day: _svNormDate(e.date) }));
+  return (typeof staffDispatchLog !== 'undefined' ? staffDispatchLog : []).map(e => ({
+    ...e, vehicle: String(e.vehicle || '').toUpperCase().trim(), day: _deDayKey(e.date),
+    wtPc: e.wtPc > 0 && e.wtPc < 20 ? e.wtPc * 1000 : e.wtPc,   // typed in kg by mistake
+  }));
+}
+
 // Every dispatch line with a vehicle, grouped into trips
 function _vhTrips() {
-  const rows = (typeof _svDisp !== 'undefined' ? _svDisp : []).filter(e => e.vehicle);
+  const rows = _vhSource().filter(e => e.vehicle);
   const trips = {};
   rows.forEach(e => {
-    const date = typeof _svNormDate === 'function' ? _svNormDate(e.date) : e.date;
+    const date = e.day || '';
     const key = vehicleKey(e.vehicle) + '|' + (e.tripId || date);
     const t = trips[key] || (trips[key] = { vehicle: vehicleKey(e.vehicle), number: e.vehicle, date, lines: [], pcs: 0, kg: 0, parties: new Set() });
     t.lines.push(e);
@@ -54,7 +67,8 @@ function renderVehiclesPage() {
   if (!_vhMonth || !months.includes(_vhMonth)) _vhMonth = months[0];
   const trips = allTrips.filter(t => t.date.startsWith(_vhMonth));
   const st = _vhStats(trips);
-  const noVehicle = (typeof _svDisp !== 'undefined' ? _svDisp : []).filter(e => !e.vehicle && (typeof _svNormDate === 'function' ? _svNormDate(e.date) : e.date).startsWith(_vhMonth)).length;
+  const noVehicle = _vhSource().filter(e => !e.vehicle && (e.day || '').startsWith(_vhMonth)).length;
+  const showCharges = !_vhIsStaff();   // rates stay office-only
 
   // Listed vehicles, plus any number seen on a dispatch that isn't listed yet
   const known = new Set(vehicleList.map(v => vehicleKey(v.number)));
@@ -86,9 +100,9 @@ function renderVehiclesPage() {
         <thead><tr style="text-align:left">
           <th style="padding:8px 10px">Vehicle</th><th style="padding:8px 10px">Owner</th><th style="padding:8px 10px">Driver</th>
           <th style="padding:8px 10px">Trips</th><th style="padding:8px 10px">Pieces</th><th style="padding:8px 10px">Weight</th>
-          <th style="padding:8px 10px">Parties</th><th style="padding:8px 10px">Last trip</th><th style="padding:8px 10px">Loading charges</th><th></th>
+          <th style="padding:8px 10px">Parties</th><th style="padding:8px 10px">Last trip</th>${showCharges ? '<th style="padding:8px 10px">Loading charges</th>' : ''}<th></th>
         </tr></thead>
-        <tbody>${!rows.length ? '<tr><td colspan="10"><div class="empty-state">No vehicles yet — add one, or let the supervisor add it from the staff portal.</div></td></tr>' : rows.map(({ v, s, all }) => {
+        <tbody>${!rows.length ? '<tr><td colspan="11"><div class="empty-state">No vehicles yet — add one, or let the supervisor add it from the staff portal.</div></td></tr>' : rows.map(({ v, s, all }) => {
           const rate = _vhLoadingRate(v);
           return `<tr style="border-top:1px solid var(--border)">
             <td style="padding:8px 10px"><strong style="font-family:monospace">${_vhEsc(v.number)}</strong>${v.type ? `<div style="font-size:11px;color:var(--muted)">${_vhEsc(v.type)}</div>` : ''}${v._unlisted ? '<div style="font-size:11px;color:#B45309">not in the list</div>' : ''}</td>
@@ -99,7 +113,7 @@ function renderVehiclesPage() {
             <td style="padding:8px 10px">${_vhN(s.kg)} kg</td>
             <td style="padding:8px 10px">${s.parties}</td>
             <td style="padding:8px 10px">${s.last ? formatDate(s.last) : '—'}</td>
-            <td style="padding:8px 10px">${rate && s.trips ? `₹${_vhN(rate.rate * s.trips)}<div style="font-size:10px;color:var(--muted)">${s.trips} × ₹${rate.rate}</div>` : '<span style="color:var(--muted);font-size:11px">—</span>'}</td>
+            ${showCharges ? `<td style="padding:8px 10px">${rate && s.trips ? `₹${_vhN(rate.rate * s.trips)}<div style="font-size:10px;color:var(--muted)">${s.trips} × ₹${rate.rate}</div>` : '<span style="color:var(--muted);font-size:11px">—</span>'}</td>` : ''}
             <td style="padding:8px 10px;white-space:nowrap">
               <button class="btn-sm" onclick="openVehicleDetail('${_vhEsc(v.number)}')" title="Trips and monthly totals">📊</button>
               <button class="btn-sm" onclick="openVehicleForm('${_vhEsc(v.number)}')" title="${v._unlisted ? 'Add to the list' : 'Edit'}">${v._unlisted ? '➕' : '✏️'}</button>
@@ -108,7 +122,7 @@ function renderVehiclesPage() {
         }).join('')}</tbody>
       </table>
     </div></div>
-    <div class="field-hint" style="margin-top:8px">A trip is every dispatch line saved together for one vehicle. Weight = pieces × the sample box weight entered at dispatch. Loading charges use the owner's fixed rate from Expenses → Vehicle owner loading rates, where one is set.</div>`;
+    <div class="field-hint" style="margin-top:8px">A trip is every dispatch line saved together for one vehicle. Weight = pieces × the sample box weight entered at dispatch.${showCharges ? " Loading charges use the owner's fixed rate from Expenses → Vehicle owner loading rates, where one is set." : ''} The same list and figures show in the ${_vhIsStaff() ? 'office app' : 'staff portal'}.</div>`;
 }
 
 function _vhOverlay() {
@@ -174,6 +188,7 @@ function saveVehicleForm() {
   vehicleList = saveVehicleRecord({ number, type: g('type'), owner: g('owner'), ownerPhone: g('ownerPhone'), driver: g('driver'), driverPhone: g('driverPhone') });
   document.getElementById('vehicle-overlay').style.display = 'none';
   renderVehiclesPage();
+  if (typeof _deRefreshVehiclePicker === 'function') _deRefreshVehiclePicker();
 }
 
 function deleteVehicleEntry(number) {
@@ -182,4 +197,5 @@ function deleteVehicleEntry(number) {
   try { localStorage.setItem(LS_VEHICLES, JSON.stringify(vehicleList)); } catch (e) {}
   fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'deleteVehicle', number }) }).catch(() => {});
   renderVehiclesPage();
+  if (typeof _deRefreshVehiclePicker === 'function') _deRefreshVehiclePicker();
 }

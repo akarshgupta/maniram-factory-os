@@ -165,6 +165,8 @@ async function staffFetchOrders() {
     if (syncEl) syncEl.innerHTML = '<div class="sync-dot ok"></div><span>Updated just now</span>';
     renderStaffOrders();
     updateTodayBanner();
+    // The dispatched bars need the dispatch register
+    if (!staffDispatchLog.length) staffFetchDispatchLog();
   } catch(e) {
     if (syncEl) syncEl.innerHTML = `<div class="sync-dot error"></div><span>Fetch failed: ${e.message}</span>`;
   }
@@ -245,10 +247,10 @@ async function staffFetchStock() {
 // TABS
 // ══════════════════════════════════════════════════════════════
 
-const STAFF_TABS = ['orders','dispatchentry','productionentry','stock','delivery','weight','process'];
+const STAFF_TABS = ['orders','dispatchentry','productionentry','stock','delivery','weight','process','vehicles'];
 const STAFF_TAB_TITLES = {
   orders: '📦 Orders', dispatchentry: '🚚 Dispatch Entry', productionentry: '🏭 Production Entry',
-  stock: '🧻 Reel Stock', delivery: '📅 Delivery Date', weight: '⚖️ Box Weight', process: '⚗️ Process Log',
+  stock: '🧻 Reel Stock', delivery: '📅 Delivery Date', weight: '⚖️ Box Weight', process: '⚗️ Process Log', vehicles: '🚛 Vehicles',
 };
 
 function showStaffTab(id, btn) {
@@ -266,6 +268,11 @@ function showStaffTab(id, btn) {
   if (id === 'process'         && !staffProcessLog.length)  staffFetchProcessLog();
   if (id === 'dispatchentry'   && !staffDispatchLog.length)  staffFetchDispatchLog();
   if (id === 'productionentry' && !staffProductionLog.length) staffFetchProductionLog();
+  if (id === 'vehicles') {
+    renderVehiclesPage();
+    loadVehicles();
+    if (!staffDispatchLog.length) staffFetchDispatchLog().then(renderVehiclesPage);
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -353,7 +360,7 @@ function renderStaffOrders() {
       <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:14px 16px;background:${urgency}">
         <div style="flex:1;min-width:160px">
           <div style="font-size:13px;font-weight:700;color:var(--navy);font-family:monospace">${o.id}</div>
-          <div style="font-size:12px;color:var(--muted)">${o.product} · ${o.size} · ${o.ply}ply</div>
+          <div style="font-size:12px;color:var(--muted)">${o.customer ? o.customer + ' · ' : ''}${o.product} · ${o.size} · ${o.ply}ply${o.colour ? ' · ' + o.colour : ''}</div>
         </div>
         <div style="text-align:center;min-width:70px">
           <div style="font-size:16px;font-weight:800;color:var(--navy)">${o.qty.toLocaleString('en-IN')}</div>
@@ -370,9 +377,38 @@ function renderStaffOrders() {
           ${staffOrdersView === 'pending' ? `<button class="status-btn" style="background:var(--primary);color:#fff" onclick="openStaffStatus('${o.id.replace(/'/g,"\\'")}')">✏️ Update</button>` : ''}
         </div>
       </div>
+      ${_staffOrderProgressHtml(o)}
     `;
     list.appendChild(row);
   });
+}
+
+// Dispatched / pending bar and order age — same idea as the office Orders
+// page. Dispatched = pieces logged against this order ID in the dispatch
+// register (the office splits a dispatch across same-item orders oldest
+// first, so its own figure can differ slightly).
+function _staffOrderProgressHtml(o) {
+  const qty  = o.qty || 0;
+  const sent = typeof _deLogged === 'function' ? _deLogged(o.id) : 0;
+  const pend = Math.max(0, qty - sent);
+  const pct  = qty ? Math.min(100, Math.round(sent / qty * 100)) : 0;
+  let age = '';
+  if (o.orderDate) {
+    const days = Math.max(0, Math.round((new Date(todayStr + 'T00:00:00') - new Date(o.orderDate + 'T00:00:00')) / 86400000));
+    const c = days > 30 ? 'var(--danger)' : days > 14 ? '#B45309' : 'var(--navy)';
+    age = `<div style="text-align:right;white-space:nowrap"><div style="font-size:12px;font-weight:700;color:var(--navy)">Ordered ${formatDate(o.orderDate)}</div>
+      <div style="font-size:12px;font-weight:800;color:${c}">${days === 0 ? 'today' : days === 1 ? '1 day ago' : days + ' days ago'}</div></div>`;
+  }
+  return `<div style="display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:10px 16px;border-top:1px solid var(--border)">
+    <div style="flex:1 1 220px;min-width:0">
+      <div style="height:9px;border-radius:5px;background:#FDE68A;overflow:hidden"><div style="height:100%;width:${pct}%;background:#16A34A"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;margin-top:4px;gap:8px">
+        <span style="color:#15803D;font-weight:700">🚚 ${sent.toLocaleString('en-IN')} dispatched</span>
+        <span style="color:#B45309;font-weight:700">${pend.toLocaleString('en-IN')} pending · ${pct}%</span>
+      </div>
+    </div>
+    ${age}
+  </div>`;
 }
 
 // ── Status update modal ──
@@ -547,6 +583,8 @@ function _deFillVehicles(selectNumber) {
   if (keep && keep !== '__new') sel.value = keep;
 }
 async function loadDeVehicles() { _deVehicles = await fetchVehicleList(); _deFillVehicles(); }
+// The 🚛 Vehicles tab (vehicles.js) saves through saveVehicleRecord too — refresh the picker from the same cache
+function _deRefreshVehiclePicker() { _deVehicles = loadCachedVehicles(); _deFillVehicles(); }
 function onDeVehicle() {
   document.getElementById('de-v-new').style.display = document.getElementById('de-vehicle').value === '__new' ? 'block' : 'none';
 }
@@ -695,6 +733,7 @@ async function staffFetchDispatchLog() {
     if (syncEl) syncEl.innerHTML = `<div class="sync-dot error"></div><span>Fetch failed: ${e.message}</span>`;
   }
   renderDispatchLog();
+  if (typeof renderStaffOrders === 'function' && staffOrders.length) renderStaffOrders();
 }
 
 // Form dates come as M/D/YYYY (sometimes D/M/YYYY by hand) — compare as YYYY-MM-DD

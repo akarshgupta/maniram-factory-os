@@ -8,7 +8,8 @@
 <style>
   /* ── Staff-specific overrides ── */
   .sidebar, .bottom-nav { display: none !important; }
-  .main { margin-left: 0 !important; padding-bottom: 0 !important; }
+  .main { margin-left: 0 !important; padding-bottom: 0 !important; min-width: 0; max-width: 100vw; }
+  .staff-tabs { max-width: 100%; }
   .topbar { background: #1A5C2A; }
 
   /* Staff tabs */
@@ -96,6 +97,7 @@
       <button class="staff-tab" onclick="showStaffTab('delivery',this)">📅 Delivery Date</button>
       <button class="staff-tab" onclick="showStaffTab('weight',this)">⚖️ Box Weight</button>
       <button class="staff-tab" onclick="showStaffTab('process',this)">⚗️ Process Log</button>
+      <button class="staff-tab" onclick="showStaffTab('vehicles',this)">🚛 Vehicles</button>
     </div>
 
     <!-- ══ ORDERS TAB ══ -->
@@ -352,6 +354,10 @@
     </div>
 
     <!-- ══ PROCESS LOG TAB ══ -->
+    <div id="staff-tab-vehicles" style="display:none">
+      <div id="vehicles-root"><div class="empty-state">Loading…</div></div>
+    </div>
+
     <div id="staff-tab-process" style="display:none">
       <div class="card" style="max-width:560px">
         <div class="card-header"><div class="card-title">⚗️ Log a Process Batch</div></div>
@@ -435,6 +441,7 @@
 <!-- JS -->
 <script src="js/config.js"></script>
 <script src="js/staff-app.js"></script>
+<script src="js/vehicles.js"></script>
 
 </body>
 </html>
