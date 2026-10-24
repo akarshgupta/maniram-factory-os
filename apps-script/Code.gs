@@ -106,6 +106,7 @@ function doPost(e) {
     // ── Supervisor Portal (staff.html) — writes into the Form's own sheet ──
     else if (action === 'supervisorProductionAppend') supervisorProductionAppend(data);
     else if (action === 'supervisorDispatchAppend')   supervisorDispatchAppend(data);
+    else if (action === 'supervisorDispatchUpdate')   supervisorDispatchUpdate(data);
     else if (action === 'saveVehicle')                saveVehicle(data);
     else if (action === 'deleteVehicle')              deleteVehicle(data);
     // ── Production Register (in-app machine-stage entries) ──
@@ -1192,6 +1193,37 @@ function supervisorDispatchAppend(d) {
     d.product || '', d.orderId || '', d.notes || '',
     d.vehicle || '', d.tripId || ''
   ]);
+}
+
+// Edit one Dispatch row in place (staff portal ✏️). The row is found by its
+// own timestamp (column A) — the row number from the app is only a hint,
+// since rows can shift. Timestamps compare by their numbers alone, so a
+// Date cell and the "10/24/2026 15:04:05" text the app saw both match.
+// The app sends the full new Notes, with the "Edited …: pieces 1000 → 1200"
+// line already appended.
+function _tsKey(v) {
+  if (v instanceof Date) v = Utilities.formatDate(v, 'Asia/Kolkata', 'M/d/yyyy H:mm:ss');
+  return (String(v).match(/\d+/g) || []).map(Number).join('-');
+}
+
+function supervisorDispatchUpdate(d) {
+  if (!SUPERVISOR_SHEET_ID || !d.ts) return;
+  var sh = SpreadsheetApp.openById(SUPERVISOR_SHEET_ID).getSheetByName('Dispatch');
+  if (!sh) return;
+  var key = _tsKey(d.ts), row = 0;
+  var hint = parseInt(d.row, 10);
+  if (hint > 1 && hint <= sh.getLastRow() && _tsKey(sh.getRange(hint, 1).getValue()) === key) row = hint;
+  if (!row) {
+    var col = sh.getRange(1, 1, sh.getLastRow(), 1).getValues();
+    for (var i = col.length - 1; i >= 1; i--) if (_tsKey(col[i][0]) === key) { row = i + 1; break; }
+  }
+  if (!row) return;
+  if (d.pcs != null)     sh.getRange(row, 4).setValue(d.pcs);
+  if (d.size != null)    sh.getRange(row, 5).setValue(d.size);
+  if (d.wtPc != null)    sh.getRange(row, 6).setValue(d.wtPc);
+  if (d.product != null) sh.getRange(row, 7).setValue(d.product);
+  if (d.notes != null)   sh.getRange(row, 9).setValue(d.notes);
+  if (d.vehicle != null) sh.getRange(row, 10).setValue(d.vehicle);
 }
 
 // ══════════════════════════════════════════════════════════════

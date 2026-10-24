@@ -328,11 +328,65 @@ function _svCreateChallanFor(e, o, matchedBy, qty) {
 // hand instead, since real supervisor data is often too messy (product
 // names typed into the party field, plain box sizes, etc.) for automatic
 // matching to safely guess.
+// A dispatch line edited in the staff portal (✏️) keeps its timestamp but
+// may carry new pieces. Bring the challan(s) made from it — and their invoice
+// lines — to the new total: added pieces go on the newest challan, removed
+// pieces come off the newest first. Logged on the order.
+function _svReconcileEditedDispatches() {
+  if (typeof challanList === 'undefined') return;
+  let changed = false;
+  _svDisp.forEach(e => {
+    if (!e.ts || !(e.pcs > 0) || !/Edited /.test(e.notes || '')) return;
+    if (typeof _svRejectedTs !== 'undefined' && _svRejectedTs.has(e.ts)) return;   // its challan was deleted on purpose
+    const mine = challanList.filter(c => c.svTs === e.ts).sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+    if (!mine.length) return;
+    let diff = e.pcs - mine.reduce((s, c) => s + (c.qty || 0), 0);
+    if (!diff) return;
+    const touched = [];
+    for (let i = mine.length - 1; i >= 0 && diff; i--) {
+      const c = mine[i];
+      const newQty = diff > 0 ? c.qty + diff : Math.max(0, c.qty + diff);
+      if (newQty === c.qty) continue;
+      diff -= newQty - c.qty;
+      touched.push({ c, from: c.qty, to: newQty });
+      c.qty = newQty;
+      if (diff > 0) diff = 0;   // all of an increase lands on the newest challan
+    }
+    touched.forEach(({ c, from, to }) => {
+      c.note = `${c.note || ''} · Dispatch edited: ${from} → ${to} pcs`.replace(/^ · /, '');
+      if (typeof invoiceList !== 'undefined') {
+        const iv = invoiceList.find(x => (x.items || []).some(it => it.challanDc === c.dcNum));
+        if (iv) {
+          const it = iv.items.find(t => t.challanDc === c.dcNum);
+          it.qty = to; it.amount = to * (+it.rate || 0);
+          const sub = iv.items.reduce((t, x) => t + (+x.qty || 0) * (+x.rate || 0), 0);
+          iv.subtotal = sub; iv.total = Math.round(sub); iv.roundOff = iv.total - sub;
+          if (typeof saveInvoiceList === 'function') saveInvoiceList();
+          if (typeof _mirrorInvoice === 'function') _mirrorInvoice(iv);
+        }
+      }
+      if (typeof mirrorToSheet === 'function') mirrorToSheet('saveChallan', { id: c.dcNum, date: c.date, orderId: c.orderId, customer: c.customer, product: c.product, qty: c.qty, vehicle: '', notes: c.note });
+      if (c.orderId && typeof logOrderEvent === 'function') logOrderEvent(c.orderId, 'Dispatch Edited', `${c.dcNum}: ${from} → ${to} pcs (edited in the staff portal)`);
+      if (c.orderId) {
+        if (to < from) _svRevertStaleDeliveredOrder(c.orderId, `${c.dcNum} was reduced from ${from} to ${to} pcs`);
+        else if (typeof checkOrderFullyDispatched === 'function') checkOrderFullyDispatched(c.orderId);
+      }
+    });
+    if (touched.length) changed = true;
+  });
+  if (changed) {
+    if (typeof saveChallans === 'function') saveChallans();
+    if (typeof renderOrders === 'function') renderOrders();
+    if (typeof renderChallansTab === 'function') renderChallansTab();
+  }
+}
+
 function _svAutoCreateChallans() {
   if (typeof challanList === 'undefined' || typeof orders === 'undefined') return;
   // Reopen any order an invoice save wrongly closed BEFORE matching, so a
   // dispatch can't skip past it to a newer order (see invoices.js)
   if (typeof reopenWronglyInvoiceClosedOrders === 'function') reopenWronglyInvoiceClosedOrders();
+  _svReconcileEditedDispatches();
   let created = 0;
   _svDisp.forEach(e => {
     if (!e.ts || !e.pcs) return;
