@@ -798,6 +798,74 @@ function saveDispatchEntry() {
   [3000, 8000].forEach(ms => setTimeout(() => { staffFetchDispatchLog(); }, ms + wait));
 }
 
+// ── Edit a logged dispatch line ──
+// Saves the new values into the same Dispatch row and appends what changed to
+// its Notes ("Edited 24 Oct 15:04: pieces 1000 → 1200"), so every correction
+// stays on record. The office app picks up the new pieces on its next refresh
+// and corrects that dispatch's challan and invoice line to match.
+let _deEditTs = null;
+function openDeEdit(ts) {
+  const e = staffDispatchLog.find(x => x.ts === ts);
+  if (!e) return;
+  _deEditTs = ts;
+  let ov = document.getElementById('de-edit-overlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'de-edit-overlay'; ov.className = 'popup-overlay';
+    ov.onclick = ev => { if (ev.target === ov) ov.style.display = 'none'; };
+    document.body.appendChild(ov);
+  }
+  const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  const f = (id, label, val, type) => `<div class="form-group"><label class="form-label" style="display:block">${label}</label><input class="form-input" id="dee-${id}" ${type ? `type="${type}"` : ''} value="${esc(val)}"></div>`;
+  const vOpts = (typeof _deVehicles !== 'undefined' ? _deVehicles : []).map(v => `<option value="${esc(v.number)}" ${vehicleKey(v.number) === vehicleKey(e.vehicle) ? 'selected' : ''}>${esc(vehicleLabel(v))}</option>`).join('');
+  const known = (typeof _deVehicles !== 'undefined' ? _deVehicles : []).some(v => vehicleKey(v.number) === vehicleKey(e.vehicle));
+  ov.innerHTML = `<div class="popup-box" style="width:min(480px,95vw);max-width:none;padding:22px;max-height:90vh;overflow-y:auto" onclick="event.stopPropagation()">
+    <div class="popup-title">✏️ Edit dispatch</div>
+    <div style="font-size:12px;color:var(--muted);margin:-6px 0 12px">${esc(e.party || '—')} · ${formatDate(_deDayKey(e.date))}${e.orderId ? ' · ' + esc(e.orderId) : ''}</div>
+    <div class="calc-grid">
+      ${f('pcs', 'Pieces', e.pcs, 'number')}
+      ${f('wt', 'Sample box weight (gm)', e.wtPc || '', 'number')}
+      ${f('product', 'Product', e.product)}
+      ${f('size', 'Size', e.size)}
+    </div>
+    <div class="form-group"><label class="form-label" style="display:block">Vehicle</label>
+      <select class="form-select" id="dee-vehicle"><option value="">— none —</option>${!known && e.vehicle ? `<option value="${esc(e.vehicle)}" selected>${esc(e.vehicle)}</option>` : ''}${vOpts}</select></div>
+    <div class="form-group"><label class="form-label" style="display:block">Notes</label><textarea class="form-input" id="dee-notes" rows="3">${esc(e.notes)}</textarea></div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px">What you change is added to the notes automatically, e.g. "Edited ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}: pieces ${e.pcs} → …".</div>
+    <div id="dee-msg" style="font-size:12px;min-height:16px;margin-bottom:6px"></div>
+    <div style="display:flex;gap:10px"><button class="btn-primary" style="flex:1" onclick="saveDeEdit()">💾 Save changes</button>
+    <button class="btn-secondary" onclick="document.getElementById('de-edit-overlay').style.display='none'">Cancel</button></div></div>`;
+  ov.style.display = 'flex';
+}
+
+function saveDeEdit() {
+  const e = staffDispatchLog.find(x => x.ts === _deEditTs);
+  if (!e) return;
+  const v = id => (document.getElementById('dee-' + id)?.value || '').trim();
+  const pcs = parseInt(v('pcs')) || 0, wt = parseFloat(v('wt')) || 0;
+  if (pcs <= 0) { document.getElementById('dee-msg').innerHTML = '⚠️ Pieces must be more than 0.'; return; }
+  const next = { pcs, wtPc: wt, product: v('product'), size: v('size'), vehicle: v('vehicle') };
+  const labels = { pcs: 'pieces', wtPc: 'weight', product: 'product', size: 'size', vehicle: 'vehicle' };
+  const changes = Object.keys(next).filter(k => String(next[k] ?? '') !== String(e[k] ?? '') && !(k === 'wtPc' && +next[k] === +e[k]))
+    .map(k => `${labels[k]} ${e[k] === '' || e[k] == null ? '—' : e[k]} → ${next[k] === '' ? '—' : next[k]}`);
+  let notes = v('notes');
+  const typedNoteChanged = notes !== String(e.notes || '');
+  if (!changes.length && !typedNoteChanged) { document.getElementById('de-edit-overlay').style.display = 'none'; return; }
+  if (changes.length) {
+    const now = new Date();
+    const stamp = `${now.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    notes = [notes, `Edited ${stamp}: ${changes.join('; ')}`].filter(Boolean).join(' · ');
+  }
+  fetch(APPS_SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'supervisorDispatchUpdate', ts: e.ts, row: e.row, ...next, notes }) }).catch(() => {});
+  Object.assign(e, next, { notes });     // show it straight away
+  _deLoggedMap = null;
+  document.getElementById('de-edit-overlay').style.display = 'none';
+  renderDispatchLog();
+  if (staffOrders.length) renderStaffOrders();
+  [4000, 10000].forEach(ms => setTimeout(staffFetchDispatchLog, ms));
+}
+
 // "10/16/2026 14:03:05" → sortable number; the raw string sorts 9/30 after 10/1
 function _staffTsNum(ts) {
   const m = String(ts || '').match(/(\d+)\/(\d+)\/(\d{4})(?:\s+(\d+):(\d+)(?::(\d+))?)?/);
@@ -813,8 +881,8 @@ async function staffFetchDispatchLog() {
     const res  = await fetch(url);
     const json = await res.json();
     // A json.error here almost always just means no entry has ever been saved yet.
-    staffDispatchLog = json.error ? [] : (json.values || []).filter(r => r[0]).map(r => ({
-      ts: r[0] || '', date: r[1] || '', party: r[2] || '', pcs: parseInt(r[3]) || 0, size: r[4] || '',
+    staffDispatchLog = json.error ? [] : (json.values || []).map((r, i) => [r, i + 2]).filter(([r]) => r[0]).map(([r, row]) => ({
+      row, ts: r[0] || '', date: r[1] || '', party: r[2] || '', pcs: parseInt(r[3]) || 0, size: r[4] || '',
       wtPc: parseFloat(r[5]) || 0, product: r[6] || '',
       orderId: (r[7] || '').toString().split('—')[0].trim(), notes: r[8] || '', vehicle: r[9] || '', tripId: r[10] || '',
     })).sort((a, b) => _staffTsNum(b.ts) - _staffTsNum(a.ts));
@@ -880,7 +948,8 @@ function renderDispatchLog() {
         ${t.map(e => `<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid var(--border);font-size:12px">
           <div><strong>${esc(e.party || '—')}</strong> · ${esc(e.product || e.size || '—')}${e.orderId ? ` · <span style="font-family:monospace">${esc(e.orderId)}</span>` : ''}
             ${e.notes ? `<div style="font-size:11px;color:#B45309">📝 ${esc(e.notes)}</div>` : ''}</div>
-          <div style="white-space:nowrap;font-weight:600">${e.pcs.toLocaleString('en-IN')} pcs${e.wtPc ? ` · ${gm(e.wtPc)} gm` : ''}</div>
+          <div style="white-space:nowrap;font-weight:600;text-align:right">${e.pcs.toLocaleString('en-IN')} pcs${e.wtPc ? ` · ${gm(e.wtPc)} gm` : ''}
+            <div><button class="btn-secondary" style="font-size:11px;padding:2px 9px;margin-top:3px" onclick="openDeEdit('${esc(e.ts).replace(/'/g, "\\'")}')">✏️ Edit</button></div></div>
         </div>`).join('')}
       </div>`;
     }).join('');
