@@ -53,6 +53,8 @@ The "Order ID" question is a **Dropdown**, not free text — Google Forms has no
 
 **Service worker (`sw.js`):** bump the `CACHE` version string on every release that changes shell files, and add any new HTML/JS/asset to the SHELL list. Install tolerates missing files, but a stale cache version means clients keep old code.
 
+**Cache-busting:** every local `<script src="js/…">` and `css/…` link in `index.html` and `staff.html` carries `?v=<n>`. Browsers cache each file separately, so without it a fresh page can run an older script (this happened: the staff page showed new HTML with old `staff-app.js`, so ✏️ Edit was missing). On every release that changes JS/CSS, bump `?v=` in both pages to the same number as the `sw.js` CACHE version (e.g. `mi-factory-os-v164` → `?v=164`); new script tags must include it too.
+
 ## Domain math
 
 `skills/rate-calculator.md` is the canonical reference for box weight/rate math (sheet size formula, two-part/pasting rule, GST). Key formula used in several places (`js/registers.js`, rate calculator, deckle optimizer):
