@@ -32,6 +32,7 @@ const pageTitles = {
   registers:   '📋 Production Register',
   dailyreport: '🗓️ Daily Report',
   svlog:       '📝 Supervisor Register',
+  vehicles:    '🚛 Vehicles',
   ledger:      '📒 Party Ledger',
   pipeline:    '🚦 Pipeline Board',
   costing:     '🧮 Job Costing',
@@ -83,6 +84,7 @@ function showPage(id) {
   if (id === 'registers')   loadRegisters();
   if (id === 'dailyreport') loadDailyReport();
   if (id === 'svlog')       loadSupervisorLog();
+  if (id === 'vehicles')    { renderVehiclesPage(); loadVehicles(); }
   if (id === 'ledger')      renderLedger();
   if (id === 'pipeline')    renderPipelineBoard();
   if (id === 'costing')     initJobCosting();
@@ -149,6 +151,7 @@ async function init() {
   // _svAutoCreateChallans in supervisor-log.js) land on top of the loaded
   // list instead of being overwritten by it.
   if (typeof fetchSupervisorLog === 'function') fetchSupervisorLog();
+  if (typeof loadVehicles === 'function') loadVehicles();
 
   // Restore whichever page the user was on before a refresh, instead of
   // always landing back on Dashboard. Waits for orders to finish loading

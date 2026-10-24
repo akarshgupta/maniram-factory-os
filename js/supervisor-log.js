@@ -85,7 +85,9 @@ async function fetchSupervisorLog() {
       // refreshOrderIdDropdown) shows choices as "MIORD019 — Party — Product" so the supervisor
       // can recognise the right order; only the leading ID token is what matters here.
       orderId: (r[7] || '').toString().split('—')[0].trim(),
-      notes: r[8] || '',    // "Notes" — column I, only written by the office's Add Dispatch Entry
+      notes: r[8] || '',    // "Notes" — column I, written by the apps (not the Form)
+      vehicle: (r[9] || '').toString().toUpperCase().trim(),  // "Vehicle" — column J
+      tripId: r[10] || '',  // "Trip" — column K: rows saved together for one vehicle
     })).sort(byDateDesc);
     _svAutoCreateChallans();
     if (document.getElementById('svlog-root')) renderSupervisorLog(false); // keep the register live if it's the open page
@@ -959,7 +961,7 @@ function _svDispatchRow(e) {
   }
   return `<tr style="border-top:1px solid var(--border,#e5e7eb)">
     <td style="padding:8px 10px;font-weight:600">${e.party || '—'}</td>
-    <td style="padding:8px 10px">${e.product || '<span style="color:var(--muted,#888)">—</span>'}${e.notes ? `<div style="font-size:11px;color:#B45309;margin-top:2px;white-space:pre-wrap">📝 ${String(e.notes).replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div>` : ''}</td>
+    <td style="padding:8px 10px">${e.product || '<span style="color:var(--muted,#888)">—</span>'}${e.vehicle ? `<div style="font-size:11px;color:var(--navy);margin-top:2px">🚛 ${String(e.vehicle).replace(/</g,'&lt;')}</div>` : ''}${e.notes ? `<div style="font-size:11px;color:#B45309;margin-top:2px;white-space:pre-wrap">📝 ${String(e.notes).replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div>` : ''}</td>
     <td style="padding:8px 10px">${e.size || '—'}</td>
     <td style="padding:8px 10px">${e.pcs.toLocaleString('en-IN')}</td>
     <td style="padding:8px 10px;font-weight:700">${e.wtPc ? e.wtPc + ' gm' : '—'}</td>
@@ -1299,6 +1301,7 @@ function openSvAddEntry() {
     body = `
       <div class="popup-title">🚚 Add Dispatch Entry</div>
       <div class="form-group">${lbl('Date')}<input ${inp} type="date" id="sva-date" value="${todayStr}"></div>
+      <div class="form-group">${lbl('Vehicle')}<select class="form-select" style="width:100%" id="sva-vehicle"><option value="">— no vehicle —</option>${(typeof loadCachedVehicles === 'function' ? loadCachedVehicles() : []).map(v => `<option value="${v.number}">${vehicleLabel(v)}</option>`).join('')}</select></div>
       <div class="form-group">${lbl('Party name — type or pick')}<input ${inp} id="sva-party" list="sva-parties" placeholder="Customer" autocomplete="off" oninput="svAddPartyChanged()" onchange="svAddPartyChanged()">
         <datalist id="sva-parties">${names.map(c => `<option value="${c}">`).join('')}</datalist></div>
       <div id="sva-orders" style="margin-bottom:10px"></div>
@@ -1419,6 +1422,7 @@ function saveSvAddEntry() {
     if (items.some(it => it.pcs <= 0)) { msg.innerHTML = '⚠️ Enter the pieces dispatched.'; return; }
     if (!v('sva-party').trim() && items.some(it => !it.product)) { msg.innerHTML = '⚠️ Enter a party or a product.'; return; }
     const notes = v('sva-notes').trim();
+    const vehicle = v('sva-vehicle'), tripId = 'T' + Date.now().toString(36).toUpperCase();
     const shared = items.length > 1 ? `Same vehicle as ${items.length - 1} other product${items.length > 2 ? 's' : ''}` : '';
     // One sheet row per product. Rows are sent ~2 s apart because the sheet
     // stamps each with its own time to the second, and that stamp is what
@@ -1426,7 +1430,7 @@ function saveSvAddEntry() {
     const post = it => fetch(APPS_SCRIPT_URL, {
       method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'supervisorDispatchAppend', date, party: v('sva-party').trim(), pcs: it.pcs, size: it.size, wtPc: it.wtPc,
-        product: it.product, orderId: it.orderId, notes: [notes, shared].filter(Boolean).join(' · ') }),
+        product: it.product, orderId: it.orderId, notes: [notes, shared].filter(Boolean).join(' · '), vehicle, tripId }),
     }).catch(() => {});
     items.forEach((it, i) => i === 0 ? post(it) : setTimeout(() => post(it), i * 2200));
     _svaItems = [];

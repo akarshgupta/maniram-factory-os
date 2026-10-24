@@ -88,6 +88,7 @@
     <div class="nav-item" onclick="showPage('pipeline')"><span class="nav-icon">🚦</span> Pipeline Board</div>
     <div class="nav-item" onclick="showPage('production')"><span class="nav-icon">🏭</span> Production Plan</div>
     <div class="nav-item" onclick="showPage('svlog')"><span class="nav-icon">📝</span> Supervisor Log</div>
+    <div class="nav-item" onclick="showPage('vehicles')"><span class="nav-icon">🚛</span> Vehicles</div>
     <div class="nav-item" onclick="showPage('reels')"><span class="nav-icon">🧻</span> Reel Stock</div>
     <div class="nav-item" onclick="showPage('deckle')"><span class="nav-icon">📏</span> Deckle Optimizer</div>
     <div class="nav-item" onclick="showPage('clients')"><span class="nav-icon">🤝</span> Clients</div>
@@ -613,6 +614,10 @@
     </div>
 
     <!-- ══ SUPERVISOR LOG (Google Form register responses) ══ -->
+    <div id="page-vehicles" class="page">
+      <div id="vehicles-root"><div class="empty-state">Loading…</div></div>
+    </div>
+
     <div id="page-svlog" class="page">
       <div class="section-header">
         <div class="section-title">Supervisor Register</div>
@@ -1845,6 +1850,7 @@
 <script src="js/analytics.js"></script>
 <script src="js/registers.js"></script>
 <script src="js/supervisor-log.js"></script>
+<script src="js/vehicles.js"></script>
 <script src="js/ledger.js"></script>
 <script src="js/daily-report.js"></script>
 <script src="js/health-check.js"></script>

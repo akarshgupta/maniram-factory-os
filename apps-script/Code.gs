@@ -106,6 +106,8 @@ function doPost(e) {
     // ── Supervisor Portal (staff.html) — writes into the Form's own sheet ──
     else if (action === 'supervisorProductionAppend') supervisorProductionAppend(data);
     else if (action === 'supervisorDispatchAppend')   supervisorDispatchAppend(data);
+    else if (action === 'saveVehicle')                saveVehicle(data);
+    else if (action === 'deleteVehicle')              deleteVehicle(data);
     // ── Production Register (in-app machine-stage entries) ──
     else if (action === 'prodlogAppend')      prodlogAppend(data);
     else if (action === 'gsmSet')             gsmSet(data);
@@ -1179,12 +1181,55 @@ function supervisorDispatchAppend(d) {
   var ss = SpreadsheetApp.openById(SUPERVISOR_SHEET_ID);
   var sh = ss.getSheetByName('Dispatch');
   if (!sh) return;
+  // Columns I-K come from the apps, not the Form — label them once
+  if (!sh.getRange(1, 9).getValue())  sh.getRange(1, 9).setValue('Notes');
+  if (!sh.getRange(1, 10).getValue()) sh.getRange(1, 10).setValue('Vehicle');
+  if (!sh.getRange(1, 11).getValue()) sh.getRange(1, 11).setValue('Trip');
   var ts = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'M/d/yyyy H:mm:ss');
   sh.appendRow([
     ts, d.date || '', d.party || '',
     d.pcs || '', d.size || '', d.wtPc || '',
-    d.product || '', d.orderId || '', d.notes || ''
+    d.product || '', d.orderId || '', d.notes || '',
+    d.vehicle || '', d.tripId || ''
   ]);
+}
+
+// ══════════════════════════════════════════════════════════════
+// VEHICLES  →  ORDERS_SHEET_ID / "Vehicles" tab (auto-created)
+// One row per vehicle, keyed by vehicle number (spaces/case ignored).
+// ══════════════════════════════════════════════════════════════
+var VEHICLE_HEADERS = ['Vehicle No', 'Type', 'Owner', 'Owner Phone', 'Driver', 'Driver Phone', 'Added'];
+
+function _getOrCreateVehiclesSheet() {
+  var ss = SpreadsheetApp.openById(ORDERS_SHEET_ID);
+  var sh = ss.getSheetByName('Vehicles');
+  if (!sh) { sh = ss.insertSheet('Vehicles'); sh.appendRow(VEHICLE_HEADERS); sh.setFrozenRows(1); }
+  return sh;
+}
+
+function _vehicleKey(v) { return String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+
+function saveVehicle(d) {
+  var key = _vehicleKey(d.number);
+  if (!key) return;
+  var lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    var sh = _getOrCreateVehiclesSheet();
+    var rows = sh.getDataRange().getValues();
+    var row = [String(d.number).toUpperCase().trim(), d.type || '', d.owner || '', d.ownerPhone || '', d.driver || '', d.driverPhone || ''];
+    for (var i = 1; i < rows.length; i++) {
+      if (_vehicleKey(rows[i][0]) === key) { sh.getRange(i + 1, 1, 1, row.length).setValues([row]); return; }
+    }
+    sh.appendRow(row.concat([Utilities.formatDate(new Date(), 'Asia/Kolkata', 'dd/MM/yyyy')]));
+  } finally { lock.releaseLock(); }
+}
+
+function deleteVehicle(d) {
+  var key = _vehicleKey(d.number);
+  if (!key) return;
+  var sh = _getOrCreateVehiclesSheet();
+  var rows = sh.getDataRange().getValues();
+  for (var i = rows.length - 1; i >= 1; i--) if (_vehicleKey(rows[i][0]) === key) { sh.deleteRow(i + 1); return; }
 }
 
 // ══════════════════════════════════════════════════════════════

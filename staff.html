@@ -142,7 +142,25 @@
       <div class="card" style="max-width:600px">
         <div class="card-header"><div class="card-title">🚚 Log a Dispatch</div></div>
         <div class="card-body">
-          <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Pick the party, then the order this trip is for. This goes straight into the same register the office sees.</p>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Date and vehicle first, then the party and the order this trip is for. This goes straight into the same register the office sees.</p>
+
+          <div class="calc-grid">
+            <div class="form-group"><label class="form-label" style="display:block">Date</label><input class="form-input" type="date" id="de-date"></div>
+            <div class="form-group"><label class="form-label" style="display:block">Vehicle</label>
+              <select class="form-select" id="de-vehicle" onchange="onDeVehicle()"><option value="">— pick the vehicle —</option></select></div>
+          </div>
+          <div id="de-v-new" style="display:none;border:1.5px dashed var(--blue);border-radius:10px;padding:12px;margin-bottom:12px">
+            <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:8px">🚛 New vehicle — saved for next time</div>
+            <div class="calc-grid">
+              <div class="form-group"><label class="form-label" style="display:block">Vehicle number</label><input class="form-input" id="de-v-number" placeholder="e.g. UP93 AB 1234" style="text-transform:uppercase"></div>
+              <div class="form-group"><label class="form-label" style="display:block">Vehicle type</label><input class="form-input" id="de-v-type" list="de-v-types" placeholder="e.g. Tata Ace"><datalist id="de-v-types"><option value="Tata Ace"><option value="Pickup"><option value="Tempo"><option value="Mini Truck"><option value="Truck"><option value="E-Rickshaw"><option value="Tractor Trolley"></datalist></div>
+              <div class="form-group"><label class="form-label" style="display:block">Owner name</label><input class="form-input" id="de-v-owner" placeholder="Owner"></div>
+              <div class="form-group"><label class="form-label" style="display:block">Owner phone</label><input class="form-input" type="tel" id="de-v-ownerphone" placeholder="10-digit mobile"></div>
+              <div class="form-group"><label class="form-label" style="display:block">Driver name</label><input class="form-input" id="de-v-driver" placeholder="Driver"></div>
+              <div class="form-group"><label class="form-label" style="display:block">Driver phone</label><input class="form-input" type="tel" id="de-v-driverphone" placeholder="10-digit mobile"></div>
+            </div>
+            <button class="btn-primary" style="width:100%" onclick="saveDeVehicle()">💾 Save vehicle</button>
+          </div>
 
           <div class="form-group" style="margin-bottom:10px">
             <label class="form-label" style="display:block">Party</label>
@@ -171,13 +189,13 @@
           </div>
 
           <div class="calc-grid">
-            <div class="form-group"><label class="form-label" style="display:block">Date</label><input class="form-input" type="date" id="de-date"></div>
             <div class="form-group"><label class="form-label" style="display:block">Pieces dispatched</label><input class="form-input" type="number" id="de-pcs" placeholder="e.g. 1000" min="1"></div>
-            <div class="form-group"><label class="form-label" style="display:block">Weight per piece (gm)</label><input class="form-input" type="number" id="de-wtpc" placeholder="e.g. 650" step="0.1" min="0"></div>
+            <div class="form-group"><label class="form-label" style="display:block">Actual weight of a sample box (gm)</label><input class="form-input" type="number" id="de-wtpc" placeholder="Weigh one box" step="0.1" min="0" oninput="_deWeightHint()"></div>
           </div>
+          <div id="de-wt-hint" style="margin:2px 0 12px;font-size:12px;line-height:1.4"></div>
           <button class="btn-secondary" style="width:100%;margin:-2px 0 10px;font-size:13px" onclick="addDeItem()" title="Several products in the same vehicle — add this one to the list and pick the next">➕ Add another product (same vehicle)</button>
           <div id="de-items"></div>
-          <div class="form-group"><label class="form-label" style="display:block">Notes (optional)</label><textarea class="form-input" id="de-notes" rows="2" placeholder="Vehicle no., driver, short delivery, anything the office should know"></textarea></div>
+          <div class="form-group"><label class="form-label" style="display:block">Notes (optional)</label><textarea class="form-input" id="de-notes" rows="2" placeholder="Short delivery, damage, anything the office should know"></textarea></div>
           <button class="btn-primary" style="width:100%;padding:12px;font-size:15px;margin-top:6px" onclick="saveDispatchEntry()">💾 Save Dispatch</button>
           <div id="de-msg" style="margin-top:8px;font-size:13px"></div>
         </div>
