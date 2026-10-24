@@ -139,46 +139,43 @@
 
     <!-- ══ DISPATCH ENTRY TAB ══ -->
     <div id="staff-tab-dispatchentry" style="display:none">
-      <div class="card" style="max-width:560px">
+      <div class="card" style="max-width:600px">
         <div class="card-header"><div class="card-title">🚚 Log a Dispatch</div></div>
         <div class="card-body">
-          <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Pick the order this trip is for, then enter how many pieces and the weight per piece. This goes straight into the same register the office sees.</p>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Pick the party, then the order this trip is for. This goes straight into the same register the office sees.</p>
 
-          <div class="form-group" style="margin-bottom:12px">
-            <label class="form-label">Order</label>
-            <input class="form-input" type="text" id="de-order-search" placeholder="Search by product, size, or Order ID..." autocomplete="off" oninput="onDeOrderInput()" onfocus="onDeOrderInput()">
-            <div class="autocomplete-list" id="de-order-dropdown" style="display:none"></div>
+          <div class="form-group" style="margin-bottom:10px">
+            <label class="form-label" style="display:block">Party</label>
+            <input class="form-input" id="de-party" list="de-party-list" placeholder="Type or pick the party…" autocomplete="off" oninput="onDeParty()" onchange="onDeParty()">
+            <datalist id="de-party-list"></datalist>
           </div>
-          <div id="de-order-selected" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13px">
-            <span style="font-weight:700;font-family:monospace" id="de-selected-id"></span>
-            <span style="color:var(--muted)" id="de-selected-desc"></span>
-          </div>
-          <label style="display:flex;gap:8px;align-items:center;font-size:13px;margin:-4px 0 12px;cursor:pointer">
-            <input type="checkbox" id="de-noorder" onchange="toggleDeNoOrder()"> Order not in the list — type the product instead
-          </label>
-          <div id="de-free" style="display:none">
+          <div id="de-orders" style="margin-bottom:10px"></div>
+
+          <div id="de-new" style="display:none;border:1.5px dashed var(--blue);border-radius:10px;padding:12px;margin-bottom:12px">
+            <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:8px">➕ New order — the office will add the rate</div>
             <div class="calc-grid">
-              <div class="form-group"><label class="form-label">Product name</label><input class="form-input" id="de-free-product" placeholder="e.g. Choti Lily"></div>
-              <div class="form-group"><label class="form-label">Size L×W×H</label><input class="form-input" id="de-free-size" placeholder="e.g. 20*14*28"></div>
-              <div class="form-group"><label class="form-label">Going to (optional)</label><input class="form-input" id="de-free-party" placeholder="Party name if known"></div>
+              <div class="form-group"><label class="form-label" style="display:block">Product name</label><input class="form-input" id="de-n-product" placeholder="e.g. Choti Lily"></div>
+              <div class="form-group"><label class="form-label" style="display:block">Size L×W×H (inch)</label><input class="form-input" id="de-n-size" placeholder="e.g. 20*14*28"></div>
+              <div class="form-group"><label class="form-label" style="display:block">Colour</label><input class="form-input" id="de-n-colour" placeholder="e.g. Red"></div>
+              <div class="form-group"><label class="form-label" style="display:block">Ply</label><select class="form-select" id="de-n-ply"><option>3</option><option>5</option><option>7</option><option>9</option></select></div>
+              <div class="form-group"><label class="form-label" style="display:block">Quantity ordered (pcs)</label><input class="form-input" type="number" id="de-n-qty" placeholder="e.g. 1000"></div>
+            </div>
+          </div>
+
+          <div id="de-free" style="display:none;border:1.5px dashed #B45309;border-radius:10px;padding:12px;margin-bottom:12px">
+            <div style="font-size:12px;font-weight:700;color:#92400E;margin-bottom:8px">📦 Dispatch for this party without an order</div>
+            <div class="calc-grid">
+              <div class="form-group"><label class="form-label" style="display:block">Product name</label><input class="form-input" id="de-free-product" placeholder="e.g. Choti Lily"></div>
+              <div class="form-group"><label class="form-label" style="display:block">Size L×W×H</label><input class="form-input" id="de-free-size" placeholder="e.g. 20*14*28"></div>
             </div>
           </div>
 
           <div class="calc-grid">
-            <div class="form-group">
-              <label class="form-label">Date</label>
-              <input class="form-input" type="date" id="de-date">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Pieces dispatched</label>
-              <input class="form-input" type="number" id="de-pcs" placeholder="e.g. 1000" min="1">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Weight per piece (gm)</label>
-              <input class="form-input" type="number" id="de-wtpc" placeholder="e.g. 650" step="0.1" min="0">
-            </div>
+            <div class="form-group"><label class="form-label" style="display:block">Date</label><input class="form-input" type="date" id="de-date"></div>
+            <div class="form-group"><label class="form-label" style="display:block">Pieces dispatched</label><input class="form-input" type="number" id="de-pcs" placeholder="e.g. 1000" min="1"></div>
+            <div class="form-group"><label class="form-label" style="display:block">Weight per piece (gm)</label><input class="form-input" type="number" id="de-wtpc" placeholder="e.g. 650" step="0.1" min="0"></div>
           </div>
-          <div class="form-group"><label class="form-label">Notes (optional)</label><textarea class="form-input" id="de-notes" rows="2" placeholder="Vehicle no., driver, short delivery, anything the office should know"></textarea></div>
+          <div class="form-group"><label class="form-label" style="display:block">Notes (optional)</label><textarea class="form-input" id="de-notes" rows="2" placeholder="Vehicle no., driver, short delivery, anything the office should know"></textarea></div>
           <button class="btn-primary" style="width:100%;padding:12px;font-size:15px;margin-top:6px" onclick="saveDispatchEntry()">💾 Save Dispatch</button>
           <div id="de-msg" style="margin-top:8px;font-size:13px"></div>
         </div>
