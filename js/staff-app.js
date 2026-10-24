@@ -600,7 +600,6 @@ function _deWeightHint() {
   const act = parseFloat(document.getElementById('de-wtpc')?.value) || 0;
   if (!exp) { el.innerHTML = act ? '' : '<span style="color:var(--muted)">Weigh one box from this lot and enter it above.</span>'; return; }
   if (!act) { el.innerHTML = `Expected weight of this box: <strong>${exp} gm</strong> — weigh one box and enter it above.`; return; }
-  if (document.getElementById('de-wtpc')?.dataset.auto === '1') { el.innerHTML = `Filled with the expected weight, <strong>${exp} gm</strong> — change it if the sample weighs differently.`; return; }
   const diff = (act - exp) / exp * 100, a = Math.abs(diff);
   const c = a <= 3 ? '#15803D' : a <= 7 ? '#B45309' : '#B91C1C';
   el.innerHTML = `Expected <strong>${exp} gm</strong> · actual <strong>${act} gm</strong> · <strong style="color:${c}">${diff >= 0 ? '+' : ''}${diff.toFixed(1)}%</strong>${a > 7 ? ' — check the paper GSM or size' : ''}`;
@@ -664,30 +663,13 @@ function pickDeProduct(which) {
     set('de-n-product', p ? p.product : ''); set('de-n-size', p ? p.size : ''); set('de-n-colour', p ? p.colour : '');
     if (p && p.ply) set('de-n-ply', p.ply);
   } else { set('de-free-product', p ? p.product : ''); set('de-free-size', p ? p.size : ''); }
-  const key = p ? 'p:' + sel.value : '';
-  _deAutoWeight(p ? p.weight : 0, !!p && _deWeightFor !== key); _deWeightFor = key;
-  if (p && p.weight) document.getElementById('de-wt-hint').innerHTML = document.getElementById('de-wtpc').dataset.auto === '1'
-    ? `Filled with the expected weight, <strong>${p.weight} gm</strong> (from the earlier order) — change it if the sample weighs differently.`
-    : `Expected weight of this box: <strong>${p.weight} gm</strong> (from the earlier order).`;
+  if (p && p.weight) document.getElementById('de-wt-hint').innerHTML = `Expected weight of this box: <strong>${p.weight} gm</strong> (from the earlier order).`;
   (document.getElementById(which === 'n' ? (p ? 'de-n-qty' : 'de-n-product') : (p ? 'de-pcs' : 'de-free-product')) || {}).focus?.();
 }
 
-// Fill the sample-weight field with the expected box weight so it is never
-// left empty; the supervisor overwrites it if the sample weighs differently.
-// Only replaces a value the app put there itself, never one that was typed.
-function _deAutoWeight(w, force) {
-  const el = document.getElementById('de-wtpc');
-  if (!el) return;
-  if (force || !el.value || el.dataset.auto === '1') { el.value = w || ''; el.dataset.auto = w ? '1' : ''; }
-  _deWeightHint();
-}
-
-let _deWeightFor = null;   // which order/product the weight field was filled for
 function selectDeOrder(orderId) {
   _deSelectedOrder = staffOrders.find(x => x.id === orderId) || null;
   _deSetMode(_deSelectedOrder ? 'order' : '');
-  // A different order brings its own expected weight, replacing the last one's
-  if (_deSelectedOrder) { _deAutoWeight(parseFloat(_deSelectedOrder.weight) || 0, _deWeightFor !== orderId); _deWeightFor = orderId; }
 }
 
 function _deNextOrderId() {
@@ -753,8 +735,6 @@ function _deCurrentItem() {
 }
 
 function _deClearItemFields() {
-  const w = document.getElementById('de-wtpc'); if (w) w.dataset.auto = '';
-  _deWeightFor = null;
   ['de-pcs', 'de-wtpc', 'de-free-product', 'de-free-size', 'de-n-product', 'de-n-size', 'de-n-colour', 'de-n-qty'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   _deSelectedOrder = null; _deSetMode('');
 }

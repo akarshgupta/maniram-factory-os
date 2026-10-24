@@ -243,15 +243,19 @@ function calcBoxWeight(L, W, H, layers, withMargin) {
 // dispatch form. Stored in the Orders spreadsheet's "Vehicles" tab (created by
 // Code.gs on the first saveVehicle); cached in localStorage for offline use.
 const LS_VEHICLES = 'mi_vehicles_v1';
+// Vehicle type list shared by both portals' vehicle forms. "Tempo" was
+// renamed "3 Wheeler Loading" — older rows saved as Tempo show the new name.
+const VEHICLE_TYPES = ['Tata Ace', 'Pickup', '3 Wheeler Loading', 'Passenger CNG', 'Mini Truck', 'Truck', 'E-Rickshaw', 'Tractor Trolley'];
+function vehicleTypeName(t) { t = String(t || '').trim(); return /^(tempo|loading)$/i.test(t) ? '3 Wheeler Loading' : t; }
 function vehicleKey(v) { return String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
-function loadCachedVehicles() { try { return JSON.parse(localStorage.getItem(LS_VEHICLES) || '[]'); } catch { return []; } }
+function loadCachedVehicles() { try { return JSON.parse(localStorage.getItem(LS_VEHICLES) || '[]').map(v => ({ ...v, type: vehicleTypeName(v.type) })); } catch { return []; } }
 async function fetchVehicleList() {
   try {
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${ORDERS_SHEET_ID}/values/${encodeURIComponent('Vehicles!A1:G500')}?key=${API_KEY}&_=${Date.now()}`;
     const json = await (await fetch(url)).json();
     if (json.error) return loadCachedVehicles();   // tab not created yet
     const list = (json.values || []).slice(1).filter(r => r[0]).map(r => ({
-      number: String(r[0]).toUpperCase().trim(), type: r[1] || '', owner: r[2] || '', ownerPhone: r[3] || '',
+      number: String(r[0]).toUpperCase().trim(), type: vehicleTypeName(r[1]), owner: r[2] || '', ownerPhone: r[3] || '',
       driver: r[4] || '', driverPhone: r[5] || '', added: r[6] || '',
     }));
     // Keep vehicles added on this device that the sheet hasn't caught up with yet
