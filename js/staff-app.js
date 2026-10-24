@@ -254,7 +254,12 @@ const STAFF_TAB_TITLES = {
   stock: '🧻 Reel Stock', delivery: '📅 Delivery Date', weight: '⚖️ Box Weight', process: '⚗️ Process Log', vehicles: '🚛 Vehicles',
 };
 
+const LS_STAFF_TAB = 'mi_staff_last_tab_v1';
 function showStaffTab(id, btn) {
+  if (!STAFF_TABS.includes(id)) id = 'orders';
+  // Remember it, so a refresh comes back to this tab instead of Orders
+  try { localStorage.setItem(LS_STAFF_TAB, id); } catch (e) {}
+  if (!btn) btn = [...document.querySelectorAll('.staff-tabs > .staff-tab')].find(b => (b.getAttribute('onclick') || '').includes(`'${id}'`));
   STAFF_TABS.forEach(t => {
     document.getElementById('staff-tab-' + t).style.display = t === id ? 'block' : 'none';
   });
@@ -1328,6 +1333,8 @@ function staffInit() {
 
   checkStaffAuth();
   if (staffIsLoggedIn()) {
+    // Reopen the tab that was open before the refresh
+    step(() => { const last = localStorage.getItem(LS_STAFF_TAB); if (last && last !== 'orders') showStaffTab(last); });
     staffFetchOrders();
     setInterval(staffFetchOrders, 5 * 60 * 1000);
     // Still loading after 20 s → say so instead of spinning forever
